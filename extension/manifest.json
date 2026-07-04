@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Relic Pay — Yield-Bearing BNPL",
+  "version": "1.0.0",
+  "description": "Stake USDC, unlock discounts on any e-commerce site. Powered by Solana.",
+  "permissions": ["storage", "activeTab"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Relic Pay"
+  },
+  "host_permissions": []
+}

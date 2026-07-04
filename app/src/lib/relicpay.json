@@ -1,0 +1,1720 @@
+{
+  "address": "5GPVYpyzdosbzWcdttcCdziJVqUCCARf98J857C3T6Gi",
+  "metadata": {
+    "name": "relicpay",
+    "version": "2.0.0",
+    "spec": "0.1.0",
+    "description": "Relic Pay v2 — Decentralized BNPL on Solana using USDC"
+  },
+  "instructions": [
+    {
+      "name": "cancel_agreement",
+      "discriminator": [
+        75,
+        89,
+        85,
+        4,
+        100,
+        216,
+        143,
+        37
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buyer_usdc",
+          "writable": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_yield",
+      "discriminator": [
+        49,
+        74,
+        111,
+        7,
+        186,
+        22,
+        61,
+        165
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_agreement",
+      "docs": [
+        "v2: reclaim rent from a settled agreement (Completed/Cancelled/Defaulted)."
+      ],
+      "discriminator": [
+        48,
+        34,
+        42,
+        18,
+        144,
+        209,
+        198,
+        55
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_agreement",
+      "discriminator": [
+        220,
+        156,
+        65,
+        172,
+        252,
+        68,
+        74,
+        233
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "arg",
+                "path": "product_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "merchant",
+          "docs": [
+            "Not a signer; merchant is only needed at withdrawal time."
+          ]
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "buyer_usdc",
+          "writable": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "total_price",
+          "type": "u64"
+        },
+        {
+          "name": "installment_count",
+          "type": "u8"
+        },
+        {
+          "name": "interval_seconds",
+          "type": "i64"
+        },
+        {
+          "name": "product_id",
+          "type": "string"
+        },
+        {
+          "name": "merchant_name",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "init_stake_pool",
+      "discriminator": [
+        145,
+        69,
+        167,
+        211,
+        154,
+        130,
+        73,
+        50
+      ],
+      "accounts": [
+        {
+          "name": "stake_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "pool_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stake_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "merchant_withdraw",
+      "discriminator": [
+        0,
+        102,
+        63,
+        159,
+        198,
+        163,
+        36,
+        194
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement.buyer",
+                "account": "BnplAgreement"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant",
+          "signer": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pay_installment",
+      "discriminator": [
+        214,
+        118,
+        104,
+        215,
+        242,
+        93,
+        33,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buyer_usdc",
+          "writable": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "stake_usdc",
+      "discriminator": [
+        251,
+        129,
+        45,
+        51,
+        186,
+        215,
+        88,
+        181
+      ],
+      "accounts": [
+        {
+          "name": "stake_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user_usdc",
+          "writable": true
+        },
+        {
+          "name": "pool_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stake_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "trigger_default",
+      "discriminator": [
+        101,
+        124,
+        194,
+        181,
+        119,
+        246,
+        180,
+        8
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement.buyer",
+                "account": "BnplAgreement"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller"
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant_usdc",
+          "docs": [
+            "Merchant recovery destination — must belong to the recorded merchant",
+            "so a hostile caller cannot redirect escrow to themselves."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "unstake_usdc",
+      "discriminator": [
+        25,
+        19,
+        219,
+        118,
+        105,
+        104,
+        6,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "stake_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "user_usdc",
+          "writable": true
+        },
+        {
+          "name": "pool_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stake_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_pool_rate",
+      "docs": [
+        "v2: stake pool authority tunes the APY (capped at MAX_YIELD_RATE_BPS)."
+      ],
+      "discriminator": [
+        68,
+        133,
+        88,
+        63,
+        221,
+        39,
+        202,
+        98
+      ],
+      "accounts": [
+        {
+          "name": "stake_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_rate_bps",
+          "type": "u16"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "BnplAgreement",
+      "discriminator": [
+        121,
+        248,
+        215,
+        203,
+        200,
+        37,
+        16,
+        195
+      ]
+    },
+    {
+      "name": "StakePool",
+      "discriminator": [
+        121,
+        34,
+        206,
+        21,
+        79,
+        127,
+        255,
+        28
+      ]
+    },
+    {
+      "name": "UserStake",
+      "discriminator": [
+        102,
+        53,
+        163,
+        107,
+        9,
+        138,
+        87,
+        153
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AgreementCancelled",
+      "discriminator": [
+        132,
+        200,
+        190,
+        125,
+        242,
+        4,
+        12,
+        146
+      ]
+    },
+    {
+      "name": "AgreementClosed",
+      "discriminator": [
+        98,
+        116,
+        128,
+        9,
+        99,
+        60,
+        131,
+        78
+      ]
+    },
+    {
+      "name": "AgreementCompleted",
+      "discriminator": [
+        213,
+        199,
+        79,
+        149,
+        251,
+        172,
+        90,
+        22
+      ]
+    },
+    {
+      "name": "AgreementCreated",
+      "discriminator": [
+        131,
+        148,
+        204,
+        18,
+        83,
+        92,
+        57,
+        18
+      ]
+    },
+    {
+      "name": "AgreementDefaulted",
+      "discriminator": [
+        72,
+        169,
+        50,
+        102,
+        162,
+        201,
+        73,
+        131
+      ]
+    },
+    {
+      "name": "InstallmentPaid",
+      "discriminator": [
+        247,
+        32,
+        44,
+        43,
+        84,
+        76,
+        215,
+        84
+      ]
+    },
+    {
+      "name": "MerchantPaid",
+      "discriminator": [
+        112,
+        25,
+        249,
+        161,
+        169,
+        110,
+        224,
+        171
+      ]
+    },
+    {
+      "name": "PoolRateUpdated",
+      "discriminator": [
+        183,
+        21,
+        232,
+        222,
+        55,
+        16,
+        166,
+        190
+      ]
+    },
+    {
+      "name": "StakePoolInitialized",
+      "discriminator": [
+        87,
+        0,
+        226,
+        242,
+        252,
+        77,
+        61,
+        16
+      ]
+    },
+    {
+      "name": "Staked",
+      "discriminator": [
+        11,
+        146,
+        45,
+        205,
+        230,
+        58,
+        213,
+        240
+      ]
+    },
+    {
+      "name": "Unstaked",
+      "discriminator": [
+        27,
+        179,
+        156,
+        215,
+        47,
+        71,
+        195,
+        7
+      ]
+    },
+    {
+      "name": "YieldClaimed",
+      "discriminator": [
+        177,
+        201,
+        94,
+        68,
+        19,
+        200,
+        227,
+        27
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidAmount",
+      "msg": "Invalid payment amount — must be greater than zero"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidInstallments",
+      "msg": "Installment count must be between 2 and 12"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidInterval",
+      "msg": "Payment interval must be greater than zero"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidProductId",
+      "msg": "Product ID must be 64 characters or fewer"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidMerchantName",
+      "msg": "Merchant name must be 64 characters or fewer"
+    },
+    {
+      "code": 6005,
+      "name": "AgreementNotActive",
+      "msg": "Agreement is not active"
+    },
+    {
+      "code": 6006,
+      "name": "AgreementNotComplete",
+      "msg": "Agreement is not yet complete"
+    },
+    {
+      "code": 6007,
+      "name": "AlreadyCompleted",
+      "msg": "All installments already paid"
+    },
+    {
+      "code": 6008,
+      "name": "PaymentNotDue",
+      "msg": "Next payment is not due yet — check your schedule"
+    },
+    {
+      "code": 6009,
+      "name": "GracePeriodNotExpired",
+      "msg": "Grace period has not expired — wait 7 days past the missed due date"
+    },
+    {
+      "code": 6010,
+      "name": "Unauthorized",
+      "msg": "Unauthorized — only the authorized wallet can call this"
+    },
+    {
+      "code": 6011,
+      "name": "NothingToWithdraw",
+      "msg": "Nothing to withdraw"
+    },
+    {
+      "code": 6012,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6013,
+      "name": "AlreadyWithdrawn",
+      "msg": "Merchant has already withdrawn payment for this agreement"
+    },
+    {
+      "code": 6014,
+      "name": "AgreementNotSettled",
+      "msg": "Agreement is still active or has unsettled funds — cannot close"
+    },
+    {
+      "code": 6015,
+      "name": "RateTooHigh",
+      "msg": "Yield rate exceeds the protocol maximum"
+    }
+  ],
+  "types": [
+    {
+      "name": "AgreementCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "refund_to_buyer",
+            "type": "u64"
+          },
+          {
+            "name": "fee_to_merchant",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgreementClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgreementCompleted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_paid",
+            "type": "u64"
+          },
+          {
+            "name": "yield_earned_by_buyer",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgreementCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_price",
+            "type": "u64"
+          },
+          {
+            "name": "installment_count",
+            "type": "u8"
+          },
+          {
+            "name": "installment_amount",
+            "type": "u64"
+          },
+          {
+            "name": "product_id",
+            "type": "string"
+          },
+          {
+            "name": "merchant_name",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgreementDefaulted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "paid_installments",
+            "type": "u8"
+          },
+          {
+            "name": "merchant_recovered",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgreementState",
+      "docs": [
+        "Lifecycle of a BNPL agreement."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Defaulted"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BnplAgreement",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_price",
+            "type": "u64"
+          },
+          {
+            "name": "installment_count",
+            "type": "u8"
+          },
+          {
+            "name": "installment_amount",
+            "type": "u64"
+          },
+          {
+            "name": "interval_seconds",
+            "type": "i64"
+          },
+          {
+            "name": "paid_installments",
+            "type": "u8"
+          },
+          {
+            "name": "start_time",
+            "type": "i64"
+          },
+          {
+            "name": "last_yield_update",
+            "type": "i64"
+          },
+          {
+            "name": "state",
+            "type": {
+              "defined": {
+                "name": "AgreementState"
+              }
+            }
+          },
+          {
+            "name": "yield_accrued",
+            "type": "u64"
+          },
+          {
+            "name": "escrow_deposited",
+            "type": "u64"
+          },
+          {
+            "name": "yield_rate_bps_annual",
+            "type": "u16"
+          },
+          {
+            "name": "product_id",
+            "type": "string"
+          },
+          {
+            "name": "merchant_name",
+            "type": "string"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "merchant_withdrawn",
+            "type": "bool"
+          },
+          {
+            "name": "version",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InstallmentPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "installment_number",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "yield_accrued_so_far",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MerchantPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoolRateUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_rate_bps",
+            "type": "u16"
+          },
+          {
+            "name": "new_rate_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StakePool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_staked",
+            "type": "u64"
+          },
+          {
+            "name": "yield_rate_bps_annual",
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StakePoolInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "yield_rate_bps_annual",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Staked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "new_total",
+            "type": "u64"
+          },
+          {
+            "name": "tier",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Unstaked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "principal",
+            "type": "u64"
+          },
+          {
+            "name": "yield_paid",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_staked",
+            "type": "u64"
+          },
+          {
+            "name": "tier",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserStake",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "staked_amount",
+            "type": "u64"
+          },
+          {
+            "name": "yield_accrued",
+            "type": "u64"
+          },
+          {
+            "name": "last_update",
+            "type": "i64"
+          },
+          {
+            "name": "tier",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "YieldClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "yield_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

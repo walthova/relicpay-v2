@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relic Pay</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup">
+    <header class="popup-header">
+      <h1>Relic Pay</h1>
+      <p>Yield-bearing BNPL</p>
+    </header>
+
+    <div id="content">
+      <div id="disconnected" class="section">
+        <p class="intro">Connect your Phantom wallet to enable Relic Pay discounts.</p>
+        <button id="connectBtn" class="btn btn-primary">Connect Phantom</button>
+      </div>
+
+      <div id="connected" class="section hidden">
+        <div class="wallet-info">
+          <p class="label">Connected wallet</p>
+          <p id="walletAddress" class="wallet-addr">•••••</p>
+        </div>
+
+        <div class="stake-info">
+          <div class="info-row">
+            <span class="info-label">Discount tier</span>
+            <span id="tierBadge" class="tier-badge">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Discount amount</span>
+            <span id="discountAmount" class="info-value">0.0%</span>
+          </div>
+        </div>
+
+        <p class="hint">
+          Discounts are automatically applied on any e-commerce site when you browse with this extension.
+        </p>
+
+        <a href="https://relic-pay.example.com" target="_blank" class="link-btn">
+          Go to dashboard →
+        </a>
+
+        <button id="disconnectBtn" class="btn btn-secondary">Disconnect</button>
+      </div>
+    </div>
+
+    <footer class="popup-footer">
+      <p>Built on Solana · Devnet only</p>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
