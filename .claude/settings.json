@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(anchor build*)",
+      "Bash(anchor test*)",
+      "Bash(anchor keys*)",
+      "Bash(cargo build*)",
+      "Bash(cargo test*)",
+      "Bash(cargo fmt*)",
+      "Bash(cargo clippy*)",
+      "Bash(npm install*)",
+      "Bash(npm run*)",
+      "Bash(npm test*)",
+      "Bash(node scripts/*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(ls*)",
+      "Bash(mkdir*)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(anchor deploy*)",
+      "Bash(solana transfer*)",
+      "Bash(solana program deploy*)",
+      "Read(~/.config/solana/**)"
+    ]
+  }
+}
