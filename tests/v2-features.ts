@@ -89,11 +89,16 @@ describe("relicpay v2 features", () => {
   }
 
   before(async () => {
-    await Promise.all([
+    const latest = await provider.connection.getLatestBlockhash();
+    const sigs = await Promise.all([
       provider.connection.requestAirdrop(buyer.publicKey, 10 * LAMPORTS_PER_SOL),
       provider.connection.requestAirdrop(merchant.publicKey, 2 * LAMPORTS_PER_SOL),
     ]);
-    await new Promise((r) => setTimeout(r, 1000));
+    await Promise.all(
+      sigs.map((sig) =>
+        provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed")
+      )
+    );
 
     usdcMint = await createMint(provider.connection, buyer, buyer.publicKey, null, 6);
     buyerUsdc = await createAccount(provider.connection, buyer, usdcMint, buyer.publicKey);
@@ -297,5 +302,116 @@ describe("relicpay v2 features", () => {
         assert.include(err.message, c.err);
       }
     }
+  });
+
+  // ── v2.1: ProtocolConfig risk controls (DEVELOPMENT_PLAN.md v2.1 item 5) ──
+  // Standalone in this increment — not yet wired into create_agreement /
+  // stake_usdc (see state.rs for why). These tests cover the governance
+  // surface: init, pause toggle, risk-limit updates, and authority gating.
+
+  describe("protocol config (risk controls)", () => {
+    const govAuthority = Keypair.generate();
+    const attacker = Keypair.generate();
+
+    const configPDA = (): PublicKey =>
+      PublicKey.findProgramAddressSync(
+        [Buffer.from("protocol_config")],
+        program.programId
+      )[0];
+
+    before(async () => {
+      const latest = await provider.connection.getLatestBlockhash();
+      const sigs = await Promise.all([
+        provider.connection.requestAirdrop(govAuthority.publicKey, 2 * LAMPORTS_PER_SOL),
+        provider.connection.requestAirdrop(attacker.publicKey, 2 * LAMPORTS_PER_SOL),
+      ]);
+      await Promise.all(
+        sigs.map((sig) =>
+          provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed")
+        )
+      );
+    });
+
+    it("initializes the ProtocolConfig PDA with permissive defaults", async () => {
+      const config = configPDA();
+      await program.methods
+        .initProtocolConfig()
+        .accounts({
+          config,
+          authority: govAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([govAuthority])
+        .rpc();
+
+      const acct = await program.account.protocolConfig.fetch(config);
+      assert.equal(acct.authority.toBase58(), govAuthority.publicKey.toBase58());
+      assert.isFalse(acct.paused);
+      assert.equal(acct.maxAgreementDeposit.toString(), "0");
+      assert.equal(acct.tvlCap.toString(), "0");
+      assert.equal(acct.currentTvl.toString(), "0");
+    });
+
+    it("rejects set_protocol_paused from a non-authority wallet", async () => {
+      const config = configPDA();
+      try {
+        await program.methods
+          .setProtocolPaused(true)
+          .accounts({ config, authority: attacker.publicKey })
+          .signers([attacker])
+          .rpc();
+        assert.fail("Expected Unauthorized");
+      } catch (err: any) {
+        assert.include(err.message, "Unauthorized");
+      }
+    });
+
+    it("lets the governance authority toggle the pause flag", async () => {
+      const config = configPDA();
+      await program.methods
+        .setProtocolPaused(true)
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      let acct = await program.account.protocolConfig.fetch(config);
+      assert.isTrue(acct.paused);
+
+      await program.methods
+        .setProtocolPaused(false)
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      acct = await program.account.protocolConfig.fetch(config);
+      assert.isFalse(acct.paused);
+    });
+
+    it("rejects update_risk_limits from a non-authority wallet", async () => {
+      const config = configPDA();
+      try {
+        await program.methods
+          .updateRiskLimits(new BN(1_000_000_000), new BN(10_000_000_000))
+          .accounts({ config, authority: attacker.publicKey })
+          .signers([attacker])
+          .rpc();
+        assert.fail("Expected Unauthorized");
+      } catch (err: any) {
+        assert.include(err.message, "Unauthorized");
+      }
+    });
+
+    it("lets the governance authority update the deposit and TVL caps", async () => {
+      const config = configPDA();
+      await program.methods
+        .updateRiskLimits(new BN(1_000_000_000), new BN(10_000_000_000))
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      const acct = await program.account.protocolConfig.fetch(config);
+      assert.equal(acct.maxAgreementDeposit.toString(), "1000000000");
+      assert.equal(acct.tvlCap.toString(), "10000000000");
+    });
   });
 });

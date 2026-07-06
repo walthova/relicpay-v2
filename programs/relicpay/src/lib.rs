@@ -97,4 +97,30 @@ pub mod relicpay {
     pub fn update_pool_rate(ctx: Context<UpdatePoolRate>, new_rate_bps: u16) -> Result<()> {
         instructions::update_pool_rate::handler(ctx, new_rate_bps)
     }
+
+    // ── v2.1: protocol-wide risk controls (ahead of real Kamino CPI yield) ──
+
+    /// Creates the singleton ProtocolConfig PDA. Caller becomes governance authority.
+    pub fn init_protocol_config(ctx: Context<InitProtocolConfig>) -> Result<()> {
+        instructions::protocol_config::init_handler(ctx)
+    }
+
+    /// Governance-only emergency stop switch.
+    pub fn set_protocol_paused(ctx: Context<SetProtocolPaused>, paused: bool) -> Result<()> {
+        instructions::protocol_config::set_paused_handler(ctx, paused)
+    }
+
+    /// Governance-only per-agreement deposit cap and protocol-wide TVL cap.
+    /// A value of 0 means unlimited.
+    pub fn update_risk_limits(
+        ctx: Context<UpdateRiskLimits>,
+        max_agreement_deposit: u64,
+        tvl_cap: u64,
+    ) -> Result<()> {
+        instructions::protocol_config::update_risk_limits_handler(
+            ctx,
+            max_agreement_deposit,
+            tvl_cap,
+        )
+    }
 }

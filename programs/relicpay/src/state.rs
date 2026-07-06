@@ -73,3 +73,24 @@ pub struct UserStake {
 impl UserStake {
     pub const SIZE: usize = 8 + 32 + 8 + 8 + 8 + 1 + 1 + 16; // +16 reserved
 }
+
+/// v2.1: protocol-wide risk controls, laid down ahead of real Kamino CPI
+/// yield (see DEVELOPMENT_PLAN.md v2.1 item 5). A singleton PDA
+/// (seeds = ["protocol_config"]) governing an emergency pause switch and
+/// deposit/TVL caps. Deliberately standalone in this increment — it is not
+/// yet wired into `create_agreement`/`stake_usdc` so the frozen v1
+/// characterization suite is untouched. Enforcement lands once those
+/// instructions grow new required accounts anyway for the Kamino CPI.
+#[account]
+pub struct ProtocolConfig {
+    pub authority: Pubkey,          // governance wallet
+    pub paused: bool,               // emergency stop — blocks new deposits once wired in
+    pub max_agreement_deposit: u64, // per-agreement escrow cap, 0 = unlimited
+    pub tvl_cap: u64,               // protocol-wide escrow cap, 0 = unlimited
+    pub current_tvl: u64,           // sum of USDC escrowed protocol-wide, 0 until wired in
+    pub bump: u8,                   // PDA bump
+}
+
+impl ProtocolConfig {
+    pub const SIZE: usize = 8 + 32 + 1 + 8 + 8 + 8 + 1 + 32; // +32 reserved
+}

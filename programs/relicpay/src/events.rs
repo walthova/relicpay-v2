@@ -99,3 +99,22 @@ pub struct PoolRateUpdated {
     pub old_rate_bps: u16,
     pub new_rate_bps: u16,
 }
+
+#[event]
+pub struct ProtocolConfigInitialized {
+    pub config: Pubkey,
+    pub authority: Pubkey,
+}
+
+#[event]
+pub struct ProtocolPauseUpdated {
+    pub config: Pubkey,
+    pub paused: bool,
+}
+
+#[event]
+pub struct RiskLimitsUpdated {
+    pub config: Pubkey,
+    pub max_agreement_deposit: u64,
+    pub tvl_cap: u64,
+}

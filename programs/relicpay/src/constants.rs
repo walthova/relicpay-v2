@@ -7,6 +7,7 @@ pub const SEED_ESCROW: &[u8] = b"escrow";
 pub const SEED_STAKE_POOL: &[u8] = b"stake_pool";
 pub const SEED_POOL_VAULT: &[u8] = b"pool_vault";
 pub const SEED_USER_STAKE: &[u8] = b"user_stake";
+pub const SEED_PROTOCOL_CONFIG: &[u8] = b"protocol_config";
 
 /// Installment bounds
 pub const MIN_INSTALLMENTS: u8 = 2;

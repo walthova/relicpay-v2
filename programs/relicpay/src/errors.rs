@@ -35,4 +35,11 @@ pub enum RelicPayError {
     AgreementNotSettled,
     #[msg("Yield rate exceeds the protocol maximum")]
     RateTooHigh,
+    // ── v2.1: protocol risk controls ──
+    #[msg("Protocol is paused — new deposits are blocked")]
+    ProtocolPaused,
+    #[msg("Deposit exceeds the per-agreement cap")]
+    DepositCapExceeded,
+    #[msg("Deposit would exceed the protocol-wide TVL cap")]
+    TvlCapExceeded,
 }
