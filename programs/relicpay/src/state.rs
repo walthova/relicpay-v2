@@ -31,6 +31,8 @@ pub struct BnplAgreement {
     // ── v2 fields ──
     pub merchant_withdrawn: bool, // blocks double merchant_withdraw
     pub version: u8,              // schema version (2)
+    // ── v2.1 fields (DEVELOPMENT_PLAN.md v2.1 item 4) ──
+    pub yield_source: u8, // 0 = Simulated (on-chain interest math), 1 = KaminoLend (real CPI yield)
 }
 
 impl BnplAgreement {
@@ -44,7 +46,11 @@ impl BnplAgreement {
         + 4 + 64                   // merchant_name
         + 1                        // bump
         + 1 + 1                    // merchant_withdrawn, version
-        + 30;                      // reserved for future fields
+        + 1                        // yield_source
+        + 29;                      // reserved for future fields
+
+    pub const YIELD_SOURCE_SIMULATED: u8 = 0;
+    pub const YIELD_SOURCE_KAMINO_LEND: u8 = 1;
 }
 
 #[account]

@@ -12,6 +12,7 @@ pub struct AgreementCreated {
     pub installment_amount: u64,
     pub product_id: String,
     pub merchant_name: String,
+    pub yield_source: u8, // 0 = Simulated, 1 = KaminoLend
 }
 
 #[event]

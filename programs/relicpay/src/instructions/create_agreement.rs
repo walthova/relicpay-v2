@@ -62,6 +62,10 @@ pub fn handler(
     agreement.bump = ctx.bumps.agreement;
     agreement.merchant_withdrawn = false;
     agreement.version = BnplAgreement::VERSION;
+    // V2_KAMINO: flips to YIELD_SOURCE_KAMINO_LEND once escrow deposits are
+    // routed through Kamino Lend via CPI. Every agreement created today is
+    // simulated-yield, recorded explicitly rather than left implicit.
+    agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
 
     // Transfer first installment: buyer_usdc → escrow_usdc
     let first_installment = agreement.installment_amount;
@@ -89,6 +93,7 @@ pub fn handler(
         installment_amount: agreement.installment_amount,
         product_id: agreement.product_id.clone(),
         merchant_name: agreement.merchant_name.clone(),
+        yield_source: agreement.yield_source,
     });
 
     Ok(())

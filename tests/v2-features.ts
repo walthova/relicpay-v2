@@ -133,6 +133,23 @@ describe("relicpay v2 features", () => {
     );
   });
 
+  // ── yield_source field (DEVELOPMENT_PLAN.md v2.1 item 4) ─────────────────
+  // Every agreement now records whether its escrow yield is simulated
+  // on-chain interest math or real Kamino Lend CPI yield. Until the Kamino
+  // CPI deposit path lands, every agreement is YIELD_SOURCE_SIMULATED (0).
+
+  it("records yield_source = Simulated (0) on every new agreement", async () => {
+    const { agreement } = await createAgreement(
+      "v2-yield-source-001",
+      new BN(90_000_000),
+      3,
+      new BN(1)
+    );
+
+    const acct = await program.account.bnplAgreement.fetch(agreement);
+    assert.equal(acct.yieldSource, 0, "yield_source must default to Simulated (0)");
+  });
+
   // ── Double merchant_withdraw guard ────────────────────────────────────────
 
   it("blocks a second merchant_withdraw with AlreadyWithdrawn", async () => {
