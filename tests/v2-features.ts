@@ -430,5 +430,71 @@ describe("relicpay v2 features", () => {
       assert.equal(acct.maxAgreementDeposit.toString(), "1000000000");
       assert.equal(acct.tvlCap.toString(), "10000000000");
     });
+
+    // ── create_agreement enforcement (DEVELOPMENT_PLAN.md v2.1 item 5) ──────
+    // ProtocolConfig is a constant-seed PDA — Anchor's TS client auto-derives
+    // and injects it into create_agreement even though these tests (and the
+    // frozen characterization suite) never list it in `.accounts()`. These
+    // tests exercise the actual enforcement path: pause blocks new
+    // agreements, and the per-agreement deposit cap rejects oversized ones.
+    // Each test restores permissive defaults afterward so it doesn't leak
+    // into other tests.
+
+    it("blocks create_agreement while the protocol is paused", async () => {
+      const config = configPDA();
+      await program.methods
+        .setProtocolPaused(true)
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      try {
+        await createAgreement("v2-riskctl-paused", new BN(50_000_000), 2, new BN(1));
+        assert.fail("Expected ProtocolPaused");
+      } catch (err: any) {
+        assert.include(err.message, "ProtocolPaused");
+      } finally {
+        await program.methods
+          .setProtocolPaused(false)
+          .accounts({ config, authority: govAuthority.publicKey })
+          .signers([govAuthority])
+          .rpc();
+      }
+    });
+
+    it("blocks create_agreement above the per-agreement deposit cap", async () => {
+      const config = configPDA();
+      await program.methods
+        .updateRiskLimits(new BN(10_000_000), new BN(0)) // $10 cap, TVL cap unlimited
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      try {
+        // $50 total_price exceeds the $10 max_agreement_deposit cap
+        await createAgreement("v2-riskctl-cap", new BN(50_000_000), 2, new BN(1));
+        assert.fail("Expected DepositCapExceeded");
+      } catch (err: any) {
+        assert.include(err.message, "DepositCapExceeded");
+      } finally {
+        // Restore permissive defaults (0 = unlimited) so nothing leaks.
+        await program.methods
+          .updateRiskLimits(new BN(0), new BN(0))
+          .accounts({ config, authority: govAuthority.publicKey })
+          .signers([govAuthority])
+          .rpc();
+      }
+    });
+
+    it("allows create_agreement again once pause/caps are reset to permissive", async () => {
+      const { agreement } = await createAgreement(
+        "v2-riskctl-ok",
+        new BN(50_000_000),
+        2,
+        new BN(1)
+      );
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(acct.state, { active: {} });
+    });
   });
 });

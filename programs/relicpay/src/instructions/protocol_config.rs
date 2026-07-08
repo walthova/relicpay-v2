@@ -1,9 +1,11 @@
 //! v2.1: protocol-wide risk controls (DEVELOPMENT_PLAN.md v2.1 item 5).
 //!
 //! A singleton `ProtocolConfig` PDA holds an emergency pause flag and
-//! deposit/TVL caps. This lands ahead of the real Kamino CPI integration so
-//! the governance surface exists before yield-bearing deposits do. Not yet
-//! wired into `create_agreement` / `stake_usdc` — see state.rs for why.
+//! deposit/TVL caps. `create_agreement` enforces `paused` and
+//! `max_agreement_deposit` — see state.rs and instructions/create_agreement.rs
+//! for how a constant-seed PDA gets wired into an existing instruction
+//! without breaking the frozen v1 characterization suite. TVL cap
+//! enforcement and `stake_usdc` wiring are still open (see state.rs).
 
 use anchor_lang::prelude::*;
 

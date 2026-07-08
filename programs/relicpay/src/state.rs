@@ -83,17 +83,29 @@ impl UserStake {
 /// v2.1: protocol-wide risk controls, laid down ahead of real Kamino CPI
 /// yield (see DEVELOPMENT_PLAN.md v2.1 item 5). A singleton PDA
 /// (seeds = ["protocol_config"]) governing an emergency pause switch and
-/// deposit/TVL caps. Deliberately standalone in this increment — it is not
-/// yet wired into `create_agreement`/`stake_usdc` so the frozen v1
-/// characterization suite is untouched. Enforcement lands once those
-/// instructions grow new required accounts anyway for the Kamino CPI.
+/// deposit/TVL caps.
+///
+/// Wired into `create_agreement` as a constant-seed PDA account
+/// (`UncheckedAccount`, no client-side change needed — Anchor's TS client
+/// auto-derives constant-seed PDAs even when the caller's `.accounts()`
+/// never mentions them, which is what keeps the frozen v1 characterization
+/// suite untouched). `create_agreement` enforces `paused` and
+/// `max_agreement_deposit` (against `total_price`, the agreement's maximum
+/// ever exposure) when the PDA has been initialized; an uninitialized
+/// (system-owned) PDA is treated as "no risk controls configured."
+///
+/// `tvl_cap` / `current_tvl` are still unenforced — live protocol-wide TVL
+/// tracking needs a mutable, always-initialized account (or an `init_if_needed`
+/// pattern), which is a larger change deferred to the Kamino CPI work itself
+/// (that CPI needs to touch this account's numbers anyway). Not yet wired
+/// into `stake_usdc`.
 #[account]
 pub struct ProtocolConfig {
     pub authority: Pubkey,          // governance wallet
-    pub paused: bool,               // emergency stop — blocks new deposits once wired in
-    pub max_agreement_deposit: u64, // per-agreement escrow cap, 0 = unlimited
-    pub tvl_cap: u64,               // protocol-wide escrow cap, 0 = unlimited
-    pub current_tvl: u64,           // sum of USDC escrowed protocol-wide, 0 until wired in
+    pub paused: bool,               // emergency stop — blocks new agreement creation
+    pub max_agreement_deposit: u64, // per-agreement escrow cap (vs total_price), 0 = unlimited
+    pub tvl_cap: u64,               // protocol-wide escrow cap, 0 = unlimited (unenforced so far)
+    pub current_tvl: u64,           // sum of USDC escrowed protocol-wide (unenforced so far)
     pub bump: u8,                   // PDA bump
 }
 

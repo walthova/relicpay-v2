@@ -14,7 +14,7 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::AgreementCreated;
-use crate::state::{AgreementState, BnplAgreement};
+use crate::state::{AgreementState, BnplAgreement, ProtocolConfig};
 
 pub fn handler(
     ctx: Context<CreateAgreement>,
@@ -38,6 +38,27 @@ pub fn handler(
         merchant_name.len() <= MAX_MERCHANT_NAME_LEN,
         RelicPayError::InvalidMerchantName
     );
+
+    // v2.1: ProtocolConfig enforcement (DEVELOPMENT_PLAN.md v2.1 item 5).
+    // The config PDA is a constant-seed singleton, so the Anchor TS client
+    // auto-derives its address without callers needing to list it —
+    // the frozen v1 characterization suite never mentions this account and
+    // keeps working unchanged. Deployments that predate `init_protocol_config`
+    // (or localnet test runs before that instruction has been called) see an
+    // account owned by the System Program here, which we treat as "no risk
+    // controls configured" rather than an error.
+    let config_info = ctx.accounts.protocol_config.to_account_info();
+    if config_info.owner == ctx.program_id {
+        let data = config_info.try_borrow_data()?;
+        let config = ProtocolConfig::try_deserialize(&mut &data[..])?;
+        require!(!config.paused, RelicPayError::ProtocolPaused);
+        if config.max_agreement_deposit > 0 {
+            require!(
+                total_price <= config.max_agreement_deposit,
+                RelicPayError::DepositCapExceeded
+            );
+        }
+    }
 
     let agreement = &mut ctx.accounts.agreement;
     let clock = Clock::get()?;
@@ -140,4 +161,16 @@ pub struct CreateAgreement<'info> {
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
+
+    /// CHECK: v2.1 risk controls (see state.rs / protocol_config.rs).
+    /// Constant PDA seed — no other account/instruction-arg dependency — so
+    /// Anchor's TS client auto-derives and injects this address even when
+    /// callers never list it in `.accounts()`. Deliberately `UncheckedAccount`,
+    /// not `Account<ProtocolConfig>`: the PDA may not exist yet (pre-governance
+    /// deployments, or any caller who hasn't called `init_protocol_config`),
+    /// and an `Account<T>` wrapper would hard-fail deserialization in that
+    /// case. The handler manually checks ownership and treats a
+    /// system-owned (uninitialized) account as "no risk controls configured."
+    #[account(seeds = [SEED_PROTOCOL_CONFIG], bump)]
+    pub protocol_config: UncheckedAccount<'info>,
 }
