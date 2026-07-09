@@ -571,8 +571,13 @@ describe("relicpay", () => {
 
     it("rejects merchant_withdraw with wrong signer", async () => {
       const impostor = Keypair.generate();
-      await provider.connection.requestAirdrop(impostor.publicKey, LAMPORTS_PER_SOL);
-      await new Promise((r) => setTimeout(r, 500));
+      // WALTER-AUTHORIZED INFRA FIX (2026-07-08): fixed 500ms sleep was flaky on
+      // slow validators; confirm the airdrop signature instead. No assertion change.
+      {
+        const latest = await provider.connection.getLatestBlockhash();
+        const sig = await provider.connection.requestAirdrop(impostor.publicKey, LAMPORTS_PER_SOL);
+        await provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
+      }
       const impostorUsdc = await createAccount(
         provider.connection,
         impostor,
@@ -600,8 +605,12 @@ describe("relicpay", () => {
 
     it("rejects claim_yield with wrong buyer", async () => {
       const impostor = Keypair.generate();
-      await provider.connection.requestAirdrop(impostor.publicKey, LAMPORTS_PER_SOL);
-      await new Promise((r) => setTimeout(r, 500));
+      // WALTER-AUTHORIZED INFRA FIX (2026-07-08): same confirmation pattern as above.
+      {
+        const latest = await provider.connection.getLatestBlockhash();
+        const sig = await provider.connection.requestAirdrop(impostor.publicKey, LAMPORTS_PER_SOL);
+        await provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
+      }
 
       try {
         await program.methods
