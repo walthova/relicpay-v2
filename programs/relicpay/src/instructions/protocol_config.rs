@@ -2,7 +2,8 @@
 //!
 //! A singleton `ProtocolConfig` PDA holds an emergency pause flag and
 //! deposit/TVL caps. `create_agreement` enforces `paused` and
-//! `max_agreement_deposit` — see state.rs and instructions/create_agreement.rs
+//! `max_agreement_deposit`; `pay_installment` also enforces `paused` — see
+//! state.rs and instructions/create_agreement.rs / pay_installment.rs
 //! for how a constant-seed PDA gets wired into an existing instruction
 //! without breaking the frozen v1 characterization suite. TVL cap
 //! enforcement and `stake_usdc` wiring are still open (see state.rs).

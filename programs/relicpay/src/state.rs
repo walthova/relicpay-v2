@@ -85,20 +85,24 @@ impl UserStake {
 /// (seeds = ["protocol_config"]) governing an emergency pause switch and
 /// deposit/TVL caps.
 ///
-/// Wired into `create_agreement` as a constant-seed PDA account
-/// (`UncheckedAccount`, no client-side change needed — Anchor's TS client
-/// auto-derives constant-seed PDAs even when the caller's `.accounts()`
-/// never mentions them, which is what keeps the frozen v1 characterization
-/// suite untouched). `create_agreement` enforces `paused` and
-/// `max_agreement_deposit` (against `total_price`, the agreement's maximum
-/// ever exposure) when the PDA has been initialized; an uninitialized
-/// (system-owned) PDA is treated as "no risk controls configured."
+/// Wired into `create_agreement` and `pay_installment` as a constant-seed PDA
+/// account (`UncheckedAccount`, no client-side change needed — Anchor's TS
+/// client auto-derives constant-seed PDAs even when the caller's
+/// `.accounts()` never mentions them, which is what keeps the frozen v1
+/// characterization suite untouched). `create_agreement` enforces `paused`
+/// and `max_agreement_deposit` (against `total_price`, the agreement's
+/// maximum ever exposure); `pay_installment` enforces `paused` on every
+/// subsequent payment too, so an emergency pause halts USDC moving into
+/// escrow on existing agreements, not just new agreement creation. An
+/// uninitialized (system-owned) PDA is treated as "no risk controls
+/// configured."
 ///
 /// `tvl_cap` / `current_tvl` are still unenforced — live protocol-wide TVL
-/// tracking needs a mutable, always-initialized account (or an `init_if_needed`
-/// pattern), which is a larger change deferred to the Kamino CPI work itself
-/// (that CPI needs to touch this account's numbers anyway). Not yet wired
-/// into `stake_usdc`.
+/// tracking needs to be correct across every path that moves money in *and
+/// out* of escrow (create_agreement, pay_installment, merchant_withdraw,
+/// cancel_agreement, trigger_default), so it's deferred as one change to the
+/// Kamino CPI work itself (that CPI needs to touch this account's numbers
+/// anyway). Not yet wired into `stake_usdc`.
 #[account]
 pub struct ProtocolConfig {
     pub authority: Pubkey,          // governance wallet

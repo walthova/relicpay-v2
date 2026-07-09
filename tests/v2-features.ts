@@ -496,5 +496,74 @@ describe("relicpay v2 features", () => {
       const acct = await program.account.bnplAgreement.fetch(agreement);
       assert.deepEqual(acct.state, { active: {} });
     });
+
+    // ── pay_installment enforcement (DEVELOPMENT_PLAN.md v2.1 item 5) ───────
+    // Same constant-seed-PDA auto-derivation as create_agreement: an
+    // emergency pause must also halt USDC moving into escrow on agreements
+    // that already exist, not just block new ones.
+
+    it("blocks pay_installment while the protocol is paused", async () => {
+      const config = configPDA();
+
+      // Create the agreement while unpaused, then pause before the 2nd payment.
+      // No need to wait out the full due-time window here: the pause check
+      // runs before the due-time check in the handler, so this proves pause
+      // blocks the call regardless of whether installment 2 is actually due.
+      const { agreement, escrow } = await createAgreement(
+        "v2-riskctl-pay-paused",
+        new BN(90_000_000),
+        3,
+        new BN(1)
+      );
+      await new Promise((r) => setTimeout(r, 1100));
+
+      await program.methods
+        .setProtocolPaused(true)
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      try {
+        await payInstallment(agreement, escrow);
+        assert.fail("Expected ProtocolPaused");
+      } catch (err: any) {
+        assert.include(err.message, "ProtocolPaused");
+      } finally {
+        await program.methods
+          .setProtocolPaused(false)
+          .accounts({ config, authority: govAuthority.publicKey })
+          .signers([govAuthority])
+          .rpc();
+      }
+
+      // Still active and still on installment 1 — the paused call had no effect.
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(acct.state, { active: {} });
+      assert.equal(acct.paidInstallments, 1);
+    });
+
+    it("allows pay_installment again once the protocol is unpaused", async () => {
+      const config = configPDA();
+      const { agreement, escrow } = await createAgreement(
+        "v2-riskctl-pay-ok",
+        new BN(90_000_000),
+        3,
+        new BN(1)
+      );
+      // Installment 2 is due at start_time + 2*interval_seconds (2s here).
+      // Matches the 5s margin used elsewhere in this suite for interval=1s
+      // agreements — the local validator's clock advances slower than
+      // wall-clock time, so a tight sleep flakes (see characterization.ts).
+      await new Promise((r) => setTimeout(r, 5000));
+
+      // Confirm unpaused (previous test restores it, but assert explicitly).
+      const before = await program.account.protocolConfig.fetch(config);
+      assert.isFalse(before.paused);
+
+      await payInstallment(agreement, escrow);
+
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(acct.paidInstallments, 2);
+    });
   });
 });
