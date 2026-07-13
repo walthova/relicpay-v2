@@ -1,0 +1,97 @@
+# Agentic Engineering Grant Draft
+
+_Submit: https://superteam.fun/earn/grants/agentic-engineering_
+
+_Status: Draft. Do not submit without Walter approval._
+
+## Step 1: Basics
+
+**Project Title**
+
+> Relic Pay v2
+
+**One Line Description**
+
+> Yield-bearing BNPL on Solana: buyers split purchases into installments while locked USDC is modeled today as yield-bearing escrow, with Kamino Lend integration next.
+
+**TG username**
+
+> TODO: t.me/<walter-username>
+
+**Wallet Address**
+
+> TODO: <Solana wallet address>
+
+## Step 2: Details
+
+**Project Details**
+
+> Relic Pay is a Solana-native buy-now-pay-later protocol for crypto holders and independent merchants. A buyer can choose an IBG Collection item, split the purchase into installments, and create an on-chain agreement without a bank account, credit bureau, or card network gate.
+>
+> The core inversion is simple: traditional BNPL extracts value from the buyer through late fees, credit damage, merchant fees, and securitized consumer debt. Relic Pay makes the locked payment capital productive. The current devnet demo uses transparent simulated yield; the next v2.1 milestone routes escrow USDC into Kamino Lend via CPI so the buyer's payment plan can earn real yield.
+>
+> The v2 rebuild is already grounded in production discipline: modular Anchor instructions, checked math, a frozen v1 characterization suite, v2 feature tests, rent-close paths, merchant withdrawal hardening, yield-source tracking groundwork, and protocol risk controls. The newest shipped controls add a governance-owned `ProtocolConfig` PDA with emergency pause and per-agreement deposit caps before real yield touches escrow.
+>
+> The first proof surface is the IBG Collection pilot: an art/fashion merchant where the story is concrete enough for buyers, merchants, and Solana reviewers to understand quickly.
+
+**Deadline**
+
+> Confirmed via web search 2026-07-13: no fixed deadline found on superteam.fun/earn/grants/agentic-engineering — reads as a rolling $200 USDG grant (funds a month of AI coding tools), not a dated cohort. No submission-window pressure; suggested target date below is self-imposed, not grant-imposed.
+> Suggested deadline: 2026-08-08, 23:59 Asia/Calcutta
+
+**Proof of Work**
+
+> - Canonical repo: https://github.com/walthova/relicpay-v2
+> - Live site/demo surface: https://relicpay.app
+> - v2 rebuild commit history includes modular Anchor rebuild, v1 characterization suite, v2 feature suite, risk controls, and public docs.
+> - Recent shipped work:
+>   - `f23dcdc` (2026-07-13) enforced the protocol-wide TVL cap across every money-moving instruction (`create_agreement`, `pay_installment`, `merchant_withdraw`, `cancel_agreement`, `trigger_default`) — the last unwired risk-control path before real Kamino yield touches escrow. 5 new tests; 41/41 `anchor test` green.
+>   - `0f1420e` wired `ProtocolConfig` pause into `pay_installment`, so an emergency stop halts payments on existing agreements, not just new ones.
+>   - `8926da2` fixed frozen-suite timing by confirming airdrop signatures.
+>   - `0687619` wired ProtocolConfig pause and deposit cap enforcement into `create_agreement`.
+>   - `71c4501` added `yield_source` groundwork for simulated-now/Kamino-next clarity.
+>   - `e701733` introduced ProtocolConfig PDA, pause switch, and risk caps.
+> - Docs included: whitepaper, technical breakdown, development plan, marketing plan, terms, repo canonicalization, funding pipeline, and pitch packet.
+> - AI-assisted proof files exported locally and intentionally ignored from git:
+>   - `claude-session.jsonl`
+>   - `codex-session.jsonl`
+
+**Personal X Profile**
+
+> TODO: x.com/<handle>
+
+**Personal GitHub Profile**
+
+> https://github.com/walthova
+
+**Colosseum Crowdedness Score**
+
+> TODO: Visit https://colosseum.com/copilot, get the Relic Pay crowdedness score, upload the screenshot to a public Google Drive link, and paste it here.
+
+**AI Session Transcript**
+
+> Attach `claude-session.jsonl` or `codex-session.jsonl` from the repo root. These files are ignored by git and should not be committed to the public repo.
+
+## Step 3: Milestones
+
+**Goals and Milestones**
+
+> 1. 2026-07-15: Public-readiness pass complete: canonical repo public, README polished, stale legacy links fixed, and build/test status documented. **AT RISK as of 2026-07-13**: local `main` is 9 commits ahead of `origin/main` (last push 2026-07-04) and the repo is still private — pushing and flipping visibility needs Walter's explicit go-ahead per the secret-scan step in `docs/REPO_CANONICALIZATION.md`. README/docs polish itself is done and sitting uncommitted in the working tree as of this pass.
+> 2. 2026-07-22: Production demo story aligned: Relic Pay v2 homepage and IBG pilot flow explain simulated yield today, Kamino next, and protocol risk controls.
+> 3. 2026-07-29: Colosseum-ready packet complete: public repo, demo link, 3-minute demo script, screenshots, and project description.
+> 4. 2026-08-08: Kamino integration plan complete: account design, CPI sequence, fallback path, test plan, and risk-control extension plan.
+
+**Primary KPI**
+
+> One stranger can complete a Relic Pay devnet BNPL demo flow from the public README/site in under 3 minutes.
+
+**Final Tranche Checkbox**
+
+> To receive the final tranche, submit the Colosseum project link, GitHub repo, and AI subscription receipt if requested by the grant form.
+
+## Submission Notes
+
+- Do not claim real yield until Kamino CPI is implemented.
+- Keep "simulated devnet yield today; Kamino Lend next" in every public artifact.
+- Submit only after Walter approves the final text and public repo visibility.
+

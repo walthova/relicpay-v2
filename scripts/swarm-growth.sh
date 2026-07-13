@@ -7,5 +7,6 @@ cd /Users/w.m/relicpay || exit 1
 
 mkdir -p docs/progress marketing/drafts .runtime
 exec claude -p "Invoke the relicpay-growth agent for one growth pass. Follow its instructions exactly — drafts only, flag everything external as NEEDS-WALTER in the progress note." \
+  --allowedTools "WebSearch" "WebFetch" \
   --permission-mode acceptEdits \
   >> .runtime/swarm-growth.log 2>&1

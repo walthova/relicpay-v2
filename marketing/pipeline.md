@@ -1,7 +1,34 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-07-08 by relicpay-growth (added live domain verification pass — see below).*
+*Last updated: 2026-07-13 by relicpay-growth (added checkout-stack verification pass — see below).*
+
+## 2026-07-13 verification pass — checkout stack
+
+WebSearch worked this session (denied in prior sessions). Went one level past domain-liveness
+into actual checkout-platform confirmation, which is the specific blocker MARKETING.md flags
+before a candidate can be called contact-ready:
+
+| Candidate | Checkout stack | Status |
+|---|---|---|
+| Brain Dead (`wearebraindead.com`) | **Confirmed Shopify** (custom Liquid theme, listed as a Shopify storefront). Real traffic signal: ~$502K revenue / 2,433 transactions in Jan 2026 per Grips Intelligence, AOV $200-225. | **Contact-ready** — live brand, real revenue, standard checkout stack a BNPL integration can target. |
+| Hashimoto Contemporary | **Confirmed Shopify** — dedicated shop at `store.hashimotocontemporary.com`, backing `myshopify.com` domain visible in URLs, standard checkout flow (tax/shipping calculated at checkout). SF (Minnesota Street Project) + NYC (LES) locations. | **Contact-ready** — highest product-fit candidate (limited-edition prints/HPMs, $500-3000+ range) on a standard, integrable checkout stack. |
+| Online Ceramics | Primary site (`online-ceramics.com`) runs on a non-Shopify platform; maintains a `online-ceramics-too.myshopify.com` **backup** store used during primary-site maintenance. | **Partially verified** — Shopify exists as a fallback surface, not the primary checkout. Needs a direct look at the live primary site's checkout flow before calling it contact-ready. |
+| The Hundreds | Not checked this pass (previously domain-verified only). | Still unverified past domain liveness. |
+| Thinkspace Projects | Not checked this pass (previously domain-verified only). | Still unverified past domain liveness. |
+| Freedom (Los Feliz) | N/A | **Dropped** — no real brand found under this name/location (see below). |
+
+**Net movement: 2 of 6 candidates (Brain Dead, Hashimoto Contemporary) moved from "domain-verified"
+to "contact-ready"** — live, operating, on a standard checkout stack a Relic Pay integration could
+realistically target. Still missing before actual outreach: (1) a real contact name/inbox at either
+brand, (2) confirmation of whether IBG Collection's network already has a relationship with either
+— this needs Walter directly, not more research, since it changes outreach order entirely (see
+NEEDS-WALTER in today's progress note).
+
+**Freedom (Los Feliz) replacement needed**: this pass could not find any real brand matching
+"Freedom Los Feliz" — only unrelated namesakes (Mister Freedom on Beverly Blvd, freedomstreetwear.com,
+shop-freedomboutique.com). Recommend replacing this slot in the next pass rather than continuing to
+guess domains for a brand that may not exist as described.
 
 ## 2026-07-08 verification pass
 
@@ -13,7 +40,7 @@ WebSearch/WebFetch tools were denied again this session (non-interactive permiss
 | Brain Dead | **Live** — correct domain is `wearebraindead.com` (not `braindead.la`, which doesn't resolve), HTTP 200. Confirmed actively operating: recent Coach x Brain Dead capsule collab covered by Who What Wear / Complex / Refinery29. |
 | The Hundreds | **Live** — thehundreds.com resolves HTTP 200. |
 | Online Ceramics | **Live** — onlineceramics.com resolves HTTP 200. |
-| Freedom (Los Feliz) | **Unverified** — neither `freedomlosfeliz.com` nor `freedomlosangeles.com`/`shopfreedom.la` guesses resolved cleanly. Needs a real domain lookup, not a guess. Lowest-confidence entry on the list now; deprioritize until a real URL is found. |
+| Freedom (Los Feliz) | **Cannot verify — recommend dropping this slot.** Live WebSearch pass (2026-07-13) surfaced only unrelated brands sharing the word "Freedom" (Mister Freedom on Beverly Blvd, freedomstreetwear.com, shop-freedomboutique.com) — none match a Los Feliz storefront, no confirmed domain exists. Replace rather than keep chasing it — see replacement note below. |
 | Hashimoto Contemporary | **Live** — hashimotocontemporary.com resolves (301 redirect, HTTP layer healthy). |
 | Thinkspace Projects | **Live** — thinkspaceprojects.com resolves HTTP 200. |
 

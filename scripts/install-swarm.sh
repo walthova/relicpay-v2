@@ -6,10 +6,10 @@
 set -e
 cd "$(dirname "$0")/.."
 
-chmod +x scripts/swarm-build.sh scripts/swarm-growth.sh
+chmod +x scripts/swarm-build.sh scripts/swarm-growth.sh scripts/swarm-report.sh
 mkdir -p ~/Library/LaunchAgents .runtime
 
-for job in relicpay-build relicpay-growth; do
+for job in relicpay-build relicpay-growth relicpay-report; do
   cp "swarm/com.walthova.$job.plist" ~/Library/LaunchAgents/
   launchctl unload ~/Library/LaunchAgents/com.walthova.$job.plist 2>/dev/null || true
   launchctl load ~/Library/LaunchAgents/com.walthova.$job.plist

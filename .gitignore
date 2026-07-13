@@ -10,6 +10,8 @@ build/
 .env
 .env.local
 .env*.local
+claude-session.jsonl
+codex-session.jsonl
 
 # macOS
 .DS_Store
@@ -18,3 +20,7 @@ build/
 # Solana
 test-ledger/
 *.so.bak
+.telegram.env
+
+# Swarm runtime logs
+.runtime/

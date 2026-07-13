@@ -276,7 +276,7 @@ export default function Demo() {
           <div style={linksBox}>
             <a href="/docs/WHITEPAPER" style={docLink}>Read Whitepaper</a>
             <a href="/docs/TECHNICAL_BREAKDOWN" style={docLink}>Technical Breakdown</a>
-            <a href="https://github.com/walthova/relicpay-claude" style={docLink} target="_blank" rel="noreferrer">GitHub</a>
+            <a href="https://github.com/walthova/relicpay-v2" style={docLink} target="_blank" rel="noreferrer">GitHub</a>
           </div>
         </div>
       </div>

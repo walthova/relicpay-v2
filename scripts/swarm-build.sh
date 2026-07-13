@@ -9,5 +9,6 @@ cd /Users/w.m/relicpay || exit 1
 
 mkdir -p docs/progress .runtime
 exec claude -p "Invoke the relicpay-build agent for one daily build increment. Follow its instructions exactly, including the frozen characterization suite rule and the dated progress note." \
+  --allowedTools "WebSearch" "WebFetch" \
   --permission-mode acceptEdits \
   >> .runtime/swarm-build.log 2>&1

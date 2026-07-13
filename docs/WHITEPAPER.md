@@ -364,4 +364,4 @@ Relic Pay does not ask crypto holders to give up their assets to participate in 
 
 *Relic Pay is a work in progress. This whitepaper describes the v1 architecture and v2 roadmap as of May 2026. All yields described are estimates and not financial advice.*
 
-*Built by Walter Mendez | github.com/walthova/relicpay-claude | relicpay.app*
+*Built by Walter Mendez | github.com/walthova/relicpay-v2 | relicpay.app*

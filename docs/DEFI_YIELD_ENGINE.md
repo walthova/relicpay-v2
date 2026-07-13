@@ -122,4 +122,4 @@ Merchants always receive exactly `total_price` in USDC on agreement completion â
 
 *This document describes v1 (current), v2 (next), and v3 (roadmap) architecture. All APY figures are estimates based on current market conditions and will vary. Nothing here is financial advice.*
 
-*github.com/walthova/relicpay-claude*
+*github.com/walthova/relicpay-v2*

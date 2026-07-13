@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relic Pay v2 — Funding Deck</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #172033;
+      --panel-2: #1f2a44;
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --soft: #94a3b8;
+      --accent: #67e8f9;
+      --green: #22c55e;
+      --border: rgba(148, 163, 184, 0.24);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { line-height: 1.45; }
+    .deck { width: 100%; }
+    .slide { min-height: 100vh; padding: 72px 84px; display: flex; flex-direction: column; justify-content: center; border-bottom: 1px solid var(--border); }
+    .kicker { color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 800; font-size: 15px; margin-bottom: 20px; }
+    h1 { font-size: 76px; line-height: 0.98; margin: 0 0 24px; letter-spacing: 0; }
+    h2 { font-size: 54px; line-height: 1.05; margin: 0 0 28px; letter-spacing: 0; max-width: 1100px; }
+    h3 { font-size: 28px; margin: 0 0 10px; }
+    p { font-size: 28px; color: var(--muted); max-width: 1050px; margin: 0 0 22px; }
+    ul { margin: 0; padding-left: 28px; }
+    li { font-size: 28px; color: var(--muted); margin: 14px 0; }
+    .grid { display: grid; gap: 22px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
+    .card strong { display: block; color: var(--text); font-size: 30px; margin-bottom: 10px; }
+    .card span { display: block; color: var(--muted); font-size: 22px; }
+    .metric { font-size: 56px; color: var(--green); font-weight: 900; line-height: 1; }
+    .small { font-size: 20px; color: var(--soft); }
+    .tag { display: inline-flex; width: fit-content; border: 1px solid var(--border); border-radius: 999px; padding: 8px 14px; color: var(--accent); font-size: 18px; font-weight: 800; margin-right: 8px; margin-bottom: 8px; }
+    .warn { color: #fbbf24; }
+    .footer { position: fixed; right: 24px; bottom: 18px; color: var(--soft); font-size: 14px; }
+    @media print { .slide { min-height: 720px; page-break-after: always; } .footer { display: none; } }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide">
+      <div class="kicker">Relic Pay v2</div>
+      <h1>The only BNPL where your payment plan makes you money.</h1>
+      <p>Yield-bearing checkout on Solana for crypto holders and independent merchants.</p>
+      <div>
+        <span class="tag">IBG pilot</span>
+        <span class="tag">Devnet demo</span>
+        <span class="tag">Kamino next</span>
+      </div>
+      <p class="small">Speaker note: lead with the buyer benefit, not "decentralized" or "Solana."</p>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Problem</div>
+      <h2>Traditional BNPL turns checkout timing into consumer debt.</h2>
+      <div class="grid three">
+        <div class="card"><strong>Buyers</strong><span>Pay late fees, lose credit flexibility, or sell crypto at bad timing.</span></div>
+        <div class="card"><strong>Merchants</strong><span>Depend on legacy BNPL rails and fees to reach installment buyers.</span></div>
+        <div class="card"><strong>Crypto holders</strong><span>Have assets, but no checkout-native way to use them without selling.</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Solution</div>
+      <h2>Relic Pay turns locked installments into productive escrow.</h2>
+      <ul>
+        <li>Buyer chooses an IBG item.</li>
+        <li>USDC locks in a Solana PDA escrow.</li>
+        <li>Installments settle by program rules.</li>
+        <li>Yield is simulated today, Kamino next.</li>
+      </ul>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Why Solana</div>
+      <h2>Checkout breaks if settlement is slow or expensive.</h2>
+      <div class="grid three">
+        <div class="card"><strong>Low-cost updates</strong><span>Installments, escrow state, and events need frequent transactions.</span></div>
+        <div class="card"><strong>Composable yield</strong><span>USDC escrow can route into Kamino Lend through CPI.</span></div>
+        <div class="card"><strong>Wallet-native UX</strong><span>No bank account, credit bureau, or card network gate.</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Proof</div>
+      <h2>v2 is a rebuild with tests as the spec.</h2>
+      <div class="grid two">
+        <div class="card"><div class="metric">18+</div><strong>Characterization tests</strong><span>Frozen v1 behavior carried forward.</span></div>
+        <div class="card"><div class="metric">v2</div><strong>Feature suite</strong><span>Risk controls, yield source, close paths, and hardening.</span></div>
+        <div class="card"><div class="metric">2026-07-06</div><strong>Pause + caps</strong><span>Guardrails before real yield risk.</span></div>
+        <div class="card"><div class="metric">IBG</div><strong>First pilot story</strong><span>Concrete merchant surface for demo and outreach.</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Status</div>
+      <h2>Honest current state beats overclaiming.</h2>
+      <ul>
+        <li>Devnet demo candidate.</li>
+        <li>Simulated yield only today.</li>
+        <li>Kamino CPI is next.</li>
+        <li class="warn">Mainnet requires audit and legal review.</li>
+      </ul>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Funding Path</div>
+      <h2>Non-dilutive first, accelerator second.</h2>
+      <div class="grid two">
+        <div class="card"><strong>1. Superteam</strong><span>Agentic Engineering Grant: 200 USDG, fast proof of momentum.</span></div>
+        <div class="card"><strong>2. Solana Foundation</strong><span>Open-source escrow and checkout infrastructure grant.</span></div>
+        <div class="card"><strong>3. Colosseum</strong><span>Next hackathon packet ready; accelerator path is $250K if accepted.</span></div>
+        <div class="card"><strong>4. Strategic partners</strong><span>Kamino after CPI plan, IBG/merchants after pilot proof.</span></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Ask</div>
+      <h2>Fund the 30-day push from demo to credible Solana funding candidate.</h2>
+      <ul>
+        <li>Public canonical repo.</li>
+        <li>IBG checkout demo video.</li>
+        <li>Kamino CPI technical plan.</li>
+        <li>Grant and Colosseum submissions.</li>
+      </ul>
+      <p class="small">TODO: add Walter contact, final public repo URL, and final demo/video links before sharing externally.</p>
+    </section>
+  </main>
+  <div class="footer">Relic Pay v2 / funding draft / 2026-07-09</div>
+</body>
+</html>

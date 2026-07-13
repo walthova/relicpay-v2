@@ -129,7 +129,7 @@ TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW:
 
 ## 11. Smart Contract Risk Disclosure
 
-The Relic Pay smart contracts have not been audited by a professional security firm as of v1. Use of the Protocol with real funds prior to a completed audit is at your own risk. An audit is planned prior to mainnet launch. Audit results will be published publicly at github.com/walthova/relicpay-claude.
+The Relic Pay smart contracts have not been audited by a professional security firm as of v1. Use of the Protocol with real funds prior to a completed audit is at your own risk. An audit is planned prior to mainnet launch. Audit results will be published publicly at github.com/walthova/relicpay-v2.
 
 ---
 
@@ -169,7 +169,7 @@ Relic Pay reserves the right to update these Terms at any time. Material changes
 
 For security disclosures: security@relicpay.app
 For general inquiries: hello@relicpay.app
-GitHub: github.com/walthova/relicpay-claude
+GitHub: github.com/walthova/relicpay-v2
 
 ---
 

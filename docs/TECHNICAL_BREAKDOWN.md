@@ -343,8 +343,8 @@ avm install latest && avm use latest
 ### Build and Test
 
 ```bash
-git clone https://github.com/walthova/relicpay-claude.git
-cd relicpay-claude
+git clone https://github.com/walthova/relicpay-v2.git
+cd relicpay-v2
 
 # Build the Anchor program
 anchor build
@@ -406,4 +406,4 @@ console.log({
 
 *This document reflects the v1 architecture as of May 2026. See WHITEPAPER.md for the full protocol vision.*
 
-*github.com/walthova/relicpay-claude*
+*github.com/walthova/relicpay-v2*
