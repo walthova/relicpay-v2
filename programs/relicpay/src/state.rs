@@ -97,19 +97,22 @@ impl UserStake {
 /// uninitialized (system-owned) PDA is treated as "no risk controls
 /// configured."
 ///
-/// `tvl_cap` / `current_tvl` are still unenforced — live protocol-wide TVL
-/// tracking needs to be correct across every path that moves money in *and
-/// out* of escrow (create_agreement, pay_installment, merchant_withdraw,
-/// cancel_agreement, trigger_default), so it's deferred as one change to the
-/// Kamino CPI work itself (that CPI needs to touch this account's numbers
-/// anyway). Not yet wired into `stake_usdc`.
+/// `tvl_cap` / `current_tvl` are now enforced end-to-end: every path that
+/// moves money in or out of escrow (create_agreement, pay_installment,
+/// merchant_withdraw, cancel_agreement, trigger_default) calls
+/// `apply_tvl_increase`/`apply_tvl_decrease` (protocol_config.rs) to keep
+/// `current_tvl` accurate and reject deposits that would breach `tvl_cap`.
+/// Not yet wired into `stake_usdc` (stake pool deposits are a separate token
+/// flow from BNPL escrow TVL). Real Kamino CPI (v2.1 items 1-3) will need to
+/// touch these same call sites again when escrow moves from raw USDC to
+/// kTokens, but the bookkeeping itself no longer waits on that work.
 #[account]
 pub struct ProtocolConfig {
     pub authority: Pubkey,          // governance wallet
     pub paused: bool,               // emergency stop — blocks new agreement creation
     pub max_agreement_deposit: u64, // per-agreement escrow cap (vs total_price), 0 = unlimited
-    pub tvl_cap: u64,               // protocol-wide escrow cap, 0 = unlimited (unenforced so far)
-    pub current_tvl: u64,           // sum of USDC escrowed protocol-wide (unenforced so far)
+    pub tvl_cap: u64,               // protocol-wide escrow cap, 0 = unlimited
+    pub current_tvl: u64,           // sum of USDC escrowed protocol-wide
     pub bump: u8,                   // PDA bump
 }
 

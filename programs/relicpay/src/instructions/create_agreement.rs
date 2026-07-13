@@ -14,7 +14,8 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::AgreementCreated;
-use crate::state::{AgreementState, BnplAgreement, ProtocolConfig};
+use crate::instructions::protocol_config::{apply_tvl_increase, check_not_paused, read_config};
+use crate::state::{AgreementState, BnplAgreement};
 
 pub fn handler(
     ctx: Context<CreateAgreement>,
@@ -45,13 +46,12 @@ pub fn handler(
     // the frozen v1 characterization suite never mentions this account and
     // keeps working unchanged. Deployments that predate `init_protocol_config`
     // (or localnet test runs before that instruction has been called) see an
-    // account owned by the System Program here, which we treat as "no risk
-    // controls configured" rather than an error.
+    // account owned by the System Program here, which read_config/
+    // check_not_paused treat as "no risk controls configured" rather than an
+    // error (see protocol_config.rs).
     let config_info = ctx.accounts.protocol_config.to_account_info();
-    if config_info.owner == ctx.program_id {
-        let data = config_info.try_borrow_data()?;
-        let config = ProtocolConfig::try_deserialize(&mut &data[..])?;
-        require!(!config.paused, RelicPayError::ProtocolPaused);
+    check_not_paused(&config_info, ctx.program_id)?;
+    if let Some(config) = read_config(&config_info, ctx.program_id)? {
         if config.max_agreement_deposit > 0 {
             require!(
                 total_price <= config.max_agreement_deposit,
@@ -90,6 +90,12 @@ pub fn handler(
 
     // Transfer first installment: buyer_usdc → escrow_usdc
     let first_installment = agreement.installment_amount;
+
+    // v2.1: enforce + update the protocol-wide TVL cap before the transfer
+    // (checks-effects-interactions) — a cap violation must revert before any
+    // USDC moves. No-op if the config PDA isn't initialized.
+    apply_tvl_increase(&config_info, ctx.program_id, first_installment)?;
+
     token::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -171,6 +177,8 @@ pub struct CreateAgreement<'info> {
     /// and an `Account<T>` wrapper would hard-fail deserialization in that
     /// case. The handler manually checks ownership and treats a
     /// system-owned (uninitialized) account as "no risk controls configured."
-    #[account(seeds = [SEED_PROTOCOL_CONFIG], bump)]
+    /// `mut` so `apply_tvl_increase` can write the updated `current_tvl` back
+    /// (a no-op write when the PDA is uninitialized — see protocol_config.rs).
+    #[account(mut, seeds = [SEED_PROTOCOL_CONFIG], bump)]
     pub protocol_config: UncheckedAccount<'info>,
 }

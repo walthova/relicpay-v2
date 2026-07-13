@@ -565,5 +565,175 @@ describe("relicpay v2 features", () => {
       const acct = await program.account.bnplAgreement.fetch(agreement);
       assert.equal(acct.paidInstallments, 2);
     });
+
+    // ── TVL cap enforcement (DEVELOPMENT_PLAN.md v2.1 item 5) ────────────────
+    // current_tvl/tvl_cap were previously tracked in the account but never
+    // enforced or updated. create_agreement, pay_installment,
+    // merchant_withdraw, and cancel_agreement now call
+    // apply_tvl_increase/apply_tvl_decrease (protocol_config.rs) on every
+    // path that moves money in or out of escrow. Assertions compare deltas
+    // rather than absolute values since current_tvl is a running total
+    // shared with every other test in this file that touches create_agreement
+    // once the config PDA is initialized.
+
+    it("increases current_tvl by the escrowed amount on create_agreement and pay_installment", async () => {
+      const config = configPDA();
+      const before = await program.account.protocolConfig.fetch(config);
+
+      const { agreement, escrow } = await createAgreement(
+        "v2-tvl-track",
+        new BN(60_000_000),
+        2,
+        new BN(1)
+      );
+      const afterCreate = await program.account.protocolConfig.fetch(config);
+      assert.equal(
+        afterCreate.currentTvl.sub(before.currentTvl).toString(),
+        "30000000",
+        "current_tvl must grow by the first installment"
+      );
+
+      await new Promise((r) => setTimeout(r, 5000));
+      await payInstallment(agreement, escrow);
+
+      const afterPay = await program.account.protocolConfig.fetch(config);
+      assert.equal(
+        afterPay.currentTvl.sub(before.currentTvl).toString(),
+        "60000000",
+        "current_tvl must grow by the second installment too"
+      );
+    });
+
+    it("rejects create_agreement that would breach the protocol-wide TVL cap", async () => {
+      const config = configPDA();
+      const { currentTvl } = await program.account.protocolConfig.fetch(config);
+      // Cap set just above current usage — a $50 agreement cannot fit.
+      const tightCap = currentTvl.add(new BN(5_000_000));
+
+      await program.methods
+        .updateRiskLimits(new BN(0), tightCap) // max_agreement_deposit unlimited
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      try {
+        await createAgreement("v2-tvl-cap-create", new BN(50_000_000), 2, new BN(1));
+        assert.fail("Expected TvlCapExceeded");
+      } catch (err: any) {
+        assert.include(err.message, "TvlCapExceeded");
+      } finally {
+        await program.methods
+          .updateRiskLimits(new BN(0), new BN(0)) // restore unlimited
+          .accounts({ config, authority: govAuthority.publicKey })
+          .signers([govAuthority])
+          .rpc();
+      }
+    });
+
+    it("rejects pay_installment that would breach the protocol-wide TVL cap", async () => {
+      const config = configPDA();
+
+      // Create with caps permissive, then tighten the cap to exactly current
+      // usage so the next installment has zero headroom.
+      const { agreement, escrow } = await createAgreement(
+        "v2-tvl-cap-pay",
+        new BN(20_000_000),
+        2,
+        new BN(1)
+      );
+      const { currentTvl } = await program.account.protocolConfig.fetch(config);
+
+      await program.methods
+        .updateRiskLimits(new BN(0), currentTvl) // no headroom left
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      await new Promise((r) => setTimeout(r, 5000));
+
+      try {
+        await payInstallment(agreement, escrow);
+        assert.fail("Expected TvlCapExceeded");
+      } catch (err: any) {
+        assert.include(err.message, "TvlCapExceeded");
+      } finally {
+        await program.methods
+          .updateRiskLimits(new BN(0), new BN(0)) // restore unlimited
+          .accounts({ config, authority: govAuthority.publicKey })
+          .signers([govAuthority])
+          .rpc();
+      }
+
+      // Still on installment 1 — the rejected call had no effect.
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(acct.paidInstallments, 1);
+    });
+
+    it("decreases current_tvl when merchant_withdraw pulls escrow out", async () => {
+      const config = configPDA();
+
+      const { agreement, escrow } = await createAgreement(
+        "v2-tvl-withdraw",
+        new BN(40_000_000),
+        2,
+        new BN(1)
+      );
+      await new Promise((r) => setTimeout(r, 5000));
+      await payInstallment(agreement, escrow);
+
+      const before = await program.account.protocolConfig.fetch(config);
+
+      await program.methods
+        .merchantWithdraw()
+        .accounts({
+          agreement,
+          merchant: merchant.publicKey,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([merchant])
+        .rpc();
+
+      const after = await program.account.protocolConfig.fetch(config);
+      assert.equal(
+        before.currentTvl.sub(after.currentTvl).toString(),
+        "40000000",
+        "current_tvl must shrink by the full total_price withdrawn"
+      );
+    });
+
+    it("decreases current_tvl when cancel_agreement drains escrow", async () => {
+      const config = configPDA();
+
+      const { agreement, escrow } = await createAgreement(
+        "v2-tvl-cancel",
+        new BN(100_000_000),
+        4,
+        new BN(1)
+      );
+      const beforeConfig = await program.account.protocolConfig.fetch(config);
+      const escrowBefore = (await getAccount(provider.connection, escrow)).amount;
+
+      await program.methods
+        .cancelAgreement()
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const afterConfig = await program.account.protocolConfig.fetch(config);
+      assert.equal(
+        beforeConfig.currentTvl.sub(afterConfig.currentTvl).toString(),
+        escrowBefore.toString(),
+        "current_tvl must shrink by the entire escrowed balance on cancellation"
+      );
+    });
   });
 });

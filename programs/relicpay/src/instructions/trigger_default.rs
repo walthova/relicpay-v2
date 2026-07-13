@@ -10,9 +10,11 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::AgreementDefaulted;
+use crate::instructions::protocol_config::apply_tvl_decrease;
 use crate::state::{AgreementState, BnplAgreement};
 
 pub fn handler(ctx: Context<TriggerDefault>) -> Result<()> {
+    let config_info = ctx.accounts.protocol_config.to_account_info();
     let agreement = &mut ctx.accounts.agreement;
     let clock = Clock::get()?;
 
@@ -66,6 +68,11 @@ pub fn handler(ctx: Context<TriggerDefault>) -> Result<()> {
     }
     agreement.escrow_deposited = 0;
 
+    // v2.1: the recovered escrow balance is leaving escrow for good — shrink
+    // protocol-wide TVL to match. Saturating/no-op if the config PDA isn't
+    // initialized.
+    apply_tvl_decrease(&config_info, ctx.program_id, escrow_balance)?;
+
     emit!(AgreementDefaulted {
         agreement: agreement.key(),
         buyer: agreement.buyer,
@@ -105,4 +112,11 @@ pub struct TriggerDefault<'info> {
     pub merchant_usdc: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
+
+    /// CHECK: v2.1 risk controls (see protocol_config.rs / create_agreement.rs
+    /// for the constant-seed-PDA auto-derivation pattern). Deliberately
+    /// `UncheckedAccount` — the PDA may not exist yet. `mut` so
+    /// `apply_tvl_decrease` can write the updated `current_tvl` back.
+    #[account(mut, seeds = [SEED_PROTOCOL_CONFIG], bump)]
+    pub protocol_config: UncheckedAccount<'info>,
 }

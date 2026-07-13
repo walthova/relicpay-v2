@@ -14,8 +14,9 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::{AgreementCompleted, InstallmentPaid};
+use crate::instructions::protocol_config::{apply_tvl_increase, check_not_paused};
 use crate::math::calculate_yield;
-use crate::state::{AgreementState, BnplAgreement, ProtocolConfig};
+use crate::state::{AgreementState, BnplAgreement};
 
 pub fn handler(ctx: Context<PayInstallment>) -> Result<()> {
     // v2.1: ProtocolConfig enforcement (DEVELOPMENT_PLAN.md v2.1 item 5),
@@ -26,11 +27,7 @@ pub fn handler(ctx: Context<PayInstallment>) -> Result<()> {
     // that predate `init_protocol_config` (or the frozen v1 characterization
     // suite, which never lists this account) are unaffected.
     let config_info = ctx.accounts.protocol_config.to_account_info();
-    if config_info.owner == ctx.program_id {
-        let data = config_info.try_borrow_data()?;
-        let config = ProtocolConfig::try_deserialize(&mut &data[..])?;
-        require!(!config.paused, RelicPayError::ProtocolPaused);
-    }
+    check_not_paused(&config_info, ctx.program_id)?;
 
     let agreement = &mut ctx.accounts.agreement;
     let clock = Clock::get()?;
@@ -79,6 +76,10 @@ pub fn handler(ctx: Context<PayInstallment>) -> Result<()> {
     } else {
         agreement.installment_amount
     };
+
+    // v2.1: this installment's USDC is new TVL entering escrow — enforce +
+    // update the cap before the transfer (checks-effects-interactions).
+    apply_tvl_increase(&config_info, ctx.program_id, amount_due)?;
 
     token::transfer(
         CpiContext::new(
@@ -151,6 +152,7 @@ pub struct PayInstallment<'info> {
     /// CHECK: v2.1 risk controls (see state.rs / protocol_config.rs and
     /// create_agreement.rs for the constant-seed-PDA auto-derivation
     /// pattern). Deliberately `UncheckedAccount` — the PDA may not exist yet.
-    #[account(seeds = [SEED_PROTOCOL_CONFIG], bump)]
+    /// `mut` so `apply_tvl_increase` can write the updated `current_tvl` back.
+    #[account(mut, seeds = [SEED_PROTOCOL_CONFIG], bump)]
     pub protocol_config: UncheckedAccount<'info>,
 }
