@@ -736,4 +736,139 @@ describe("relicpay v2 features", () => {
       );
     });
   });
+
+  // ── v2.1: KaminoConfig — landing pad for real Kamino Lend CPI ──────────────
+  // (DEVELOPMENT_PLAN.md v2.1 items 1-3; see
+  // docs/design/KAMINO_CPI_INTEGRATION.md for the full design). No
+  // instruction reads this account yet — these tests cover only the
+  // governance surface (init, authority-gated update, permissive-by-default
+  // safety) that the real CPI call will consume in a future session.
+
+  describe("kamino config (v2.1 groundwork)", () => {
+    const govAuthority = Keypair.generate();
+    const attacker = Keypair.generate();
+
+    const configPDA = (): PublicKey =>
+      PublicKey.findProgramAddressSync(
+        [Buffer.from("kamino_config")],
+        program.programId
+      )[0];
+
+    before(async () => {
+      const latest = await provider.connection.getLatestBlockhash();
+      const sigs = await Promise.all([
+        provider.connection.requestAirdrop(govAuthority.publicKey, 2 * LAMPORTS_PER_SOL),
+        provider.connection.requestAirdrop(attacker.publicKey, 2 * LAMPORTS_PER_SOL),
+      ]);
+      await Promise.all(
+        sigs.map((sig) =>
+          provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed")
+        )
+      );
+    });
+
+    it("initializes the KaminoConfig PDA disabled, with zeroed accounts", async () => {
+      const config = configPDA();
+      await program.methods
+        .initKaminoConfig()
+        .accounts({
+          config,
+          authority: govAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([govAuthority])
+        .rpc();
+
+      const acct = await program.account.kaminoConfig.fetch(config);
+      assert.equal(acct.authority.toBase58(), govAuthority.publicKey.toBase58());
+      assert.isFalse(acct.enabled);
+      assert.equal(acct.kaminoProgram.toBase58(), PublicKey.default.toBase58());
+      assert.equal(acct.reserve.toBase58(), PublicKey.default.toBase58());
+    });
+
+    it("rejects set_kamino_config from a non-authority wallet", async () => {
+      const config = configPDA();
+      const dummy = Keypair.generate().publicKey;
+      try {
+        await program.methods
+          .setKaminoConfig(true, dummy, dummy, dummy, dummy, dummy, dummy)
+          .accounts({ config, authority: attacker.publicKey })
+          .signers([attacker])
+          .rpc();
+        assert.fail("Expected Unauthorized");
+      } catch (err: any) {
+        assert.include(err.message, "Unauthorized");
+      }
+    });
+
+    it("lets the governance authority set the reserve/market accounts and enable switch", async () => {
+      const config = configPDA();
+      const kaminoProgram = Keypair.generate().publicKey;
+      const lendingMarket = Keypair.generate().publicKey;
+      const lendingMarketAuthority = Keypair.generate().publicKey;
+      const reserve = Keypair.generate().publicKey;
+      const reserveLiquiditySupply = Keypair.generate().publicKey;
+      const reserveCollateralMint = Keypair.generate().publicKey;
+
+      await program.methods
+        .setKaminoConfig(
+          true,
+          kaminoProgram,
+          lendingMarket,
+          lendingMarketAuthority,
+          reserve,
+          reserveLiquiditySupply,
+          reserveCollateralMint
+        )
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+
+      const acct = await program.account.kaminoConfig.fetch(config);
+      assert.isTrue(acct.enabled);
+      assert.equal(acct.kaminoProgram.toBase58(), kaminoProgram.toBase58());
+      assert.equal(acct.lendingMarket.toBase58(), lendingMarket.toBase58());
+      assert.equal(acct.reserve.toBase58(), reserve.toBase58());
+      assert.equal(
+        acct.reserveLiquiditySupply.toBase58(),
+        reserveLiquiditySupply.toBase58()
+      );
+      assert.equal(
+        acct.reserveCollateralMint.toBase58(),
+        reserveCollateralMint.toBase58()
+      );
+
+      // Disable again so a future test run (or another suite) never finds
+      // this PDA enabled — no instruction reads it yet, but staying
+      // conservative costs nothing.
+      await program.methods
+        .setKaminoConfig(
+          false,
+          kaminoProgram,
+          lendingMarket,
+          lendingMarketAuthority,
+          reserve,
+          reserveLiquiditySupply,
+          reserveCollateralMint
+        )
+        .accounts({ config, authority: govAuthority.publicKey })
+        .signers([govAuthority])
+        .rpc();
+    });
+
+    it("does not affect create_agreement — no instruction reads KaminoConfig yet", async () => {
+      // Sanity check on the "safe landing pad" claim: an agreement created
+      // after KaminoConfig exists (in whatever enabled state the prior test
+      // left it in) still gets simulated yield via the raw-USDC escrow path,
+      // exactly like every other agreement in this suite.
+      const { agreement } = await createAgreement(
+        "v2-kamino-config-noop",
+        new BN(40_000_000),
+        4,
+        new BN(1)
+      );
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(acct.yieldSource, 0, "yield_source must still be Simulated");
+    });
+  });
 });

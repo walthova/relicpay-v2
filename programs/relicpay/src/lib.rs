@@ -123,4 +123,41 @@ pub mod relicpay {
             tvl_cap,
         )
     }
+
+    // ── v2.1: KaminoConfig — landing pad for real Kamino Lend CPI ──
+    // (DEVELOPMENT_PLAN.md v2.1 items 1-3; see
+    // docs/design/KAMINO_CPI_INTEGRATION.md). No instruction reads this
+    // config yet — `enabled` defaults to false, so every existing code path
+    // is unaffected until the CPI call itself is wired in a future session.
+
+    /// Creates the singleton KaminoConfig PDA. Caller becomes governance authority.
+    pub fn init_kamino_config(ctx: Context<InitKaminoConfig>) -> Result<()> {
+        instructions::kamino_config::init_kamino_config_handler(ctx)
+    }
+
+    /// Governance-only: sets the target Kamino reserve/market accounts and
+    /// the master enable switch. All-zero pubkeys + enabled=false (the
+    /// post-init default) is always safe — no CPI is attempted.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_kamino_config(
+        ctx: Context<SetKaminoConfig>,
+        enabled: bool,
+        kamino_program: Pubkey,
+        lending_market: Pubkey,
+        lending_market_authority: Pubkey,
+        reserve: Pubkey,
+        reserve_liquidity_supply: Pubkey,
+        reserve_collateral_mint: Pubkey,
+    ) -> Result<()> {
+        instructions::kamino_config::set_kamino_config_handler(
+            ctx,
+            enabled,
+            kamino_program,
+            lending_market,
+            lending_market_authority,
+            reserve,
+            reserve_liquidity_supply,
+            reserve_collateral_mint,
+        )
+    }
 }

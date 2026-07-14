@@ -119,3 +119,39 @@ pub struct ProtocolConfig {
 impl ProtocolConfig {
     pub const SIZE: usize = 8 + 32 + 1 + 8 + 8 + 8 + 1 + 32; // +32 reserved
 }
+
+/// v2.1: landing pad for real Kamino Lend CPI (DEVELOPMENT_PLAN.md v2.1
+/// items 1-3). See `docs/design/KAMINO_CPI_INTEGRATION.md` for the full
+/// technical design (verified against Kamino's actual source, fetched
+/// 2026-07-14) — account layout for `deposit_reserve_liquidity` /
+/// `redeem_reserve_collateral`, the anchor-lang version-mismatch risk
+/// (0.32.1 here vs 0.29.0 in klend, meaning we can't use their typed
+/// `Program<'info, _>` wrappers and must build the CPI instruction
+/// manually), and why a cloned-devnet-market localnet test can't validate
+/// a real deposit (oracle staleness).
+///
+/// A singleton governance PDA (seeds = ["kamino_config"]), mirroring the
+/// exact `ProtocolConfig` pattern already used in this codebase: shipped
+/// ahead of the CPI code that will consume it, `enabled` defaults to
+/// `false` so an uninitialized or disabled config is a pure no-op and
+/// every code path today (raw-USDC escrow, simulated yield) is completely
+/// unaffected. No instruction reads this account yet — it exists so the
+/// next session's CPI call has a concrete place to source its target
+/// reserve/market accounts from, set once via governance instead of
+/// hardcoded per-instruction.
+#[account]
+pub struct KaminoConfig {
+    pub authority: Pubkey,                 // governance wallet
+    pub enabled: bool,                     // master switch — false until CPI code lands
+    pub kamino_program: Pubkey,            // klend program id (mainnet or devnet)
+    pub lending_market: Pubkey,            // the Kamino market holding the USDC reserve
+    pub lending_market_authority: Pubkey,  // PDA: seeds = ["lma", lending_market]
+    pub reserve: Pubkey,                   // the specific USDC reserve
+    pub reserve_liquidity_supply: Pubkey,  // Kamino's USDC vault for that reserve
+    pub reserve_collateral_mint: Pubkey,   // the kToken mint for that reserve
+    pub bump: u8,                          // PDA bump
+}
+
+impl KaminoConfig {
+    pub const SIZE: usize = 8 + 32 + 1 + 32 + 32 + 32 + 32 + 32 + 32 + 1 + 32; // +32 reserved
+}

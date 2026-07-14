@@ -119,3 +119,16 @@ pub struct RiskLimitsUpdated {
     pub max_agreement_deposit: u64,
     pub tvl_cap: u64,
 }
+
+#[event]
+pub struct KaminoConfigInitialized {
+    pub config: Pubkey,
+    pub authority: Pubkey,
+}
+
+#[event]
+pub struct KaminoConfigUpdated {
+    pub config: Pubkey,
+    pub enabled: bool,
+    pub reserve: Pubkey,
+}
