@@ -51,13 +51,15 @@ wallets, PDAs, and on-chain events in one execution environment.
 
 ## Milestones
 
-| Milestone | Deliverable | Target Date | Budget Use |
-|---|---|---|---|
-| Public v2 launch | Public repo, README, docs, devnet demo, and legacy repo cleanup | 2026-07-15 | Documentation, polish, QA |
-| IBG pilot flow | IBG checkout demo, screenshots, demo video, and one completed devnet flow | 2026-07-22 | Frontend/demo work |
-| Kamino CPI design | Technical design, fallback path, risk-control extension, and devnet test plan | 2026-07-29 | Protocol engineering |
-| Kamino CPI prototype | Escrow supply/redeem prototype against devnet or mocked market with tests | 2026-08-12 | Protocol engineering |
-| Public merchant SDK plan | Merchant integration spec, hosted checkout flow, and onboarding docs | 2026-08-26 | Developer docs and merchant UX |
+_Status column added 2026-08-05 (today) against actual `git log` and `gh repo view` state._
+
+| Milestone | Deliverable | Target Date | Budget Use | Status as of 2026-08-05 |
+|---|---|---|---|---|
+| Public v2 launch | Public repo, README, docs, devnet demo, and legacy repo cleanup | 2026-07-15 | Documentation, polish, QA | **Blocked, 3+ weeks past target.** README/docs are done and committed; repo remains private (confirmed via `gh repo view`) and local `main` is 14 commits ahead of `origin/main`. Needs Walter's push/visibility decision — see NEEDS-WALTER in `docs/progress/2026-08-05.md`. |
+| IBG pilot flow | IBG checkout demo, screenshots, demo video, and one completed devnet flow | 2026-07-22 | Frontend/demo work | Demo app copy and story cards shipped (per 2026-07-13 pass); no demo video produced yet (needs 3Shapes Media production per MARKETING.md Phase 1 — no shipped milestone to film against until repo is public). |
+| Kamino CPI design | Technical design, fallback path, risk-control extension, and devnet test plan | 2026-07-29 | Protocol engineering | **Done**, and exceeded: `docs/design/KAMINO_CPI_INTEGRATION.md` plus a working mock-CPI proof of concept (`mock_kamino_lend` program, deposit/redeem/pause probe instructions, 3 new tests) shipped 2026-08-05 (commits `83f4efd`, `b004d7f`). |
+| Kamino CPI prototype | Escrow supply/redeem prototype against devnet or mocked market with tests | 2026-08-12 | Protocol engineering | **On track, ahead of schedule.** The mocked-market prototype above already exists 1 week before target; remaining work is wiring the preflight-guarded CPI into the real money-moving instructions (`create_agreement`/`pay_installment`), gated on `KaminoConfig.enabled`. |
+| Public merchant SDK plan | Merchant integration spec, hosted checkout flow, and onboarding docs | 2026-08-26 | Developer docs and merchant UX | Not started — correctly sequenced after the items above per `MARKETING.md` (checkout SDK is v2.2 roadmap, deferred until IBG demo is real). |
 
 ## Evaluation Alignment
 

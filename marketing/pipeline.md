@@ -1,7 +1,27 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-07-13 by relicpay-growth (added checkout-stack verification pass — see below).*
+*Last updated: 2026-08-05 by relicpay-growth (verified remaining two candidates — see below).*
+
+## 2026-08-05 verification pass — The Hundreds and Thinkspace Projects confirmed
+
+WebSearch + direct `curl` checks against both domains' Shopify-only `/cart.js` endpoint (200 = Shopify
+storefront; this endpoint only exists on live Shopify stores, so it's a hard confirmation, not a guess):
+
+| Candidate | Checkout stack | Status |
+|---|---|---|
+| The Hundreds (`thehundreds.com`) | **Confirmed Shopify** — `/cart.js` returns HTTP 200, page HTML contains `cdn.shopify.com` references. | **Contact-ready** — live storefront, standard checkout stack. |
+| Thinkspace Projects (`shop.thinkspaceprojects.com`) | **Confirmed Shopify** — `/cart.js` returns HTTP 200 on the dedicated shop subdomain (`thinkspaceprojects.com` itself is a separate marketing/inventory site). | **Contact-ready with a caveat**: search results show the gallery directs actual art-piece purchase inquiries to `contact@thinkspaceprojects.com` for payment/shipping rather than a self-serve Shopify checkout for higher-ticket pieces — worth confirming directly whether the Shopify store is used for editions/prints only vs. one-off gallery pieces before pitching a BNPL integration path. |
+
+**Net movement: all 6 original candidates now checkout-stack-verified.** 5 of 6 are contact-ready
+(Brain Dead, Hashimoto Contemporary, Online Ceramics as a fallback surface only, The Hundreds,
+Thinkspace Projects); Freedom (Los Feliz) remains dropped (no real brand found under that name in
+two prior passes) and still needs a replacement candidate from Walter or IBG's actual network.
+
+Still missing before any real outreach, unchanged from the 2026-07-13 pass: (1) a real contact
+name/inbox at any of the 5 contact-ready brands, (2) confirmation of whether IBG Collection's
+network already has a relationship with any of them, which would reorder outreach priority
+entirely. Neither of these is a research-only task — see NEEDS-WALTER in today's progress note.
 
 ## 2026-07-13 verification pass — checkout stack
 

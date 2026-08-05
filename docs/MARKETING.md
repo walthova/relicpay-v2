@@ -1,6 +1,10 @@
 # Relic Pay — Marketing & Go-To-Market Plan
 
 *Last updated: 2026-07-03. Owner: Walter. Executed daily by the RelicPay swarm (see SWARM.md).*
+*Positioning reviewed 2026-08-05 against Walter OS wq-rp-002 ("everyday BNPL is the approved
+position, IBG provenance is the demo") — confirmed already aligned, no changes needed. See
+`marketing/positioning-reconciliation-2026-08-05.md` for the full check and one flagged
+inconsistency in a Walter OS coordination file outside this repo.*
 
 ## Positioning
 

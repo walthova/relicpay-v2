@@ -36,21 +36,24 @@ _Status: Draft. Do not submit without Walter approval._
 
 **Deadline**
 
-> Confirmed via web search 2026-07-13: no fixed deadline found on superteam.fun/earn/grants/agentic-engineering — reads as a rolling $200 USDG grant (funds a month of AI coding tools), not a dated cohort. No submission-window pressure; suggested target date below is self-imposed, not grant-imposed.
-> Suggested deadline: 2026-08-08, 23:59 Asia/Calcutta
+> Confirmed via web search 2026-07-13, re-checked 2026-08-05: no fixed deadline found on superteam.fun/earn/grants/agentic-engineering — reads as a rolling $200 USDG grant (funds a month of AI coding tools), not a dated cohort. No submission-window pressure. The original self-imposed target (2026-08-08) is 3 days out and still blocked on the same open item as the 2026-07-15 milestone below (repo visibility) — see NEEDS-WALTER in `docs/progress/2026-08-05.md`.
+> Suggested revised self-imposed target: 2026-08-12, 23:59 Asia/Calcutta (contingent on the repo-visibility decision).
 
 **Proof of Work**
 
 > - Canonical repo: https://github.com/walthova/relicpay-v2
 > - Live site/demo surface: https://relicpay.app
 > - v2 rebuild commit history includes modular Anchor rebuild, v1 characterization suite, v2 feature suite, risk controls, and public docs.
-> - Recent shipped work:
+> - Recent shipped work (newest first, verified against `git log` 2026-08-05):
+>   - `b004d7f` (2026-08-05) corrected the Kamino CPI fallback design — a real test proved a failed CPI cannot be caught mid-transaction on Solana (no try/catch across `invoke_signed`), so the design was reworked to a preflight guard that reads reserve-paused state before invoking. Fixed the claim in the design doc and the probe code to match.
+>   - `83f4efd` (2026-08-05) shipped a local `mock_kamino_lend` program plus `kamino_cpi.rs`/`kamino_probe.rs` standalone probe instructions (deposit/redeem/pause) and the `KaminoConfig` governance PDA — first real CPI code against a mock reserve, not just design. 3 new tests (deposit, redeem, paused-reserve fallback); 48/48 `anchor test` green.
 >   - `f23dcdc` (2026-07-13) enforced the protocol-wide TVL cap across every money-moving instruction (`create_agreement`, `pay_installment`, `merchant_withdraw`, `cancel_agreement`, `trigger_default`) — the last unwired risk-control path before real Kamino yield touches escrow. 5 new tests; 41/41 `anchor test` green.
 >   - `0f1420e` wired `ProtocolConfig` pause into `pay_installment`, so an emergency stop halts payments on existing agreements, not just new ones.
 >   - `8926da2` fixed frozen-suite timing by confirming airdrop signatures.
 >   - `0687619` wired ProtocolConfig pause and deposit cap enforcement into `create_agreement`.
 >   - `71c4501` added `yield_source` groundwork for simulated-now/Kamino-next clarity.
 >   - `e701733` introduced ProtocolConfig PDA, pause switch, and risk caps.
+> - Current suite status (2026-08-05): `anchor build` green, `cargo test` 6/6 green, `anchor test` 48/48 green.
 > - Docs included: whitepaper, technical breakdown, development plan, marketing plan, terms, repo canonicalization, funding pipeline, and pitch packet.
 > - AI-assisted proof files exported locally and intentionally ignored from git:
 >   - `claude-session.jsonl`
@@ -76,10 +79,10 @@ _Status: Draft. Do not submit without Walter approval._
 
 **Goals and Milestones**
 
-> 1. 2026-07-15: Public-readiness pass complete: canonical repo public, README polished, stale legacy links fixed, and build/test status documented. **AT RISK as of 2026-07-13**: local `main` is 9 commits ahead of `origin/main` (last push 2026-07-04) and the repo is still private — pushing and flipping visibility needs Walter's explicit go-ahead per the secret-scan step in `docs/REPO_CANONICALIZATION.md`. README/docs polish itself is done and sitting uncommitted in the working tree as of this pass.
-> 2. 2026-07-22: Production demo story aligned: Relic Pay v2 homepage and IBG pilot flow explain simulated yield today, Kamino next, and protocol risk controls.
-> 3. 2026-07-29: Colosseum-ready packet complete: public repo, demo link, 3-minute demo script, screenshots, and project description.
-> 4. 2026-08-08: Kamino integration plan complete: account design, CPI sequence, fallback path, test plan, and risk-control extension plan.
+> 1. 2026-07-15: Public-readiness pass complete: canonical repo public, README polished, stale legacy links fixed, and build/test status documented. **STILL AT RISK as of 2026-08-05** (3+ weeks past target): local `main` is now 14 commits ahead of `origin/main` (last push 2026-07-04) and the repo is still private per `gh repo view` — pushing and flipping visibility needs Walter's explicit go-ahead per the secret-scan step in `docs/REPO_CANONICALIZATION.md`. README/docs polish itself has been done and committed since 2026-07-13; only the push/visibility decision is outstanding. This is the single blocking item for every other milestone below.
+> 2. 2026-07-22: Production demo story aligned: Relic Pay v2 homepage and IBG pilot flow explain simulated yield today, Kamino next, and protocol risk controls. Content is drafted (`docs/funding/LOVABLE_HOMEPAGE_UPDATE.md`) but not yet applied to the live Lovable site pending Walter's approval.
+> 3. 2026-07-29: Colosseum-ready packet complete: public repo, demo link, 3-minute demo script, screenshots, and project description. Packet content is drafted (`docs/funding/COLOSSEUM_PACKET.md`); blocked on the same repo-visibility item as milestone 1.
+> 4. **Substantively complete as of 2026-08-05** (target was 2026-08-08): Kamino integration plan — account design, CPI sequence, fallback path, and test plan are done and go further than "plan": a working mock-CPI proof of concept (`mock_kamino_lend` program, `kamino_cpi.rs`/`kamino_probe.rs`, `docs/design/KAMINO_CPI_INTEGRATION.md`) is shipped and tested (3 new tests, 48/48 suite green). Risk-control extension plan (gating real CPI on `KaminoConfig.enabled`) is documented; not yet wired into `create_agreement`/`pay_installment` — that is the explicit next build increment.
 
 **Primary KPI**
 
