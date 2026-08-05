@@ -1,0 +1,21 @@
+[package]
+name = "mock_kamino_lend"
+version = "0.1.0"
+description = "Local mock of Kamino Lend's deposit_reserve_liquidity / redeem_reserve_collateral instruction interface — used to prove Relic Pay's manual-CPI + fallback-on-failure path locally without a devnet dependency. NOT a production integration; see docs/design/KAMINO_CPI_INTEGRATION.md."
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "mock_kamino_lend"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.32.1" }
+anchor-spl = { version = "0.32.1", features = ["token"] }

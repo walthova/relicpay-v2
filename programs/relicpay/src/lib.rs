@@ -160,4 +160,23 @@ pub mod relicpay {
             reserve_collateral_mint,
         )
     }
+
+    // ── v2.1: Kamino CPI proof-of-concept ──
+    // Proves the manual-CPI + fallback-on-failure mechanics end to end
+    // against a local mock Kamino program (see `instructions/kamino_probe.rs`
+    // and `docs/design/KAMINO_CPI_INTEGRATION.md`). NOT wired into
+    // create_agreement/pay_installment/merchant_withdraw — deliberately a
+    // standalone probe; see kamino_probe.rs module doc for why.
+
+    /// Moves USDC already sitting in an agreement's escrow into a Kamino
+    /// (or mock-Kamino) reserve. Never fails the transaction on a CPI
+    /// error — emits a fallback event instead.
+    pub fn kamino_probe_deposit(ctx: Context<KaminoProbeDeposit>, amount: u64) -> Result<()> {
+        instructions::kamino_probe::probe_deposit_handler(ctx, amount)
+    }
+
+    /// Redeems kTokens held by an agreement's escrow back into USDC.
+    pub fn kamino_probe_redeem(ctx: Context<KaminoProbeRedeem>, amount: u64) -> Result<()> {
+        instructions::kamino_probe::probe_redeem_handler(ctx, amount)
+    }
 }

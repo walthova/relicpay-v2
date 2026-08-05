@@ -9,6 +9,7 @@ pub const SEED_POOL_VAULT: &[u8] = b"pool_vault";
 pub const SEED_USER_STAKE: &[u8] = b"user_stake";
 pub const SEED_PROTOCOL_CONFIG: &[u8] = b"protocol_config";
 pub const SEED_KAMINO_CONFIG: &[u8] = b"kamino_config";
+pub const SEED_KAMINO_COLLATERAL: &[u8] = b"kamino_collateral";
 
 /// Installment bounds
 pub const MIN_INSTALLMENTS: u8 = 2;

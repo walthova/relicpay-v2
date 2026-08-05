@@ -108,16 +108,34 @@ code and fallback path are structurally correct; does not prove Kamino's
 actual deposit math/oracle behavior). Recommend (b) first, (a) once (b) is
 proven, to avoid burning devnet SOL on a broken account-passing bug.
 
-## Fallback design (item 3)
+## Fallback design (item 3) — CORRECTED 2026-08-05
 
-The plan requires: *"never block a purchase on a DeFi dependency."*
-Solana CPI failures are catchable in Rust — `invoke_signed` inside our own
-handler returns a `Result`, so we can `match` on it and fall back to the
-existing raw-USDC escrow path within the same instruction, rather than
-letting a Kamino-side failure abort the whole `create_agreement` /
-`pay_installment` transaction. Shape:
+**The original version of this section was wrong, and the wrong version
+shipped in code for one session (2026-08-04) before a test caught it.**
+It claimed: *"Solana CPI failures are catchable in Rust — `invoke_signed`
+... returns a `Result`, so we can `match` on it and fall back ... rather
+than letting a Kamino-side failure abort the whole transaction."*
+
+That is false for the case that matters. **A failed CPI aborts the entire
+transaction. There is no try/catch across a CPI boundary on Solana** in the
+sense needed here: once `invoke_signed` actually invokes the target program
+and that program returns an error, the transaction is done. The calling
+program's Rust code technically receives `Err` back from `invoke_signed`
+and *could* choose not to propagate it further with `?` — but by the time
+that `Err` is observed, the runtime has already recorded the inner
+instruction's failure, and the outer instruction's own error status
+reflects it regardless of what the caller's Rust code does afterward.
+
+Verified empirically, not just by re-reading Solana docs: `kamino_probe.rs`
+originally implemented exactly the `match ... Err(_) => fall back, return
+Ok(())` shape shown in the removed code block below. It compiled cleanly.
+A test that paused the local mock reserve and called `kamino_probe_deposit`
+still failed with the mock's `ReservePaused` `AnchorError` surfacing as the
+top-level transaction error — proving the "catch and continue" shape does
+not work, at least not the way that code assumed.
 
 ```
+// REMOVED — does not do what the comments claimed:
 match try_kamino_deposit(&ctx, amount) {
     Ok(()) => agreement.yield_source = BnplAgreement::YIELD_SOURCE_KAMINO_LEND,
     Err(_) => {
@@ -127,13 +145,39 @@ match try_kamino_deposit(&ctx, amount) {
 }
 ```
 
-This requires the Kamino-specific accounts (reserve, lending_market, etc.)
-to be **optional** in the instruction's account list, since most callers
-won't have them and the frozen v1 characterization suite must keep working
-unmodified. A `KaminoConfig` governance PDA (shipped today, see below)
-holds the target reserve/market pubkeys so the client can decide whether to
-attempt the Kamino path at all, rather than trying and failing every time
-Kamino integration is simply turned off.
+Two shapes actually deliver "never block a purchase on a DeFi dependency":
+
+**(a) Preflight.** Read state that predicts the failure *before* invoking,
+and skip the CPI entirely (falling back to raw USDC) when it looks
+unusable. Implemented in `kamino_probe.rs` today as a proof of the pattern:
+it reads the mock reserve's `paused` byte directly from account data before
+calling `try_kamino_deposit`. This is real but inherently limited — it only
+catches failures you can predict by reading state ahead of time (a known
+"paused" flag, say), never a failure that only manifests once the CPI
+actually executes (a stale oracle rejecting mid-instruction, an
+unanticipated Kamino-side check, ...). It also does not generalize past the
+mock: real Kamino's reserve account layout is Kamino's, not ours, and
+reading it meaningfully needs their real account schema — out of scope
+here (see "cloned devnet market" section above on why that's hard to test
+locally in the first place).
+
+**(b) Off the critical path (recommended for the real integration).** Move
+Kamino deposits into a separate crank instruction/transaction that runs
+after the purchase, rather than inline in `create_agreement`/
+`pay_installment`. A crank's failure only fails the crank; it structurally
+cannot fail the purchase transaction, because they're different
+transactions. This is the architecturally correct answer to the plan's
+requirement and is **not implemented yet** — it's real design work (crank
+authority/permissioning, retry/backoff, what state tracks "deposit
+pending" vs. "deposited") that belongs in its own session, not folded into
+this correction.
+
+Whichever shape is used for the real (non-probe) integration, the Kamino-
+specific accounts (reserve, lending_market, etc.) still need to be
+**optional** / conditionally present, since most callers won't have them
+and the frozen v1 characterization suite must keep working unmodified. The
+`KaminoConfig` governance PDA (shipped 2026-07-14) still holds the target
+reserve/market pubkeys for whichever shape reads them.
 
 ## What ships today vs. what's next
 

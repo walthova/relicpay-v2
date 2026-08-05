@@ -132,3 +132,29 @@ pub struct KaminoConfigUpdated {
     pub enabled: bool,
     pub reserve: Pubkey,
 }
+
+// ── v2.1: Kamino CPI proof-of-concept (kamino_probe.rs) ──
+
+#[event]
+pub struct KaminoDepositProbeSucceeded {
+    pub agreement: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct KaminoDepositProbeFallback {
+    pub agreement: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct KaminoRedeemProbeSucceeded {
+    pub agreement: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct KaminoRedeemProbeFallback {
+    pub agreement: Pubkey,
+    pub amount: u64,
+}

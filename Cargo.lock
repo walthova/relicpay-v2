@@ -1014,6 +1014,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock_kamino_lend"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1311,6 +1319,7 @@ version = "2.0.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "sha2 0.10.9",
 ]
 
 [[package]]

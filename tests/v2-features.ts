@@ -871,4 +871,218 @@ describe("relicpay v2 features", () => {
       assert.equal(acct.yieldSource, 0, "yield_source must still be Simulated");
     });
   });
+
+  // ── Kamino CPI proof-of-concept (v2.1 items 1-3, "next" per 2026-07-14) ──
+  // Proves the manual-CPI + fallback-on-failure mechanics in kamino_cpi.rs
+  // / kamino_probe.rs against a local mock Kamino program. Not wired into
+  // create_agreement/pay_installment/merchant_withdraw yet — see
+  // kamino_probe.rs module doc for why. This is a standalone probe: it
+  // moves an agreement's already-escrowed USDC into a mock reserve and
+  // back, and proves a CPI failure degrades to a no-op instead of
+  // aborting the transaction.
+  describe("kamino CPI probe (v2.1 items 1-3)", () => {
+    const mockKamino = anchor.workspace.MockKaminoLend as Program<any>;
+    const reserveAuthority = Keypair.generate();
+
+    let liquidityMint: PublicKey;
+    let collateralMint: PublicKey;
+    let reservePDA: PublicKey;
+    let reserveLiquiditySupply: PublicKey;
+
+    const dummyPubkey = () => Keypair.generate().publicKey;
+
+    const escrowCollateralPDA = (agreement: PublicKey): PublicKey =>
+      PublicKey.findProgramAddressSync(
+        [Buffer.from("kamino_collateral"), agreement.toBuffer()],
+        program.programId
+      )[0];
+
+    before(async () => {
+      const sig = await provider.connection.requestAirdrop(
+        reserveAuthority.publicKey,
+        2 * LAMPORTS_PER_SOL
+      );
+      const latest = await provider.connection.getLatestBlockhash();
+      await provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
+
+      // Reuse the shared USDC mint as the mock reserve's liquidity mint —
+      // it's just a devnet-style 6-decimal SPL mint, same as production USDC.
+      liquidityMint = usdcMint;
+
+      [reservePDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("reserve"), liquidityMint.toBuffer()],
+        mockKamino.programId
+      );
+
+      // Collateral mint's authority must be the reserve PDA — that's who
+      // signs mint_to/burn inside the mock program's deposit/redeem
+      // handlers via invoke_signed.
+      collateralMint = await createMint(
+        provider.connection,
+        buyer,
+        reservePDA,
+        null,
+        6
+      );
+
+      reserveLiquiditySupply = await createAccount(
+        provider.connection,
+        buyer,
+        liquidityMint,
+        reservePDA,
+        Keypair.generate() // owner (reservePDA) is off-curve — can't use an ATA
+      );
+
+      await mockKamino.methods
+        .initializeReserve(false)
+        .accounts({
+          reserve: reservePDA,
+          authority: reserveAuthority.publicKey,
+          liquidityMint,
+          collateralMint,
+          reserveLiquiditySupply,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([reserveAuthority])
+        .rpc();
+    });
+
+    it("deposits escrowed USDC into the mock Kamino reserve and mints escrow kTokens", async () => {
+      const { agreement, escrow } = await createAgreement(
+        "v2-kamino-probe-deposit",
+        new BN(60_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+      const escrowBefore = await getAccount(provider.connection, escrow);
+      const depositAmount = new BN(Number(escrowBefore.amount)); // full first-installment balance
+
+      await program.methods
+        .kaminoProbeDeposit(depositAmount)
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          escrowUsdc: escrow,
+          kaminoProgram: mockKamino.programId,
+          kaminoLendingMarket: dummyPubkey(),
+          kaminoLendingMarketAuthority: dummyPubkey(),
+          kaminoReserve: reservePDA,
+          kaminoReserveLiquiditySupply: reserveLiquiditySupply,
+          kaminoReserveCollateralMint: collateralMint,
+          escrowKaminoCollateral: escrowCollateral,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const escrowAfter = await getAccount(provider.connection, escrow);
+      assert.equal(escrowAfter.amount.toString(), "0", "escrow USDC moved into the reserve");
+
+      const collateralAcct = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(
+        collateralAcct.amount.toString(),
+        depositAmount.toString(),
+        "escrow must hold 1:1 kTokens for the deposited amount"
+      );
+    });
+
+    it("redeems escrow kTokens back into USDC", async () => {
+      const agreement = agreementPDA("v2-kamino-probe-deposit");
+      const escrow = escrowPDA(agreement);
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      const collateralBefore = await getAccount(provider.connection, escrowCollateral);
+      const redeemAmount = new BN(Number(collateralBefore.amount));
+
+      await program.methods
+        .kaminoProbeRedeem(redeemAmount)
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          escrowUsdc: escrow,
+          kaminoProgram: mockKamino.programId,
+          kaminoLendingMarket: dummyPubkey(),
+          kaminoLendingMarketAuthority: dummyPubkey(),
+          kaminoReserve: reservePDA,
+          kaminoReserveLiquiditySupply: reserveLiquiditySupply,
+          kaminoReserveCollateralMint: collateralMint,
+          escrowKaminoCollateral: escrowCollateral,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const escrowAfter = await getAccount(provider.connection, escrow);
+      assert.equal(
+        escrowAfter.amount.toString(),
+        redeemAmount.toString(),
+        "USDC must return to escrow 1:1"
+      );
+
+      const collateralAfter = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(collateralAfter.amount.toString(), "0", "kTokens burned on redemption");
+    });
+
+    it("falls back cleanly (no state change, no tx failure) when the CPI target rejects the deposit", async () => {
+      // Force a deposit failure the same way the mock program documents:
+      // pause the reserve. try_kamino_deposit must return Err, the handler
+      // must catch it and emit a Fallback event, and the instruction must
+      // still succeed — "never block a purchase on a DeFi dependency."
+      await mockKamino.methods
+        .setPaused(true)
+        .accounts({ reserve: reservePDA, authority: reserveAuthority.publicKey })
+        .signers([reserveAuthority])
+        .rpc();
+
+      const { agreement, escrow } = await createAgreement(
+        "v2-kamino-probe-fallback",
+        new BN(30_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+      const escrowBefore = await getAccount(provider.connection, escrow);
+
+      // Must not throw — the CPI failure is caught internally.
+      await program.methods
+        .kaminoProbeDeposit(new BN(Number(escrowBefore.amount)))
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          escrowUsdc: escrow,
+          kaminoProgram: mockKamino.programId,
+          kaminoLendingMarket: dummyPubkey(),
+          kaminoLendingMarketAuthority: dummyPubkey(),
+          kaminoReserve: reservePDA,
+          kaminoReserveLiquiditySupply: reserveLiquiditySupply,
+          kaminoReserveCollateralMint: collateralMint,
+          escrowKaminoCollateral: escrowCollateral,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const escrowAfter = await getAccount(provider.connection, escrow);
+      assert.equal(
+        escrowAfter.amount.toString(),
+        escrowBefore.amount.toString(),
+        "escrow USDC must be untouched on CPI failure"
+      );
+
+      const collateralAcct = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(collateralAcct.amount.toString(), "0", "no kTokens minted on CPI failure");
+
+      // Restore for hygiene, in case other tests run after this in future.
+      await mockKamino.methods
+        .setPaused(false)
+        .accounts({ reserve: reservePDA, authority: reserveAuthority.publicKey })
+        .signers([reserveAuthority])
+        .rpc();
+    });
+  });
 });
