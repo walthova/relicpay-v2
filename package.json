@@ -1,7 +1,10 @@
 {
   "type": "commonjs",
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
-    "test": "ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/*.ts'"
+    "test": "node scripts/test.js"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
