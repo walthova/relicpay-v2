@@ -14,8 +14,12 @@ paused as of 2026-07-09 status; Eternal Sprint appears to be running again
 per the Cohort 5 pipeline mention (112 applications in H1 2026) — needs a
 direct check of colosseum.com/eternal before relying on it as an open path.
 
-This gives Relic Pay ~11 weeks from today (2026-07-13) to Sep 28 to have the
-demo, repo, and video genuinely ready — not a rushed submission.
+This gave Relic Pay ~11 weeks from 2026-07-13 to Sep 28. **Re-checked 2026-09-07: only 3 weeks
+remain**, and the repo-visibility blocker this packet depends on (public repo required for
+submission) is now more complex than a simple push — `origin/main` diverged on 2026-09-03 with a
+real Walter+Devin AI merge (`c21bbe3`..`f03fe03`) that local `main` doesn't have, while local is
+still 15 commits ahead of the pre-merge base. See NEEDS-WALTER in `docs/progress/2026-09-07.md`.
+This is now the single highest-urgency deadline blocked on that decision.
 
 Sources:
 
@@ -33,6 +37,16 @@ Primary: Consumer or Payments/Commerce, if available.
 Fallback: DeFi only if the submission emphasizes escrow yield and Kamino
 integration. Avoid leading with DeFi if the track is crowded and the judging
 criteria reward consumer clarity.
+
+**Updated 2026-09-07 per Colosseum Copilot winner-signal analysis** (293 winners vs. 5,428 total
+projects, see `walter-os/businesses/relic-pay/colosseum-bnpl-landscape-2026-09-06.md`): "payments"
+as a stated primitive is a slight negative (-15% among winners); winners over-index on lending,
+underwriting, credit-scoring, tokenization, and oracle primitives, and on framing the problem as
+capital inefficiency (+81%) or fragmented liquidity (+101%) rather than high fees (0 of 293
+winners used a fees framing). For this submission: keep Consumer/Payments as the track label if
+that's the closest fit, but write the problem statement and primitive list around credit/
+underwriting and capital efficiency, not "payments" or "fees." Do not describe IBG provenance in
+NFT terms anywhere in this packet — NFT framing is the single worst signal in the dataset (-66%).
 
 ## Project Name
 

@@ -36,8 +36,17 @@ _Status: Draft. Do not submit without Walter approval._
 
 **Deadline**
 
-> Confirmed via web search 2026-07-13, re-checked 2026-08-05: no fixed deadline found on superteam.fun/earn/grants/agentic-engineering — reads as a rolling $200 USDG grant (funds a month of AI coding tools), not a dated cohort. No submission-window pressure. The original self-imposed target (2026-08-08) is 3 days out and still blocked on the same open item as the 2026-07-15 milestone below (repo visibility) — see NEEDS-WALTER in `docs/progress/2026-08-05.md`.
-> Suggested revised self-imposed target: 2026-08-12, 23:59 Asia/Calcutta (contingent on the repo-visibility decision).
+> Confirmed via web search 2026-07-13, re-checked 2026-08-05 and again 2026-09-07: still no fixed
+> deadline found for the Agentic Engineering Grant — rolling $200 USDG, not a dated cohort. No
+> submission-window pressure on this grant specifically. However, the repo-visibility blocker this
+> deadline note has cited since 2026-07-15 is now **54 days overdue** and has gotten more complex,
+> not less: `origin/main` on the (still private) GitHub repo received a real merge on 2026-09-03
+> (`c21bbe3`..`f03fe03`, Walter + Devin AI co-authored) that local `main` does not have, while local
+> `main` is still 15 commits ahead of the pre-merge base. A plain `git push` will now conflict —
+> reconciling the two histories is a prerequisite for any visibility flip, on top of the secret-scan
+> step in `docs/REPO_CANONICALIZATION.md`. See NEEDS-WALTER in `docs/progress/2026-09-07.md`.
+> Suggested self-imposed target: 2026-09-12 (contingent on the merge-and-visibility decision, and
+> now genuinely time-pressured by the Colosseum Fall Hackathon window below).
 
 **Proof of Work**
 
@@ -97,4 +106,23 @@ _Status: Draft. Do not submit without Walter approval._
 - Do not claim real yield until Kamino CPI is implemented.
 - Keep "simulated devnet yield today; Kamino Lend next" in every public artifact.
 - Submit only after Walter approves the final text and public repo visibility.
+
+## Related deadline (not this grant, but time-pressured)
+
+> Colosseum Solana Fall Hackathon: **2026-09-28 to 2026-11-02**, confirmed 2026-09-07 (unchanged
+> from the 2026-07-13/2026-08-05 confirmations). Submission window opens in **3 weeks**. The same
+> repo-visibility/merge blocker above holds back `docs/funding/COLOSSEUM_PACKET.md` — this is now
+> the higher-urgency deadline of the two.
+
+## Competitive differentiation note (wq-rp-002 input, 2026-09-07)
+
+> Direct competitor Yumi Finance (won Cypherpunk 2025, funded by Colosseum/Four Pillars/Very Early
+> Ventures) charges merchants a flat 3% fee on its Pay-in-4 BNPL product and settles primarily on
+> EVM chains (Solana wallets are accepted for underwriting signal only, not settlement). Relic Pay's
+> two-line differentiation for any pitch, packet, or grant answer: **(1) merchants keep the full
+> sale, no BNPL fee — Yumi still extracts from the merchant side; (2) Relic Pay is Solana-native
+> end to end, not a multi-chain credit API that treats Solana as one data source among several.**
+> Per the Colosseum winner-signal read (`walter-os/businesses/relic-pay/colosseum-bnpl-landscape-
+> 2026-09-06.md`), frame this as a capital-inefficiency/fragmented-liquidity argument, not a
+> "high fees" complaint — zero of 293 hackathon winners framed their problem as fees.
 

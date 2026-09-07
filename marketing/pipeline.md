@@ -1,7 +1,30 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-08-05 by relicpay-growth (verified remaining two candidates — see below).*
+*Last updated: 2026-09-07 by relicpay-growth (replaced the dropped Freedom slot — see below).*
+
+## 2026-09-07 verification pass — WITTMORE replaces the dropped Freedom (Los Feliz) slot
+
+Freedom (Los Feliz) has failed verification across three prior passes (2026-07-08, 2026-07-13,
+2026-08-05) — no real brand found under that name/location. Rather than run a fourth guess, this
+pass sourced a concrete replacement and verified it in the same session:
+
+| Candidate | Category | Checkout stack | Status |
+|---|---|---|---|
+| WITTMORE (`wittmore.com`) | Modern men's boutique, LA Arts District — contemporary apparel, accessories, lifestyle goods | **Confirmed Shopify** — direct `curl` on `/cart.js` returns HTTP 200 with a valid cart JSON payload, and the site's own response headers include `powered-by: Shopify` plus `shopify-complexity-score` — a hard, two-signal confirmation, not a guess. | **Contact-ready** — live storefront, standard checkout stack, LA Arts District location gives it the same neighborhood/scene overlap rationale the original Freedom slot was chosen for. |
+
+Two other candidates surfaced by the same search were checked and rejected this pass: LA Street
+Art Gallery (`la-street-art-gallery.myshopify.com`) returns HTTP 402 on `/cart.js` (Shopify
+"payment required" — the store exists but its Shopify subscription appears lapsed/unpaid, not a
+live storefront to pitch); Arts District Coop's guessed Shopify subdomain 404s (no confirmed
+storefront under that guess, would need a real site to re-check).
+
+**Net movement: pipeline is back to 6 verified candidates, 6 of 6 contact-ready** (Brain Dead,
+Hashimoto Contemporary, The Hundreds, Thinkspace Projects, WITTMORE; Online Ceramics remains a
+fallback-only surface since its primary site is off-Shopify). Still missing before any real
+outreach, unchanged from every prior pass: (1) a real contact name/inbox at any candidate, (2)
+confirmation of whether IBG Collection's network already has a relationship with any of them. Both
+remain NEEDS-WALTER, not research-only tasks.
 
 ## 2026-08-05 verification pass — The Hundreds and Thinkspace Projects confirmed
 

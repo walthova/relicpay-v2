@@ -1,5 +1,5 @@
 # Relic Pay Whitepaper
-### Decentralized Buy Now, Pay Later — Where Your Payment Plan Makes You Money
+### Yield-Bearing Buy Now, Pay Later — Where Your Payment Plan Makes You Money
 **Version 1.0 | May 2026**
 
 ---
@@ -23,7 +23,7 @@
 
 ## 1. Executive Summary
 
-Relic Pay is a decentralized, non-custodial Buy Now Pay Later (BNPL) protocol built on Solana. It allows crypto holders to use their digital assets as collateral to generate instant credit lines — without selling their positions.
+Relic Pay is a non-custodial Buy Now Pay Later (BNPL) protocol built on Solana. It allows crypto holders to use their digital assets as collateral to generate instant credit lines — without selling their positions.
 
 The protocol's defining innovation: the funds locked in escrow during the repayment period are automatically deployed into DeFi yield strategies. This means the buyer earns interest on their locked capital while paying back. The merchant receives full payment on completion. The seller gains access to a new category of buyer — the crypto holder who refuses to sell.
 

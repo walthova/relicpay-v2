@@ -69,3 +69,29 @@ confirm whether I (or another agent under a claimed wq-rp-002) should directly e
 `/Users/w.m/walter-os/businesses/relic-pay/wedge-recommendation.md` to match this framing, since
 that file lives outside this repo's normal write scope and was produced under a different queue
 item.
+
+## Addendum, 2026-09-07 — Colosseum winner-signal read feeds the same reframe
+
+`walter-os/businesses/relic-pay/colosseum-bnpl-landscape-2026-09-06.md` (Colosseum Copilot query
+against 5,428 hackathon projects, 293 winners) sharpens what "everyday BNPL" should sound like
+in any wq-rp-002 rewrite, beyond the noun-swap above:
+
+1. Generic "decentralized BNPL" is already a won position (Yumi Finance, Cypherpunk 2025) — the
+   reframe needs a sharper wedge than "BNPL on Solana."
+2. Never frame the problem as high fees — zero of 293 winners did. Frame it as capital
+   inefficiency or fragmented liquidity instead; both are honest descriptions of BNPL against held
+   assets and both are strong winner signals (+81% and +101% respectively).
+3. Lead with credit/underwriting/provenance primitives, not "payments" as a primitive (-15% among
+   winners).
+4. Describe IBG provenance as provenance, authentication, or a credit profile — never in NFT
+   terms. NFT framing is the worst signal in the dataset at -66%.
+5. This repo's own `docs/WHITEPAPER.md` headline and executive summary led with "decentralized"
+   until this pass (fixed 2026-09-07) — worth a full-repo grep before any public push, since the
+   same word appears in scattered technical descriptions (`docs/WHITEPAPER.md`, `README.md`) that
+   are lower-priority to change but should be reviewed once the repo-visibility decision lands.
+
+Also found this pass: Yumi Finance charges merchants a flat 3% fee on its Pay-in-4 product and
+settles primarily on EVM chains. Relic Pay's two concrete differentiators for any pitch text:
+merchants keep the full sale (no BNPL fee extraction), and settlement is Solana-native end to end,
+not a multi-chain credit API. Full note in
+`docs/funding/AGENTIC_ENGINEERING_GRANT.md` ("Competitive differentiation note").
