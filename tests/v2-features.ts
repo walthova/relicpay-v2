@@ -34,6 +34,13 @@ describe("relicpay v2 features", () => {
   let buyerUsdc: PublicKey;
   let merchantUsdc: PublicKey;
 
+  // KaminoConfig is a program-wide singleton PDA (seeds = ["kamino_config"]).
+  // It is initialized once by the "kamino config (v2.1 groundwork)" describe
+  // block below; the "kamino CPI probe" describe block reuses this same
+  // authority to reconfigure it rather than re-initializing (init would fail
+  // — the account already exists).
+  let kaminoConfigAuthority: Keypair;
+
   const MERCHANT_NAME = "IBG Collection";
 
   const agreementPDA = (productId: string): PublicKey =>
@@ -746,6 +753,7 @@ describe("relicpay v2 features", () => {
 
   describe("kamino config (v2.1 groundwork)", () => {
     const govAuthority = Keypair.generate();
+    kaminoConfigAuthority = govAuthority;
     const attacker = Keypair.generate();
 
     const configPDA = (): PublicKey =>
@@ -888,14 +896,36 @@ describe("relicpay v2 features", () => {
     let collateralMint: PublicKey;
     let reservePDA: PublicKey;
     let reserveLiquiditySupply: PublicKey;
+    let approvedLendingMarket: PublicKey;
+    let approvedLendingMarketAuthority: PublicKey;
 
     const dummyPubkey = () => Keypair.generate().publicKey;
+
+    const probeConfigPDA = (): PublicKey =>
+      PublicKey.findProgramAddressSync(
+        [Buffer.from("kamino_config")],
+        program.programId
+      )[0];
 
     const escrowCollateralPDA = (agreement: PublicKey): PublicKey =>
       PublicKey.findProgramAddressSync(
         [Buffer.from("kamino_collateral"), agreement.toBuffer()],
         program.programId
       )[0];
+
+    // Shared account bundle for kaminoProbeDeposit/Redeem calls — every
+    // field here must match the governance-approved KaminoConfig exactly,
+    // enforced by require_matches_kamino_config in the handler.
+    const approvedAccounts = () => ({
+      config: probeConfigPDA(),
+      kaminoProgram: mockKamino.programId,
+      kaminoLendingMarket: approvedLendingMarket,
+      kaminoLendingMarketAuthority: approvedLendingMarketAuthority,
+      kaminoReserve: reservePDA,
+      kaminoReserveLiquiditySupply: reserveLiquiditySupply,
+      kaminoReserveCollateralMint: collateralMint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    });
 
     before(async () => {
       const sig = await provider.connection.requestAirdrop(
@@ -945,9 +975,124 @@ describe("relicpay v2 features", () => {
         })
         .signers([reserveAuthority])
         .rpc();
+
+      // Reconfigure the program-wide KaminoConfig singleton (already
+      // initialized by the "kamino config (v2.1 groundwork)" describe
+      // block above) to point at this block's mock reserve and enable it —
+      // kamino_probe_deposit/redeem now require every target account to
+      // match it exactly (DEVELOPMENT_PLAN.md v2.1 gating).
+      approvedLendingMarket = dummyPubkey();
+      approvedLendingMarketAuthority = dummyPubkey();
+
+      const config = probeConfigPDA();
+      await program.methods
+        .setKaminoConfig(
+          true,
+          mockKamino.programId,
+          approvedLendingMarket,
+          approvedLendingMarketAuthority,
+          reservePDA,
+          reserveLiquiditySupply,
+          collateralMint
+        )
+        .accounts({ config, authority: kaminoConfigAuthority.publicKey })
+        .signers([kaminoConfigAuthority])
+        .rpc();
     });
 
-    it("deposits escrowed USDC into the mock Kamino reserve and mints escrow kTokens", async () => {
+    it("rejects kamino_probe_deposit when KaminoConfig is disabled", async () => {
+      const config = probeConfigPDA();
+      await program.methods
+        .setKaminoConfig(
+          false,
+          mockKamino.programId,
+          approvedLendingMarket,
+          approvedLendingMarketAuthority,
+          reservePDA,
+          reserveLiquiditySupply,
+          collateralMint
+        )
+        .accounts({ config, authority: kaminoConfigAuthority.publicKey })
+        .signers([kaminoConfigAuthority])
+        .rpc();
+
+      const { agreement, escrow } = await createAgreement(
+        "v2-kamino-probe-disabled",
+        new BN(20_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+      const escrowBefore = await getAccount(provider.connection, escrow);
+
+      try {
+        await program.methods
+          .kaminoProbeDeposit(new BN(Number(escrowBefore.amount)))
+          .accounts({
+            agreement,
+            buyer: buyer.publicKey,
+            escrowUsdc: escrow,
+            ...approvedAccounts(),
+            escrowKaminoCollateral: escrowCollateral,
+            systemProgram: SystemProgram.programId,
+            rent: SYSVAR_RENT_PUBKEY,
+          })
+          .signers([buyer])
+          .rpc();
+        assert.fail("Expected KaminoConfigDisabled");
+      } catch (err: any) {
+        assert.include(err.message, "KaminoConfigDisabled");
+      }
+
+      // Re-enable for the rest of this describe block's tests.
+      await program.methods
+        .setKaminoConfig(
+          true,
+          mockKamino.programId,
+          approvedLendingMarket,
+          approvedLendingMarketAuthority,
+          reservePDA,
+          reserveLiquiditySupply,
+          collateralMint
+        )
+        .accounts({ config, authority: kaminoConfigAuthority.publicKey })
+        .signers([kaminoConfigAuthority])
+        .rpc();
+    });
+
+    it("rejects kamino_probe_deposit when a target account does not match KaminoConfig", async () => {
+      const { agreement, escrow } = await createAgreement(
+        "v2-kamino-probe-mismatch",
+        new BN(20_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+      const escrowBefore = await getAccount(provider.connection, escrow);
+
+      try {
+        await program.methods
+          .kaminoProbeDeposit(new BN(Number(escrowBefore.amount)))
+          .accounts({
+            agreement,
+            buyer: buyer.publicKey,
+            escrowUsdc: escrow,
+            ...approvedAccounts(),
+            // Wrong lending market — must not match config.lendingMarket.
+            kaminoLendingMarket: dummyPubkey(),
+            escrowKaminoCollateral: escrowCollateral,
+            systemProgram: SystemProgram.programId,
+            rent: SYSVAR_RENT_PUBKEY,
+          })
+          .signers([buyer])
+          .rpc();
+        assert.fail("Expected KaminoAccountMismatch");
+      } catch (err: any) {
+        assert.include(err.message, "KaminoAccountMismatch");
+      }
+    });
+
+    it("deposits escrowed USDC into the mock Kamino reserve, mints escrow kTokens, and flips yield_source", async () => {
       const { agreement, escrow } = await createAgreement(
         "v2-kamino-probe-deposit",
         new BN(60_000_000),
@@ -964,14 +1109,8 @@ describe("relicpay v2 features", () => {
           agreement,
           buyer: buyer.publicKey,
           escrowUsdc: escrow,
-          kaminoProgram: mockKamino.programId,
-          kaminoLendingMarket: dummyPubkey(),
-          kaminoLendingMarketAuthority: dummyPubkey(),
-          kaminoReserve: reservePDA,
-          kaminoReserveLiquiditySupply: reserveLiquiditySupply,
-          kaminoReserveCollateralMint: collateralMint,
+          ...approvedAccounts(),
           escrowKaminoCollateral: escrowCollateral,
-          tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
           rent: SYSVAR_RENT_PUBKEY,
         })
@@ -987,9 +1126,16 @@ describe("relicpay v2 features", () => {
         depositAmount.toString(),
         "escrow must hold 1:1 kTokens for the deposited amount"
       );
+
+      const agreementAcct = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(
+        agreementAcct.yieldSource,
+        1,
+        "yield_source must flip to KaminoLend on a successful deposit"
+      );
     });
 
-    it("redeems escrow kTokens back into USDC", async () => {
+    it("redeems escrow kTokens back into USDC and flips yield_source back to Simulated", async () => {
       const agreement = agreementPDA("v2-kamino-probe-deposit");
       const escrow = escrowPDA(agreement);
       const escrowCollateral = escrowCollateralPDA(agreement);
@@ -1003,14 +1149,8 @@ describe("relicpay v2 features", () => {
           agreement,
           buyer: buyer.publicKey,
           escrowUsdc: escrow,
-          kaminoProgram: mockKamino.programId,
-          kaminoLendingMarket: dummyPubkey(),
-          kaminoLendingMarketAuthority: dummyPubkey(),
-          kaminoReserve: reservePDA,
-          kaminoReserveLiquiditySupply: reserveLiquiditySupply,
-          kaminoReserveCollateralMint: collateralMint,
+          ...approvedAccounts(),
           escrowKaminoCollateral: escrowCollateral,
-          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([buyer])
         .rpc();
@@ -1024,6 +1164,13 @@ describe("relicpay v2 features", () => {
 
       const collateralAfter = await getAccount(provider.connection, escrowCollateral);
       assert.equal(collateralAfter.amount.toString(), "0", "kTokens burned on redemption");
+
+      const agreementAcct = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(
+        agreementAcct.yieldSource,
+        0,
+        "yield_source must flip back to Simulated once redeemed to raw USDC"
+      );
     });
 
     it("falls back cleanly (no state change, no tx failure) when the CPI target rejects the deposit", async () => {
@@ -1053,14 +1200,8 @@ describe("relicpay v2 features", () => {
           agreement,
           buyer: buyer.publicKey,
           escrowUsdc: escrow,
-          kaminoProgram: mockKamino.programId,
-          kaminoLendingMarket: dummyPubkey(),
-          kaminoLendingMarketAuthority: dummyPubkey(),
-          kaminoReserve: reservePDA,
-          kaminoReserveLiquiditySupply: reserveLiquiditySupply,
-          kaminoReserveCollateralMint: collateralMint,
+          ...approvedAccounts(),
           escrowKaminoCollateral: escrowCollateral,
-          tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
           rent: SYSVAR_RENT_PUBKEY,
         })

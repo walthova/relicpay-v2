@@ -29,6 +29,27 @@
 //!       a purchase transaction. This is the architecturally correct
 //!       answer and is NOT implemented here — flagged as the next step.
 //!
+//! GATED 2026-08-07 (was open in the 2026-08-05 draft): both instructions
+//! now require a `KaminoConfig` account and validate every Kamino target
+//! account passed by the caller (program, market, market authority,
+//! reserve, reserve liquidity supply, collateral mint) against the values
+//! governance set via `set_kamino_config`, and require `config.enabled`.
+//! Previously these were plain `UncheckedAccount`s trusted straight from
+//! the client — anyone could point `kamino_program` at an arbitrary
+//! program and this instruction would happily CPI into it and report
+//! success. This closes that gap: a caller can still choose to *call* the
+//! instruction, but the only accounts it will ever actually invoke are the
+//! ones governance approved. On a successful deposit the agreement's
+//! `yield_source` is flipped to `KAMINO_LEND` (DEVELOPMENT_PLAN.md v2.1
+//! item 4) so agreements record whether their yield is simulated or real.
+//! Callers no longer need to be the agreement's buyer for this reason: once
+//! escrow money movement is gated by governance-approved accounts instead
+//! of trust in the caller, there's no additional risk in letting anyone
+//! crank a deposit/redeem for any agreement — it's the same "permissionless
+//! crank, off the critical path" pattern the design doc calls for, though
+//! wiring it into `create_agreement`/`pay_installment` money flow itself
+//! remains future work (see DELIBERATE SCOPE below, still true).
+//!
 //! DELIBERATE SCOPE: this is a standalone probe, not wired into
 //! `create_agreement` / `pay_installment` / `merchant_withdraw` yet. Wiring
 //! it into those would mean escrow's raw USDC balance no longer matches
@@ -65,7 +86,50 @@ use crate::events::{
 use crate::instructions::kamino_cpi::{
     try_kamino_deposit, try_kamino_redeem, KaminoDepositAccounts, KaminoRedeemAccounts,
 };
-use crate::state::{AgreementState, BnplAgreement};
+use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
+
+/// Validates every Kamino target account the caller passed against the
+/// governance-approved `KaminoConfig`. Must run before any preflight state
+/// read or CPI — an account that doesn't match config is never touched,
+/// not even read for a paused check.
+fn require_matches_kamino_config(
+    config: &KaminoConfig,
+    kamino_program: &Pubkey,
+    lending_market: &Pubkey,
+    lending_market_authority: &Pubkey,
+    reserve: &Pubkey,
+    reserve_liquidity_supply: &Pubkey,
+    reserve_collateral_mint: &Pubkey,
+) -> Result<()> {
+    require!(config.enabled, RelicPayError::KaminoConfigDisabled);
+    require_keys_eq!(
+        *kamino_program,
+        config.kamino_program,
+        RelicPayError::KaminoAccountMismatch
+    );
+    require_keys_eq!(
+        *lending_market,
+        config.lending_market,
+        RelicPayError::KaminoAccountMismatch
+    );
+    require_keys_eq!(
+        *lending_market_authority,
+        config.lending_market_authority,
+        RelicPayError::KaminoAccountMismatch
+    );
+    require_keys_eq!(*reserve, config.reserve, RelicPayError::KaminoAccountMismatch);
+    require_keys_eq!(
+        *reserve_liquidity_supply,
+        config.reserve_liquidity_supply,
+        RelicPayError::KaminoAccountMismatch
+    );
+    require_keys_eq!(
+        *reserve_collateral_mint,
+        config.reserve_collateral_mint,
+        RelicPayError::KaminoAccountMismatch
+    );
+    Ok(())
+}
 
 /// Byte offset of `mock_kamino_lend::Reserve.paused` within its account
 /// data: 8-byte Anchor discriminator + 4 * 32-byte pubkeys
@@ -94,6 +158,15 @@ fn mock_reserve_looks_paused(reserve_info: &AccountInfo) -> bool {
 }
 
 pub fn probe_deposit_handler(ctx: Context<KaminoProbeDeposit>, amount: u64) -> Result<()> {
+    require_matches_kamino_config(
+        &ctx.accounts.config,
+        &ctx.accounts.kamino_program.key(),
+        &ctx.accounts.kamino_lending_market.key(),
+        &ctx.accounts.kamino_lending_market_authority.key(),
+        &ctx.accounts.kamino_reserve.key(),
+        &ctx.accounts.kamino_reserve_liquidity_supply.key(),
+        &ctx.accounts.kamino_reserve_collateral_mint.key(),
+    )?;
     require!(
         ctx.accounts.agreement.state == AgreementState::Active,
         RelicPayError::AgreementNotActive
@@ -149,6 +222,7 @@ pub fn probe_deposit_handler(ctx: Context<KaminoProbeDeposit>, amount: u64) -> R
     }
 
     try_kamino_deposit(&accs, amount, signer_seeds)?;
+    ctx.accounts.agreement.yield_source = BnplAgreement::YIELD_SOURCE_KAMINO_LEND;
     emit!(KaminoDepositProbeSucceeded {
         agreement: agreement_key,
         amount,
@@ -158,6 +232,15 @@ pub fn probe_deposit_handler(ctx: Context<KaminoProbeDeposit>, amount: u64) -> R
 }
 
 pub fn probe_redeem_handler(ctx: Context<KaminoProbeRedeem>, amount: u64) -> Result<()> {
+    require_matches_kamino_config(
+        &ctx.accounts.config,
+        &ctx.accounts.kamino_program.key(),
+        &ctx.accounts.kamino_lending_market.key(),
+        &ctx.accounts.kamino_lending_market_authority.key(),
+        &ctx.accounts.kamino_reserve.key(),
+        &ctx.accounts.kamino_reserve_liquidity_supply.key(),
+        &ctx.accounts.kamino_reserve_collateral_mint.key(),
+    )?;
     require!(
         ctx.accounts.agreement.state == AgreementState::Active,
         RelicPayError::AgreementNotActive
@@ -210,6 +293,7 @@ pub fn probe_redeem_handler(ctx: Context<KaminoProbeRedeem>, amount: u64) -> Res
     }
 
     try_kamino_redeem(&accs, amount, signer_seeds)?;
+    ctx.accounts.agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
     emit!(KaminoRedeemProbeSucceeded {
         agreement: agreement_key,
         amount,
@@ -221,6 +305,7 @@ pub fn probe_redeem_handler(ctx: Context<KaminoProbeRedeem>, amount: u64) -> Res
 #[derive(Accounts)]
 pub struct KaminoProbeDeposit<'info> {
     #[account(
+        mut,
         seeds = [SEED_AGREEMENT, agreement.buyer.as_ref(), agreement.product_id.as_bytes()],
         bump = agreement.bump,
         constraint = buyer.key() == agreement.buyer @ RelicPayError::Unauthorized,
@@ -237,23 +322,28 @@ pub struct KaminoProbeDeposit<'info> {
     )]
     pub escrow_usdc: Account<'info, TokenAccount>,
 
+    /// The governance-approved Kamino target set. Every account below is
+    /// validated against this PDA (`require_matches_kamino_config`) before
+    /// anything is read or invoked — see module doc, "GATED 2026-08-07".
+    #[account(
+        seeds = [SEED_KAMINO_CONFIG],
+        bump = config.bump,
+    )]
+    pub config: Account<'info, KaminoConfig>,
+
     /// CHECK: CPI target program, passed straight through to
-    /// `invoke_signed` — the target program is responsible for validating
-    /// its own accounts. Not gated by `KaminoConfig` here (see module doc);
-    /// governance gating lands with the real create_agreement/
-    /// pay_installment wiring.
+    /// `invoke_signed` after being checked against `config.kamino_program`.
     pub kamino_program: UncheckedAccount<'info>,
 
-    /// CHECK: passed straight through to the CPI, not interpreted by this
-    /// program.
+    /// CHECK: checked against `config.lending_market` before use, then
+    /// passed straight through to the CPI.
     pub kamino_lending_market: UncheckedAccount<'info>,
 
-    /// CHECK: passed straight through to the CPI, not interpreted by this
-    /// program.
+    /// CHECK: checked against `config.lending_market_authority` before use.
     pub kamino_lending_market_authority: UncheckedAccount<'info>,
 
-    /// CHECK: passed straight through to the CPI; the target program
-    /// validates ownership/seeds on its side.
+    /// CHECK: checked against `config.reserve` before use; the target
+    /// program validates ownership/seeds on its side.
     #[account(mut)]
     pub kamino_reserve: UncheckedAccount<'info>,
 
@@ -281,6 +371,7 @@ pub struct KaminoProbeDeposit<'info> {
 #[derive(Accounts)]
 pub struct KaminoProbeRedeem<'info> {
     #[account(
+        mut,
         seeds = [SEED_AGREEMENT, agreement.buyer.as_ref(), agreement.product_id.as_bytes()],
         bump = agreement.bump,
         constraint = buyer.key() == agreement.buyer @ RelicPayError::Unauthorized,
@@ -295,6 +386,13 @@ pub struct KaminoProbeRedeem<'info> {
         bump
     )]
     pub escrow_usdc: Account<'info, TokenAccount>,
+
+    /// See KaminoProbeDeposit.
+    #[account(
+        seeds = [SEED_KAMINO_CONFIG],
+        bump = config.bump,
+    )]
+    pub config: Account<'info, KaminoConfig>,
 
     /// CHECK: see KaminoProbeDeposit.
     pub kamino_program: UncheckedAccount<'info>,

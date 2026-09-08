@@ -42,4 +42,9 @@ pub enum RelicPayError {
     DepositCapExceeded,
     #[msg("Deposit would exceed the protocol-wide TVL cap")]
     TvlCapExceeded,
+    // ── v2.1: Kamino CPI target gating ──
+    #[msg("KaminoConfig is disabled — governance has not enabled real Kamino CPI")]
+    KaminoConfigDisabled,
+    #[msg("Kamino target account does not match the governance-approved KaminoConfig")]
+    KaminoAccountMismatch,
 }
