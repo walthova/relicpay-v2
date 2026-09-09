@@ -1,7 +1,32 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-09-07 by relicpay-growth (replaced the dropped Freedom slot — see below).*
+*Last updated: 2026-09-09 by relicpay-growth (real contact emails sourced for 5 of 6 candidates — see below).*
+
+## 2026-09-09 verification pass — real contact channels sourced
+
+Prior passes confirmed checkout stack (Shopify) for all 6 candidates but explicitly left "a real
+contact name/inbox" as an open NEEDS-WALTER item. This pass closed most of that gap via public
+web search/fetch (no outreach sent — contact info only):
+
+| Candidate | Contact channel found | Source confidence |
+|---|---|---|
+| WITTMORE | `info@wittmore.com` (general), `press@wittmore.com` (press), `helpme@wittmore.com` (support). 5 LA-area store phone numbers also listed on-site. | Direct fetch of site contact page — high confidence. |
+| Brain Dead | `service@wearebraindead.com` (customer), `fabrications@wearebraindead.com` (Brain Dead Fabrications — most likely wholesale/partnership path), `marketing@wearebraindead.com` (press/styling). | Direct fetch of site contact page — high confidence. |
+| Hashimoto Contemporary | `info@hashimotocontemporary.com` (general), `sf@hashimotocontemporary.com`, `nyc@hashimotocontemporary.com`. Note: site copy says gallery is "not accepting submissions at this time" — that line targets artist submissions, not merchant/partnership inquiries, but worth acknowledging in any outreach draft so it doesn't read as an artist pitch. | Search-confirmed contact page — high confidence. |
+| Thinkspace Projects | `contact@thinkspaceprojects.com`, phone 310-558-3375, 4217 W. Jefferson Blvd, LA. Consistent with the 2026-08-05 pass's finding that this address handles purchase/payment inquiries directly — reinforces this gallery as the cleanest fit for a BNPL pitch (human already handles payment questions by email, no self-serve checkout friction to route around). | Search-confirmed contact page — high confidence. |
+| The Hundreds | No confirmed department email found. Only an unverified guessed pattern (`First@thehundreds.com`) surfaced — **not usable as a real contact**, would need a name to complete the pattern or a direct site contact-form submission. | Low confidence — do not treat as contact-ready on this alone. |
+| Online Ceramics | Not re-checked this pass (fallback-only status unchanged from 2026-07-13 — primary site is off-Shopify). | Unchanged. |
+
+**Net movement**: 4 of 6 candidates (WITTMORE, Brain Dead, Hashimoto Contemporary, Thinkspace
+Projects) now have a verified, direct contact channel in addition to confirmed checkout stack —
+genuinely outreach-ready pending Walter's approval and the IBG-relationship check below. The
+Hundreds still needs a name or form submission; Online Ceramics remains fallback-only.
+
+**Still open, unchanged, still NEEDS-WALTER (not a research task)**: confirmation of whether IBG
+Collection's network already has an existing relationship with any of these 6 — this reorders
+outreach priority and no amount of public search resolves it. No outreach drafted or sent this
+pass.
 
 ## 2026-09-07 verification pass — WITTMORE replaces the dropped Freedom (Los Feliz) slot
 

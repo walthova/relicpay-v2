@@ -36,17 +36,18 @@ _Status: Draft. Do not submit without Walter approval._
 
 **Deadline**
 
-> Confirmed via web search 2026-07-13, re-checked 2026-08-05 and again 2026-09-07: still no fixed
-> deadline found for the Agentic Engineering Grant — rolling $200 USDG, not a dated cohort. No
-> submission-window pressure on this grant specifically. However, the repo-visibility blocker this
-> deadline note has cited since 2026-07-15 is now **54 days overdue** and has gotten more complex,
-> not less: `origin/main` on the (still private) GitHub repo received a real merge on 2026-09-03
-> (`c21bbe3`..`f03fe03`, Walter + Devin AI co-authored) that local `main` does not have, while local
-> `main` is still 15 commits ahead of the pre-merge base. A plain `git push` will now conflict —
-> reconciling the two histories is a prerequisite for any visibility flip, on top of the secret-scan
-> step in `docs/REPO_CANONICALIZATION.md`. See NEEDS-WALTER in `docs/progress/2026-09-07.md`.
-> Suggested self-imposed target: 2026-09-12 (contingent on the merge-and-visibility decision, and
-> now genuinely time-pressured by the Colosseum Fall Hackathon window below).
+> Confirmed via web search 2026-07-13, re-checked 2026-08-05, 2026-09-07, and again 2026-09-09:
+> still no fixed deadline found for the Agentic Engineering Grant — rolling $200 USDG, not a dated
+> cohort. No submission-window pressure on this grant specifically. However, the repo-visibility
+> blocker this deadline note has cited since 2026-07-15 is now **56 days overdue** and unchanged in
+> complexity from the 2026-09-07 finding: `git fetch origin main` today still shows `origin/main`
+> 2 commits ahead of local `main` (the 2026-09-03 Walter + Devin AI merge, `f03fe03`) while local
+> `main` remains ahead on its own line (17 commits not on `origin/main`, most recently `95bf7f8`,
+> the 2026-09-08 Kamino governance-gating build). Repo is still confirmed **private**
+> (`gh repo view --json visibility`). Nothing has moved on this blocker in two days. See
+> NEEDS-WALTER in `docs/progress/2026-09-07.md` and below. The Colosseum Fall Hackathon window
+> (below) is now **19 days out**, not 3 weeks — the same blocker is getting more urgent by not
+> moving.
 
 **Proof of Work**
 
