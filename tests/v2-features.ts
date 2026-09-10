@@ -1030,7 +1030,7 @@ describe("relicpay v2 features", () => {
           .kaminoProbeDeposit(new BN(Number(escrowBefore.amount)))
           .accounts({
             agreement,
-            buyer: buyer.publicKey,
+            payer: buyer.publicKey,
             escrowUsdc: escrow,
             ...approvedAccounts(),
             escrowKaminoCollateral: escrowCollateral,
@@ -1075,7 +1075,7 @@ describe("relicpay v2 features", () => {
           .kaminoProbeDeposit(new BN(Number(escrowBefore.amount)))
           .accounts({
             agreement,
-            buyer: buyer.publicKey,
+            payer: buyer.publicKey,
             escrowUsdc: escrow,
             ...approvedAccounts(),
             // Wrong lending market — must not match config.lendingMarket.
@@ -1107,7 +1107,7 @@ describe("relicpay v2 features", () => {
         .kaminoProbeDeposit(depositAmount)
         .accounts({
           agreement,
-          buyer: buyer.publicKey,
+          payer: buyer.publicKey,
           escrowUsdc: escrow,
           ...approvedAccounts(),
           escrowKaminoCollateral: escrowCollateral,
@@ -1147,7 +1147,7 @@ describe("relicpay v2 features", () => {
         .kaminoProbeRedeem(redeemAmount)
         .accounts({
           agreement,
-          buyer: buyer.publicKey,
+          payer: buyer.publicKey,
           escrowUsdc: escrow,
           ...approvedAccounts(),
           escrowKaminoCollateral: escrowCollateral,
@@ -1198,7 +1198,7 @@ describe("relicpay v2 features", () => {
         .kaminoProbeDeposit(new BN(Number(escrowBefore.amount)))
         .accounts({
           agreement,
-          buyer: buyer.publicKey,
+          payer: buyer.publicKey,
           escrowUsdc: escrow,
           ...approvedAccounts(),
           escrowKaminoCollateral: escrowCollateral,
@@ -1224,6 +1224,72 @@ describe("relicpay v2 features", () => {
         .accounts({ reserve: reservePDA, authority: reserveAuthority.publicKey })
         .signers([reserveAuthority])
         .rpc();
+    });
+
+    it("is a permissionless crank: a third party who is not the agreement's buyer can deposit and redeem", async () => {
+      // DEVELOPMENT_PLAN.md v2.1 item 3, option (b) from kamino_cpi.rs's doc:
+      // "move yield deposits into a separate crank instruction/transaction,
+      // so a Kamino failure can never fail a purchase transaction." That
+      // pattern only works if the crank can actually be submitted by someone
+      // other than the buyer (a keeper bot). Prove it here with a random
+      // keypair that never signs anywhere else in this agreement's life.
+      const keeper = Keypair.generate();
+      await provider.connection.confirmTransaction(
+        await provider.connection.requestAirdrop(keeper.publicKey, LAMPORTS_PER_SOL),
+        "confirmed"
+      );
+
+      const { agreement, escrow } = await createAgreement(
+        "v2-kamino-probe-permissionless",
+        new BN(40_000_000),
+        4,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+      const escrowBefore = await getAccount(provider.connection, escrow);
+      const depositAmount = new BN(Number(escrowBefore.amount));
+
+      // Deposit, signed only by `keeper` — not the buyer.
+      await program.methods
+        .kaminoProbeDeposit(depositAmount)
+        .accounts({
+          agreement,
+          payer: keeper.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([keeper])
+        .rpc();
+
+      const collateralAfterDeposit = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(
+        collateralAfterDeposit.amount.toString(),
+        depositAmount.toString(),
+        "a non-buyer keeper can crank the deposit"
+      );
+
+      // Redeem, again signed only by `keeper`.
+      await program.methods
+        .kaminoProbeRedeem(depositAmount)
+        .accounts({
+          agreement,
+          payer: keeper.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+        })
+        .signers([keeper])
+        .rpc();
+
+      const escrowAfterRedeem = await getAccount(provider.connection, escrow);
+      assert.equal(
+        escrowAfterRedeem.amount.toString(),
+        depositAmount.toString(),
+        "a non-buyer keeper can crank the redeem"
+      );
     });
   });
 });

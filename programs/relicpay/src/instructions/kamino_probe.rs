@@ -42,13 +42,26 @@
 //! ones governance approved. On a successful deposit the agreement's
 //! `yield_source` is flipped to `KAMINO_LEND` (DEVELOPMENT_PLAN.md v2.1
 //! item 4) so agreements record whether their yield is simulated or real.
-//! Callers no longer need to be the agreement's buyer for this reason: once
-//! escrow money movement is gated by governance-approved accounts instead
-//! of trust in the caller, there's no additional risk in letting anyone
-//! crank a deposit/redeem for any agreement — it's the same "permissionless
-//! crank, off the critical path" pattern the design doc calls for, though
-//! wiring it into `create_agreement`/`pay_installment` money flow itself
-//! remains future work (see DELIBERATE SCOPE below, still true).
+//!
+//! MADE PERMISSIONLESS 2026-09-09 (the previous draft's doc claimed this
+//! but the code still required `buyer.key() == agreement.buyer` on a
+//! signer field, which made the "anyone can crank this" claim false —
+//! caught while implementing option (b) from `kamino_cpi.rs`'s doc, "move
+//! yield deposits into a separate crank instruction/transaction, so a
+//! Kamino failure can never fail a purchase transaction"). Every account
+//! this instruction touches is either the governance-approved Kamino
+//! target set or a PDA the program itself controls (`escrow_usdc`,
+//! `escrow_kamino_collateral`) — no caller-supplied destination exists, so
+//! there is no additional risk in letting any funded keypair pay the (tiny,
+//! one-time) rent for `escrow_kamino_collateral`'s `init_if_needed` and
+//! submit the crank. The former `buyer: Signer` field is now `payer:
+//! Signer` with no ownership check against `agreement.buyer` — this is the
+//! actual "permissionless crank, off the critical path" pattern the design
+//! doc calls for. Wiring it into `create_agreement`/`pay_installment`
+//! money flow itself remains future work (see DELIBERATE SCOPE below,
+//! still true) — this instruction is still a standalone crank a keeper
+//! calls after the fact, not something either of those instructions invoke
+//! inline.
 //!
 //! DELIBERATE SCOPE: this is a standalone probe, not wired into
 //! `create_agreement` / `pay_installment` / `merchant_withdraw` yet. Wiring
@@ -71,8 +84,9 @@
 //!     changes, so the v1 characterization suite and all v2 tests are
 //!     unaffected
 //!
-//! CALLER: the agreement's buyer (arbitrary gate — this is a proof
-//! instruction, not a production money-flow entry point).
+//! CALLER: any funded keypair (permissionless crank — see "MADE
+//! PERMISSIONLESS 2026-09-09" above). This is a proof instruction, not a
+//! production money-flow entry point.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
@@ -308,12 +322,14 @@ pub struct KaminoProbeDeposit<'info> {
         mut,
         seeds = [SEED_AGREEMENT, agreement.buyer.as_ref(), agreement.product_id.as_bytes()],
         bump = agreement.bump,
-        constraint = buyer.key() == agreement.buyer @ RelicPayError::Unauthorized,
     )]
     pub agreement: Account<'info, BnplAgreement>,
 
+    /// Permissionless crank caller — pays rent for `escrow_kamino_collateral`
+    /// if it doesn't exist yet. Not required to be the agreement's buyer;
+    /// see module doc, "MADE PERMISSIONLESS 2026-09-09".
     #[account(mut)]
-    pub buyer: Signer<'info>,
+    pub payer: Signer<'info>,
 
     #[account(
         mut,
@@ -355,7 +371,7 @@ pub struct KaminoProbeDeposit<'info> {
 
     #[account(
         init_if_needed,
-        payer = buyer,
+        payer = payer,
         token::mint = kamino_reserve_collateral_mint,
         token::authority = agreement,
         seeds = [SEED_KAMINO_COLLATERAL, agreement.key().as_ref()],
@@ -374,11 +390,11 @@ pub struct KaminoProbeRedeem<'info> {
         mut,
         seeds = [SEED_AGREEMENT, agreement.buyer.as_ref(), agreement.product_id.as_bytes()],
         bump = agreement.bump,
-        constraint = buyer.key() == agreement.buyer @ RelicPayError::Unauthorized,
     )]
     pub agreement: Account<'info, BnplAgreement>,
 
-    pub buyer: Signer<'info>,
+    /// Permissionless crank caller — see KaminoProbeDeposit.
+    pub payer: Signer<'info>,
 
     #[account(
         mut,
