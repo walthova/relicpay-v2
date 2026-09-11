@@ -1,7 +1,29 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-09-09 by relicpay-growth (real contact emails sourced for 5 of 6 candidates — see below).*
+*Last updated: 2026-09-11 by relicpay-growth (The Hundreds contact confirmed — 6 of 6 candidates now have a real contact channel).*
+
+## 2026-09-11 verification pass — The Hundreds contact confirmed, closing the last gap
+
+Direct fetch of `thehundreds.com/pages/customer-service` confirms `service@thehundreds.com` as
+the site's own published contact (Mon-Thu 9am-5pm PST, ~24 business-hour response time) — not a
+guessed pattern. No separate press/wholesale/partnerships address is published on that page, so
+any first-touch would go through general customer service, not a warmer partnerships channel.
+Also surfaced this pass, worth noting for prioritization: The Hundreds' LA flagship retail store
+closed in 2025, with search coverage describing a pivot toward wholesale partnerships and
+timed pop-ups — that shift is arguably a better opening for a BNPL/checkout pitch than the store
+existed before, but it's also a signal the brand may be in a leaner operating phase, worth
+factoring into outreach tone if approved.
+
+**Net movement: all 6 of 6 candidates now have a verified, real contact channel** (WITTMORE,
+Brain Dead, Hashimoto Contemporary, Thinkspace Projects, The Hundreds; Online Ceramics remains
+fallback-only since its primary site is off-Shopify and wasn't re-checked this pass). Genuinely
+outreach-ready pending Walter's approval on all fronts below. No outreach drafted or sent this
+pass.
+
+**Still open, unchanged, still NEEDS-WALTER (not a research task)**: confirmation of whether IBG
+Collection's network already has an existing relationship with any of these 6 — this reorders
+outreach priority and no amount of public search resolves it.
 
 ## 2026-09-09 verification pass — real contact channels sourced
 

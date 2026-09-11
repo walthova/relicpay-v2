@@ -36,18 +36,23 @@ _Status: Draft. Do not submit without Walter approval._
 
 **Deadline**
 
-> Confirmed via web search 2026-07-13, re-checked 2026-08-05, 2026-09-07, and again 2026-09-09:
-> still no fixed deadline found for the Agentic Engineering Grant — rolling $200 USDG, not a dated
-> cohort. No submission-window pressure on this grant specifically. However, the repo-visibility
-> blocker this deadline note has cited since 2026-07-15 is now **56 days overdue** and unchanged in
-> complexity from the 2026-09-07 finding: `git fetch origin main` today still shows `origin/main`
-> 2 commits ahead of local `main` (the 2026-09-03 Walter + Devin AI merge, `f03fe03`) while local
-> `main` remains ahead on its own line (17 commits not on `origin/main`, most recently `95bf7f8`,
-> the 2026-09-08 Kamino governance-gating build). Repo is still confirmed **private**
-> (`gh repo view --json visibility`). Nothing has moved on this blocker in two days. See
-> NEEDS-WALTER in `docs/progress/2026-09-07.md` and below. The Colosseum Fall Hackathon window
-> (below) is now **19 days out**, not 3 weeks — the same blocker is getting more urgent by not
-> moving.
+> **Status change, confirmed 2026-09-11 via direct fetch of
+> `superteam.fun/earn/grants/agentic-engineering/`: applications are currently PAUSED.** The page
+> states "Applications Paused" with no active deadline or open window — this is a change from
+> every prior pass (2026-07-13 through 2026-09-09), which found the grant open and rolling with no
+> fixed deadline. Net effect: there is nothing to submit to right now regardless of the
+> repo-visibility blocker below; this removes the false time-pressure implied by the "self-imposed
+> Sep 12 target" referenced in the 2026-09-09 progress note (no such external deadline exists, and
+> the program isn't even accepting applications). Keep this draft current so it's ready the moment
+> applications reopen — re-check each pass.
+>
+> The repo-visibility blocker itself is unchanged and still gates the Colosseum packet
+> independently of this grant's paused status: `git fetch origin main` still shows `origin/main` 2
+> commits ahead of local `main` (the 2026-09-03 Walter + Devin AI merge, `f03fe03`) while local
+> `main` is now 22 commits ahead of its own line (most recently `90f5b08`, the 2026-09-10 Kamino
+> redeem-after-Completed fix). Repo is still confirmed **private**. See NEEDS-WALTER in
+> `docs/reports/2026-09-11.md`. The Colosseum Fall Hackathon window (below) is now **17 days
+> out**.
 
 **Proof of Work**
 
@@ -110,10 +115,12 @@ _Status: Draft. Do not submit without Walter approval._
 
 ## Related deadline (not this grant, but time-pressured)
 
-> Colosseum Solana Fall Hackathon: **2026-09-28 to 2026-11-02**, confirmed 2026-09-07 (unchanged
-> from the 2026-07-13/2026-08-05 confirmations). Submission window opens in **3 weeks**. The same
-> repo-visibility/merge blocker above holds back `docs/funding/COLOSSEUM_PACKET.md` — this is now
-> the higher-urgency deadline of the two.
+> Colosseum Solana Fall Hackathon: **2026-09-28 to 2026-11-02**, re-confirmed 2026-09-11 via live
+> web search (unchanged from every prior confirmation since 2026-07-13). Submission window opens
+> in **17 days**. The same repo-visibility/merge blocker above holds back
+> `docs/funding/COLOSSEUM_PACKET.md` — this is the only externally time-pressured deadline
+> tracked for Relic Pay right now (the Agentic Engineering Grant above is paused; no fixed
+> deadline was found for the Solana Foundation grant in `docs/funding/SOLANA_FOUNDATION_GRANT.md`).
 
 ## Competitive differentiation note (wq-rp-002 input, 2026-09-07)
 
