@@ -63,6 +63,28 @@
 //! calls after the fact, not something either of those instructions invoke
 //! inline.
 //!
+//! REDEEM ALLOWED POST-COMPLETION 2026-09-11 (was Active-only before this):
+//! `kamino_probe_redeem` now also accepts `AgreementState::Completed`, not
+//! just `Active`. Reasoning: `pay_installment` flips Active -> Completed
+//! with zero Kamino awareness, so an agreement whose escrow was cranked
+//! into Kamino via `kamino_probe_deposit` while Active reaches Completed
+//! with its value split between `escrow_usdc` (raw) and
+//! `escrow_kamino_collateral` (Kamino kTokens) — but `merchant_withdraw`
+//! only ever reads `escrow_usdc.amount` and requires it to cover
+//! `total_price` (see DELIBERATE SCOPE below: merchant_withdraw itself is
+//! still not Kamino-aware). Without this change there was no way to get
+//! Kamino-deposited funds back into `escrow_usdc` once an agreement
+//! completed — `merchant_withdraw` would revert with `NothingToWithdraw`
+//! forever, stranding real money. The fix keeps this crank's existing
+//! permissionless, off-critical-path shape: a keeper/buyer/merchant calls
+//! `kamino_probe_redeem` once after completion (a second transaction) to
+//! reconcile the balance, then calls `merchant_withdraw` normally. Still
+//! deliberately excluded: `Defaulted` and `Cancelled` — see the inline
+//! comment on the state check in `probe_redeem_handler` for why those two
+//! have no such window. Making `merchant_withdraw` itself redeem inline
+//! (one transaction, no separate crank step) remains future work — see
+//! DELIBERATE SCOPE.
+//!
 //! DELIBERATE SCOPE: this is a standalone probe, not wired into
 //! `create_agreement` / `pay_installment` / `merchant_withdraw` yet. Wiring
 //! it into those would mean escrow's raw USDC balance no longer matches
@@ -255,9 +277,27 @@ pub fn probe_redeem_handler(ctx: Context<KaminoProbeRedeem>, amount: u64) -> Res
         &ctx.accounts.kamino_reserve_liquidity_supply.key(),
         &ctx.accounts.kamino_reserve_collateral_mint.key(),
     )?;
+    // Redemption (unlike deposit) is allowed in Active OR Completed state.
+    // Active: the buyer/merchant/a keeper can reconcile escrow back to raw
+    // USDC mid-agreement (e.g. before cancel_agreement / trigger_default,
+    // both of which only move `escrow_usdc`'s raw balance and know nothing
+    // about Kamino collateral). Completed: `pay_installment` moves
+    // Active -> Completed with no Kamino awareness (see kamino_probe.rs
+    // module doc, DELIBERATE SCOPE) — merchant_withdraw needs escrow_usdc's
+    // raw balance to cover `total_price`, so this crank must still be
+    // callable post-completion to redeem collateral back before the
+    // merchant withdraws. Defaulted/Cancelled are deliberately excluded:
+    // both of those instructions already zero `escrow_deposited` and drain
+    // `escrow_usdc` in the same transaction that transitions state, so
+    // there is no later window in which redeeming here would still land
+    // funds anywhere but a token account the agreement no longer accounts
+    // for.
     require!(
-        ctx.accounts.agreement.state == AgreementState::Active,
-        RelicPayError::AgreementNotActive
+        matches!(
+            ctx.accounts.agreement.state,
+            AgreementState::Active | AgreementState::Completed
+        ),
+        RelicPayError::AgreementNotRedeemable
     );
     require!(
         amount > 0 && amount <= ctx.accounts.escrow_kamino_collateral.amount,

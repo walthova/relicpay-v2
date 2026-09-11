@@ -1291,5 +1291,163 @@ describe("relicpay v2 features", () => {
         "a non-buyer keeper can crank the redeem"
       );
     });
+
+    it("allows redeeming Kamino collateral after Completed, so merchant_withdraw can recover the full total_price", async () => {
+      // Reproduces the exact gap fixed 2026-09-11 (see kamino_probe.rs
+      // module doc, "REDEEM ALLOWED POST-COMPLETION"): pay_installment moves
+      // Active -> Completed with zero Kamino awareness, so an agreement
+      // whose first installment was cranked into Kamino while Active
+      // reaches Completed with its value split between escrow_usdc (raw)
+      // and escrow_kamino_collateral (kTokens). merchant_withdraw only
+      // reads escrow_usdc, so it must fail until this crank reconciles the
+      // balance back — even though the agreement is fully paid off.
+      const { agreement, escrow } = await createAgreement(
+        "v2-kamino-redeem-post-completion",
+        new BN(40_000_000),
+        2,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      // Deposit the first installment into Kamino while still Active.
+      const firstInstallment = await getAccount(provider.connection, escrow);
+      await program.methods
+        .kaminoProbeDeposit(new BN(Number(firstInstallment.amount)))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      // Pay the final installment — this completes the agreement.
+      await new Promise((r) => setTimeout(r, 5000));
+      await payInstallment(agreement, escrow);
+
+      const completed = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(completed.state, { completed: {} });
+
+      // escrow_usdc only holds the second installment; the first is still
+      // parked in Kamino collateral. merchant_withdraw must fail here.
+      try {
+        await program.methods
+          .merchantWithdraw()
+          .accounts({
+            agreement,
+            merchant: merchant.publicKey,
+            escrowUsdc: escrow,
+            merchantUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .signers([merchant])
+          .rpc();
+        assert.fail("Expected NothingToWithdraw before redeeming Kamino collateral");
+      } catch (err: any) {
+        assert.include(err.message, "NothingToWithdraw");
+      }
+
+      // Redeem the parked collateral now that the agreement is Completed —
+      // before the 2026-09-11 fix this reverted with AgreementNotActive.
+      const collateralBefore = await getAccount(provider.connection, escrowCollateral);
+      await program.methods
+        .kaminoProbeRedeem(new BN(Number(collateralBefore.amount)))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+        })
+        .signers([buyer])
+        .rpc();
+
+      // Now merchant_withdraw succeeds for the full total_price.
+      const merchantBefore = await getAccount(provider.connection, merchantUsdc);
+      await program.methods
+        .merchantWithdraw()
+        .accounts({
+          agreement,
+          merchant: merchant.publicKey,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([merchant])
+        .rpc();
+      const merchantAfter = await getAccount(provider.connection, merchantUsdc);
+      assert.equal(
+        (merchantAfter.amount - merchantBefore.amount).toString(),
+        "40000000",
+        "merchant must recover the full total_price once Kamino collateral is reconciled"
+      );
+    });
+
+    it("rejects kamino_probe_redeem once an agreement is Cancelled", async () => {
+      // Cancelled/Defaulted both drain escrow_usdc and zero
+      // escrow_deposited in the same transaction that changes state — see
+      // the inline comment on the redeem handler's state check. Prove the
+      // Cancelled half here; Defaulted requires a real 7-day grace-period
+      // wait and is covered by the state-check logic, not a live test.
+      const { agreement, escrow } = await createAgreement(
+        "v2-kamino-redeem-cancelled",
+        new BN(20_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+      const escrowBefore = await getAccount(provider.connection, escrow);
+
+      await program.methods
+        .kaminoProbeDeposit(new BN(Number(escrowBefore.amount)))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      await program.methods
+        .cancelAgreement()
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const cancelled = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(cancelled.state, { cancelled: {} });
+
+      try {
+        await program.methods
+          .kaminoProbeRedeem(new BN(Number(escrowBefore.amount)))
+          .accounts({
+            agreement,
+            payer: buyer.publicKey,
+            escrowUsdc: escrow,
+            ...approvedAccounts(),
+            escrowKaminoCollateral: escrowCollateral,
+          })
+          .signers([buyer])
+          .rpc();
+        assert.fail("Expected AgreementNotRedeemable");
+      } catch (err: any) {
+        assert.include(err.message, "AgreementNotRedeemable");
+      }
+    });
   });
 });

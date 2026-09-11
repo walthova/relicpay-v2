@@ -47,4 +47,6 @@ pub enum RelicPayError {
     KaminoConfigDisabled,
     #[msg("Kamino target account does not match the governance-approved KaminoConfig")]
     KaminoAccountMismatch,
+    #[msg("Kamino collateral can only be redeemed while an agreement is Active or Completed")]
+    AgreementNotRedeemable,
 }
