@@ -1449,5 +1449,140 @@ describe("relicpay v2 features", () => {
         assert.include(err.message, "AgreementNotRedeemable");
       }
     });
+
+    it("merchant_withdraw_reconciled redeems Kamino collateral and pays the merchant in a single transaction", async () => {
+      // Same setup as "allows redeeming Kamino collateral after Completed"
+      // above, but proves the single-transaction path: no separate
+      // kaminoProbeRedeem call before merchantWithdraw.
+      const { agreement, escrow } = await createAgreement(
+        "v2-merchant-withdraw-reconciled",
+        new BN(40_000_000),
+        2,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      const firstInstallment = await getAccount(provider.connection, escrow);
+      await program.methods
+        .kaminoProbeDeposit(new BN(Number(firstInstallment.amount)))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      await new Promise((r) => setTimeout(r, 5000));
+      await payInstallment(agreement, escrow);
+
+      const completed = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(completed.state, { completed: {} });
+
+      // escrow_usdc alone (the second installment only) can't cover
+      // total_price — the reconcile branch must fire inline.
+      const escrowBeforeWithdraw = await getAccount(provider.connection, escrow);
+      assert.isBelow(Number(escrowBeforeWithdraw.amount), 40_000_000);
+
+      const merchantBefore = await getAccount(provider.connection, merchantUsdc);
+      await program.methods
+        .merchantWithdrawReconciled()
+        .accounts({
+          agreement,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          payer: buyer.publicKey,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const merchantAfter = await getAccount(provider.connection, merchantUsdc);
+      assert.equal(
+        (merchantAfter.amount - merchantBefore.amount).toString(),
+        "40000000",
+        "merchant must receive the full total_price in one transaction, no separate crank"
+      );
+
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.isTrue(acct.merchantWithdrawn);
+
+      // Second call must fail — same double-withdraw protection as
+      // merchant_withdraw.
+      try {
+        await program.methods
+          .merchantWithdrawReconciled()
+          .accounts({
+            agreement,
+            escrowUsdc: escrow,
+            merchantUsdc,
+            payer: buyer.publicKey,
+            ...approvedAccounts(),
+            escrowKaminoCollateral: escrowCollateral,
+            systemProgram: SystemProgram.programId,
+            rent: SYSVAR_RENT_PUBKEY,
+          })
+          .signers([buyer])
+          .rpc();
+        assert.fail("Expected AlreadyWithdrawn");
+      } catch (err: any) {
+        assert.include(err.message, "AlreadyWithdrawn");
+      }
+    });
+
+    it("merchant_withdraw_reconciled degrades to plain merchant_withdraw when Kamino was never used", async () => {
+      // No kaminoProbeDeposit call at all — escrow_kamino_collateral does
+      // not exist yet (init_if_needed creates it with a zero balance), so
+      // the reconcile branch must be skipped entirely and escrow_usdc alone
+      // must already cover total_price, exactly like merchant_withdraw.
+      const { agreement, escrow } = await createAgreement(
+        "v2-mwr-no-kamino",
+        new BN(30_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      for (let i = 0; i < 2; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        await payInstallment(agreement, escrow);
+      }
+
+      const completed = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(completed.state, { completed: {} });
+
+      const merchantBefore = await getAccount(provider.connection, merchantUsdc);
+      await program.methods
+        .merchantWithdrawReconciled()
+        .accounts({
+          agreement,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          payer: buyer.publicKey,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const merchantAfter = await getAccount(provider.connection, merchantUsdc);
+      assert.equal(
+        (merchantAfter.amount - merchantBefore.amount).toString(),
+        "30000000",
+        "must pay full total_price even though Kamino collateral was never touched"
+      );
+
+      const collateralAcct = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(collateralAcct.amount.toString(), "0");
+    });
   });
 });

@@ -179,4 +179,16 @@ pub mod relicpay {
     pub fn kamino_probe_redeem(ctx: Context<KaminoProbeRedeem>, amount: u64) -> Result<()> {
         instructions::kamino_probe::probe_redeem_handler(ctx, amount)
     }
+
+    /// v2.1: single-transaction, Kamino-aware `merchant_withdraw`. If
+    /// `escrow_usdc` alone doesn't cover `total_price`, redeems just enough
+    /// `escrow_kamino_collateral` first (same CPI path as
+    /// `kamino_probe_redeem`), then pays the merchant — collapsing the
+    /// previous two-transaction "crank, then withdraw" flow into one. Purely
+    /// additive: `merchant_withdraw` is untouched, and this degrades to the
+    /// same behavior when an agreement never touched Kamino. See
+    /// `merchant_withdraw_reconciled.rs`.
+    pub fn merchant_withdraw_reconciled(ctx: Context<MerchantWithdrawReconciled>) -> Result<()> {
+        instructions::merchant_withdraw_reconciled::handler(ctx)
+    }
 }
