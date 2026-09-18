@@ -1,7 +1,16 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-09-11 by relicpay-growth (The Hundreds contact confirmed — 6 of 6 candidates now have a real contact channel).*
+*Last updated: 2026-09-17 by relicpay-growth (re-read, no change — still 6 of 6 contact-ready, both blockers below still open).*
+
+## 2026-09-17 re-check — no change
+
+Re-read the full pipeline this pass rather than re-running verification: still 6 of 6 candidates
+contact-ready (WITTMORE, Brain Dead, Hashimoto Contemporary, Thinkspace Projects, The Hundreds,
+Online Ceramics as fallback), unchanged since 2026-09-11. Did not re-verify checkout stacks or
+contact channels again — nothing has changed and doing so would be motion without progress. The
+two real blockers are still Walter-only: outreach approval, and whether IBG's network already has
+a relationship with any of these six. See `docs/reports/2026-09-17.md` NEEDS-WALTER for both.
 
 ## 2026-09-11 verification pass — The Hundreds contact confirmed, closing the last gap
 

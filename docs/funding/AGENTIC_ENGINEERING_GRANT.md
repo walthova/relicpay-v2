@@ -30,7 +30,7 @@ _Status: Draft. Do not submit without Walter approval._
 >
 > The core inversion is simple: traditional BNPL extracts value from the buyer through late fees, credit damage, merchant fees, and securitized consumer debt. Relic Pay makes the locked payment capital productive. The current devnet demo uses transparent simulated yield; the next v2.1 milestone routes escrow USDC into Kamino Lend via CPI so the buyer's payment plan can earn real yield.
 >
-> The v2 rebuild is already grounded in production discipline: modular Anchor instructions, checked math, a frozen v1 characterization suite, v2 feature tests, rent-close paths, merchant withdrawal hardening, yield-source tracking groundwork, and protocol risk controls. The newest shipped controls add a governance-owned `ProtocolConfig` PDA with emergency pause and per-agreement deposit caps before real yield touches escrow.
+> The v2 rebuild is already grounded in production discipline: modular Anchor instructions, checked math, a frozen v1 characterization suite, v2 feature tests, rent-close paths, merchant withdrawal hardening, yield-source tracking groundwork, and protocol risk controls. The newest shipped controls add a governance-owned `ProtocolConfig` PDA with emergency pause and per-agreement deposit caps before real yield touches escrow. As of 2026-09-14, merchant payout is also fully Kamino-aware end to end: `merchant_withdraw_reconciled` collapses the prior two-transaction crank-then-withdraw flow into one, redeeming just enough Kamino collateral inline when plain escrow USDC can't cover the payout — closing the last gap between "yield accrues" and "merchant actually gets paid."
 >
 > The first proof surface is the IBG Collection pilot: an art/fashion merchant where the story is concrete enough for buyers, merchants, and Solana reviewers to understand quickly.
 
@@ -49,10 +49,16 @@ _Status: Draft. Do not submit without Walter approval._
 > The repo-visibility blocker itself is unchanged and still gates the Colosseum packet
 > independently of this grant's paused status: `git fetch origin main` still shows `origin/main` 2
 > commits ahead of local `main` (the 2026-09-03 Walter + Devin AI merge, `f03fe03`) while local
-> `main` is now 22 commits ahead of its own line (most recently `90f5b08`, the 2026-09-10 Kamino
-> redeem-after-Completed fix). Repo is still confirmed **private**. See NEEDS-WALTER in
-> `docs/reports/2026-09-11.md`. The Colosseum Fall Hackathon window (below) is now **17 days
-> out**.
+> `main` is now 24 commits ahead of its own line (most recently `1552e0a`, the 2026-09-14
+> single-transaction Kamino-aware `merchant_withdraw_reconciled`). Repo is still confirmed
+> **private**, re-verified via `gh repo view` on 2026-09-17. See NEEDS-WALTER in
+> `docs/reports/2026-09-11.md`. The Colosseum Fall Hackathon window (below) is now **11 days
+> out**, re-confirmed unchanged (2026-09-28 to 2026-11-02) via live search on 2026-09-17.
+>
+> **Re-checked 2026-09-17: still PAUSED**, confirmed by direct fetch of
+> `superteam.fun/earn/grants/agentic-engineering/` — page still shows "Applications Paused," cheque
+> size $200 USDG, $62.2k approved across 311 recipients to date. No reopening signal found. Support
+> contact for status questions: support@superteam.fun (not contacted — informational only).
 
 **Proof of Work**
 
