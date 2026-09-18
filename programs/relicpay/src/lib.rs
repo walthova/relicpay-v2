@@ -191,4 +191,16 @@ pub mod relicpay {
     pub fn merchant_withdraw_reconciled(ctx: Context<MerchantWithdrawReconciled>) -> Result<()> {
         instructions::merchant_withdraw_reconciled::handler(ctx)
     }
+
+    /// v2.1: single-transaction, Kamino-aware `cancel_agreement`. Redeems the
+    /// full `escrow_kamino_collateral` balance (if any) back into
+    /// `escrow_usdc` first, then runs the same fee/refund split
+    /// `cancel_agreement` does — so a buyer never needs to know a separate
+    /// `kamino_probe_redeem` crank exists before they can cancel cleanly.
+    /// Purely additive: `cancel_agreement` is untouched, and this degrades to
+    /// the same behavior when an agreement never touched Kamino. See
+    /// `cancel_agreement_reconciled.rs`.
+    pub fn cancel_agreement_reconciled(ctx: Context<CancelAgreementReconciled>) -> Result<()> {
+        instructions::cancel_agreement_reconciled::handler(ctx)
+    }
 }

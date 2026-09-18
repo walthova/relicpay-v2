@@ -1584,5 +1584,144 @@ describe("relicpay v2 features", () => {
       const collateralAcct = await getAccount(provider.connection, escrowCollateral);
       assert.equal(collateralAcct.amount.toString(), "0");
     });
+
+    it("cancel_agreement_reconciled redeems Kamino collateral and splits the fee/refund in a single transaction", async () => {
+      // Same shape as the merchant_withdraw_reconciled proof above: an
+      // Active agreement whose first installment was cranked into Kamino.
+      // cancel_agreement (frozen-adjacent, untouched here) only reads
+      // escrow_usdc directly, so it would under-count the true escrow value
+      // if called against this state — cancel_agreement_reconciled must
+      // redeem the full collateral balance first, then split fee/refund
+      // against the complete amount, in one transaction.
+      const { agreement, escrow } = await createAgreement(
+        "v2-cancel-reconciled",
+        new BN(50_000_000),
+        5,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      const firstInstallment = await getAccount(provider.connection, escrow);
+      await program.methods
+        .kaminoProbeDeposit(new BN(Number(firstInstallment.amount)))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const escrowAfterDeposit = await getAccount(provider.connection, escrow);
+      assert.equal(
+        escrowAfterDeposit.amount.toString(),
+        "0",
+        "escrow_usdc must be fully drained into Kamino before cancellation"
+      );
+
+      const buyerBefore = await getAccount(provider.connection, buyerUsdc);
+      const merchantBefore = await getAccount(provider.connection, merchantUsdc);
+
+      await program.methods
+        .cancelAgreementReconciled()
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      // Full first-installment amount (10_000_000, since 50M / 5) was the
+      // only money that ever entered escrow before cancellation — 10% fee
+      // to the merchant, 90% refunded to the buyer.
+      const escrowedAmount = Number(firstInstallment.amount);
+      const expectedFee = Math.floor((escrowedAmount * 1_000) / 10_000);
+      const expectedRefund = escrowedAmount - expectedFee;
+
+      const buyerAfter = await getAccount(provider.connection, buyerUsdc);
+      const merchantAfter = await getAccount(provider.connection, merchantUsdc);
+      assert.equal(
+        (buyerAfter.amount - buyerBefore.amount).toString(),
+        expectedRefund.toString(),
+        "buyer must be refunded 90% of the fully-reconciled escrow balance"
+      );
+      assert.equal(
+        (merchantAfter.amount - merchantBefore.amount).toString(),
+        expectedFee.toString(),
+        "merchant must receive the 10% cancellation fee from the fully-reconciled balance"
+      );
+
+      const cancelled = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(cancelled.state, { cancelled: {} });
+      assert.equal(cancelled.escrowDeposited.toString(), "0");
+
+      const collateralAfter = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(
+        collateralAfter.amount.toString(),
+        "0",
+        "no Kamino collateral must be left behind once cancelled"
+      );
+    });
+
+    it("cancel_agreement_reconciled degrades to plain cancel_agreement when Kamino was never used", async () => {
+      const { agreement, escrow } = await createAgreement(
+        "v2-car-no-kamino",
+        new BN(30_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      const escrowBefore = await getAccount(provider.connection, escrow);
+      const buyerBefore = await getAccount(provider.connection, buyerUsdc);
+      const merchantBefore = await getAccount(provider.connection, merchantUsdc);
+
+      await program.methods
+        .cancelAgreementReconciled()
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const escrowedAmount = Number(escrowBefore.amount);
+      const expectedFee = Math.floor((escrowedAmount * 1_000) / 10_000);
+      const expectedRefund = escrowedAmount - expectedFee;
+
+      const buyerAfter = await getAccount(provider.connection, buyerUsdc);
+      const merchantAfter = await getAccount(provider.connection, merchantUsdc);
+      assert.equal((buyerAfter.amount - buyerBefore.amount).toString(), expectedRefund.toString());
+      assert.equal(
+        (merchantAfter.amount - merchantBefore.amount).toString(),
+        expectedFee.toString()
+      );
+
+      const cancelled = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(cancelled.state, { cancelled: {} });
+
+      const collateralAcct = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(collateralAcct.amount.toString(), "0");
+    });
   });
 });

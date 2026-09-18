@@ -1,4 +1,5 @@
 pub mod cancel_agreement;
+pub mod cancel_agreement_reconciled;
 pub mod claim_yield;
 pub mod close_agreement;
 pub mod create_agreement;
@@ -16,6 +17,7 @@ pub mod unstake_usdc;
 pub mod update_pool_rate;
 
 pub use cancel_agreement::*;
+pub use cancel_agreement_reconciled::*;
 pub use claim_yield::*;
 pub use close_agreement::*;
 pub use create_agreement::*;
