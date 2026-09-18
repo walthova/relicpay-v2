@@ -1,7 +1,17 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-09-17 by relicpay-growth (re-read, no change — still 6 of 6 contact-ready, both blockers below still open).*
+*Last updated: 2026-09-18 by relicpay-growth (re-read + grepped `walter-os/businesses/ibg-collection/` for candidate names, no change — still 6 of 6 contact-ready, both blockers below still open).*
+
+## 2026-09-18 re-check — no change
+
+Re-read the full pipeline and re-ran the IBG-relationship check (`grep -ril` for all 6 candidate
+names across `walter-os/businesses/ibg-collection/`) rather than assuming yesterday's finding
+still holds — zero matches, same as every prior pass. Did not re-verify checkout stacks or
+contact channels again since nothing about them would have changed in 24 hours; that would be
+motion without progress. The two real blockers are unchanged and both remain Walter-only:
+outreach approval, and confirmation of any existing IBG relationship with these 6 brands (which
+public search cannot resolve). See `docs/progress/2026-09-18.md` NEEDS-WALTER.
 
 ## 2026-09-17 re-check — no change
 

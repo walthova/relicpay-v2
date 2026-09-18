@@ -30,7 +30,7 @@ _Status: Draft. Do not submit without Walter approval._
 >
 > The core inversion is simple: traditional BNPL extracts value from the buyer through late fees, credit damage, merchant fees, and securitized consumer debt. Relic Pay makes the locked payment capital productive. The current devnet demo uses transparent simulated yield; the next v2.1 milestone routes escrow USDC into Kamino Lend via CPI so the buyer's payment plan can earn real yield.
 >
-> The v2 rebuild is already grounded in production discipline: modular Anchor instructions, checked math, a frozen v1 characterization suite, v2 feature tests, rent-close paths, merchant withdrawal hardening, yield-source tracking groundwork, and protocol risk controls. The newest shipped controls add a governance-owned `ProtocolConfig` PDA with emergency pause and per-agreement deposit caps before real yield touches escrow. As of 2026-09-14, merchant payout is also fully Kamino-aware end to end: `merchant_withdraw_reconciled` collapses the prior two-transaction crank-then-withdraw flow into one, redeeming just enough Kamino collateral inline when plain escrow USDC can't cover the payout — closing the last gap between "yield accrues" and "merchant actually gets paid."
+> The v2 rebuild is already grounded in production discipline: modular Anchor instructions, checked math, a frozen v1 characterization suite, v2 feature tests, rent-close paths, merchant withdrawal hardening, yield-source tracking groundwork, and protocol risk controls. The newest shipped controls add a governance-owned `ProtocolConfig` PDA with emergency pause and per-agreement deposit caps before real yield touches escrow. As of 2026-09-14, merchant payout is also fully Kamino-aware end to end: `merchant_withdraw_reconciled` collapses the prior two-transaction crank-then-withdraw flow into one, redeeming just enough Kamino collateral inline when plain escrow USDC can't cover the payout. As of 2026-09-18, the buyer side closed the same gap: `cancel_agreement_reconciled` redeems the full Kamino collateral balance inline before running the fee/refund split, so both the merchant-withdrawal and buyer-cancellation paths are single-transaction and Kamino-aware — the reconciliation arc for existing escrow-reading instructions is now complete on both sides of an agreement.
 >
 > The first proof surface is the IBG Collection pilot: an art/fashion merchant where the story is concrete enough for buyers, merchants, and Solana reviewers to understand quickly.
 
@@ -59,6 +59,15 @@ _Status: Draft. Do not submit without Walter approval._
 > `superteam.fun/earn/grants/agentic-engineering/` — page still shows "Applications Paused," cheque
 > size $200 USDG, $62.2k approved across 311 recipients to date. No reopening signal found. Support
 > contact for status questions: support@superteam.fun (not contacted — informational only).
+>
+> **Re-checked 2026-09-18: still PAUSED**, same page text, same figures ($200 USDG cheque size,
+> $62.2k / 311 recipients). Repo divergence re-verified same day via `git fetch origin main` +
+> `git rev-list --left-right --count origin/main...main`: `origin/main` still 2 commits ahead
+> (unchanged since 2026-09-09, the 2026-09-03 merge), local `main` now 26 commits ahead of the
+> shared base (up from 24 on 2026-09-17 — the two new commits are `1552e0a`
+> `merchant_withdraw_reconciled` and `d169462` `cancel_agreement_reconciled`, both feature work,
+> not resolution of the divergence). Repo still confirmed **PRIVATE** via `gh repo view`. Colosseum
+> Fall Hackathon window re-confirmed unchanged (2026-09-28 to 2026-11-02) — now **10 days out**.
 
 **Proof of Work**
 
