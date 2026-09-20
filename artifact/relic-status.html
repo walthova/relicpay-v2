@@ -1,0 +1,143 @@
+<title>Relic Pay Relic</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #F2ECDC; --surface: #FAF6EA; --border: #D9CFB0;
+    --ink: #211C12; --ink-dim: #6E6350;
+    --accent: #93650E; --ledger: #3E7D74;
+    --good: #3F7D4C; --warn: #A9631A; --critical: #AC3B2E;
+    --seal-stroke: #93650E;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14120C; --surface: #1C1911; --border: #362F20;
+      --ink: #EDE6D3; --ink-dim: #A79A7D;
+      --accent: #D9A94A; --ledger: #79C2B7;
+      --good: #6FB077; --warn: #D6934C; --critical: #D97562;
+      --seal-stroke: #D9A94A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14120C; --surface: #1C1911; --border: #362F20;
+    --ink: #EDE6D3; --ink-dim: #A79A7D;
+    --accent: #D9A94A; --ledger: #79C2B7;
+    --good: #6FB077; --warn: #D6934C; --critical: #D97562;
+    --seal-stroke: #D9A94A;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'IBM Plex Sans', system-ui, sans-serif; font-variant-numeric: tabular-nums; line-height: 1.55; }
+  .page { max-width: 760px; margin: 0 auto; padding: 64px 24px 80px; }
+  .seal-block { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; margin-bottom: 56px; }
+  .seal-block svg { width: 108px; height: 108px; }
+  .wordmark { font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); font-weight: 500; }
+  .seal-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); }
+  h1 { font-family: 'Fraunces', serif; font-optical-sizing: auto; font-weight: 500; font-size: clamp(28px, 4.6vw, 40px); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  h1 span { display: block; font-size: 0.42em; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim); font-weight: 500; margin-top: 8px; }
+  .seal-sub { max-width: 46ch; color: var(--ink-dim); font-size: 15px; }
+  .ledger { display: flex; flex-direction: column; }
+  .folio { display: grid; grid-template-columns: 44px 1fr; gap: 4px 20px; padding: 32px 0; border-top: 1px solid var(--border); }
+  .folio:last-child { border-bottom: 1px solid var(--border); }
+  .folio-num { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--accent); padding-top: 4px; }
+  .folio-label { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 10px; }
+  .folio-headline { font-family: 'Fraunces', serif; font-weight: 500; font-size: clamp(20px, 3.2vw, 25px); line-height: 1.3; margin: 0 0 12px; text-wrap: balance; }
+  .folio-stat { font-family: 'IBM Plex Mono', monospace; font-size: 15px; color: var(--ink); display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 12px; }
+  .folio-stat b { color: var(--ledger); font-weight: 500; }
+  .folio-body { color: var(--ink-dim); font-size: 15px; max-width: 62ch; }
+  .folio-body a { color: var(--accent); text-decoration-color: var(--border); }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .pill { font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 4px 10px; border-radius: 3px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-dim); }
+  .pill.state-good { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
+  .pill.state-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+  .pill.state-critical { color: var(--critical); border-color: color-mix(in srgb, var(--critical) 40%, var(--border)); }
+  .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-dim); }
+  .footer a { color: var(--ink-dim); }
+  @media (max-width: 520px) { .folio { grid-template-columns: 1fr; } .folio-num { display: none; } }
+</style>
+
+<div class="page">
+
+  <div class="seal-block">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="46" fill="none" stroke="var(--seal-stroke)" stroke-width="1.5"/>
+      <circle cx="50" cy="50" r="39" fill="none" stroke="var(--seal-stroke)" stroke-width="0.75"/>
+      <polygon points="50,32 63,55 37,55" fill="none" stroke="var(--seal-stroke)" stroke-width="1.4"/>
+      <circle cx="50" cy="50" r="8.5" fill="none" stroke="var(--seal-stroke)" stroke-width="1.4"/>
+      <rect x="43" y="63" width="14" height="14" fill="none" stroke="var(--seal-stroke)" stroke-width="1.4"/>
+    </svg>
+    <div class="wordmark">Relic Pay</div>
+    <div class="seal-eyebrow">Provenance Record &middot; Relic No. 000</div>
+    <h1>The Protocol Itself<span>Not a garment. Not an installment. The thing that makes the others provable.</span></h1>
+    <p class="seal-sub">Every Optic Relic in the collection carries a story that reveals on scan. This one is Relic Pay's own: the yield-bearing Buy Now, Pay Later protocol behind every other relic's provenance. Its record is drawn from the Walter OS hive, the RelicPay repository, and original on-chain research, and redrawn automatically as the protocol moves.</p>
+  </div>
+
+  <div class="ledger">
+
+    <section class="folio">
+      <div class="folio-num">I</div>
+      <div>
+        <div class="folio-label">The thesis</div>
+        <h2 class="folio-headline">What forced liquidation costs small borrowers</h2>
+        <p class="folio-stat"><b>89%</b> of Aave v3 liquidations, last 12 months, hit positions under $10,000</p>
+        <p class="folio-body">53,927 liquidation transactions totaling $1.65B, across every chain Dune indexes for Aave v3, deduped to the transaction level with bot dust excluded. By dollar volume the picture inverts (84.6% of value comes from 1,510 whale liquidations) but the typical liquidation event, by far, hits someone small. Original research, not a borrowed claim. <a href="https://dune.com/walthova/the-liquidation-tax" target="_blank" rel="noopener">Read the full dashboard on Dune.</a></p>
+      </div>
+    </section>
+
+    <section class="folio">
+      <div class="folio-num">II</div>
+      <div>
+        <div class="folio-label">The build</div>
+        <h2 class="folio-headline">merchant_withdraw_reconciled shipped 2026-09-14</h2>
+        <p class="folio-stat">Anchor tests <b>36/36</b> &middot; Cargo tests <b>6/6</b></p>
+        <p class="folio-body">Collapsed the two-transaction Kamino crank-then-withdraw flow into one. Modular Anchor v2 program: BNPL agreement lifecycle, escrow, merchant withdraw, cancellation and default paths, staking and yield accounting, emergency pause, per-agreement deposit caps.</p>
+        <div class="pill-row">
+          <span class="pill state-warn">devnet / public-demo candidate</span>
+          <span class="pill">not yet mainnet</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="folio">
+      <div class="folio-num">III</div>
+      <div>
+        <div class="folio-label">The clock</div>
+        <h2 class="folio-headline">Colosseum Fall Hackathon, 8 days out</h2>
+        <p class="folio-stat">Submissions close <b>2026-09-28</b></p>
+        <p class="folio-body">The Superteam Agentic Engineering Grant remains paused ($200 USDG cheque, $62.2k across 311 recipients to date), so no application motion is warranted there yet.</p>
+        <div class="pill-row">
+          <span class="pill state-critical">repo visibility: open decision</span>
+          <span class="pill">grant: paused</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="folio">
+      <div class="folio-num">IV</div>
+      <div>
+        <div class="folio-label">The pipeline</div>
+        <h2 class="folio-headline">6 merchants, outreach-ready</h2>
+        <p class="folio-stat"><b>6 / 6</b> candidates have verified contact channels</p>
+        <p class="folio-body">WITTMORE, Brain Dead, Hashimoto Contemporary, Thinkspace Projects, The Hundreds, Online Ceramics (fallback). Nothing sent. Waiting on the go-ahead to draft first-touch outreach, and on whether IBG Collection's own network already reaches any of them first.</p>
+      </div>
+    </section>
+
+    <section class="folio">
+      <div class="folio-num">V</div>
+      <div>
+        <div class="folio-label">The position</div>
+        <h2 class="folio-headline">Everyday BNPL is the product. IBG is the proof.</h2>
+        <p class="folio-body">Reconciled 2026-09-19: the protocol's identity is intuitive everyday BNPL on crypto rails. The IBG Optic Relic purchase, three installments, escrow earning yield, provenance transferring on completion, is the flagship demo of that product, not the other way around.</p>
+        <div class="pill-row">
+          <span class="pill state-good">wq-rp-002: reframe applied</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    <span>Drawn automatically from the Walter OS hive and the RelicPay repo. Last drawn 2026-09-19.</span>
+    <span><a href="https://relicpay.app" target="_blank" rel="noopener">relicpay.app</a></span>
+  </div>
+
+</div>
