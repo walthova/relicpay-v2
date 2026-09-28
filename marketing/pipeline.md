@@ -1,7 +1,40 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-09-18 by relicpay-growth (re-read + grepped `walter-os/businesses/ibg-collection/` for candidate names, no change — still 6 of 6 contact-ready, both blockers below still open).*
+*Last updated: 2026-09-28 by relicpay-growth (live web search confirmed checkout stack for
+Hashimoto Contemporary and a dedicated shop channel for Thinkspace Projects — the one piece of
+"contact-ready" that prior passes had flagged as still unconfirmed for these two galleries; both
+blockers below remain open and Walter-only).*
+
+## 2026-09-28 — checkout-stack verification for the two gallery candidates (highest-fit slots)
+
+Live search (not repeating the 2026-09-11/17/18 domain-liveness-only checks) confirmed the one
+gap those passes explicitly flagged as unresolved for the two art-gallery candidates — whether
+they run their own checkout or third-party gallery software:
+
+- **Hashimoto Contemporary** — confirmed running **Shopify**: `store.hashimotocontemporary.com`
+  resolves to `hashimotocontemporary.myshopify.com`. Contact channel confirmed twice over: a
+  dedicated contact form (`hashimotocontemporary.com/contact/form/`) and a published general
+  inquiry email, `info@hashimotocontemporary.com`. Two locations (SF Minnesota Street Project, NYC
+  Lower East Side) — no single "who leads US sales" answer surfaced; the general inquiry address
+  is the correct first-touch channel either way. This candidate is now fully contact-ready on
+  every dimension prior passes tracked (live, checkout stack, contact channel).
+- **Thinkspace Projects** — online sales run through a dedicated storefront,
+  `shop.thinkspaceprojects.com` ("Thinkspace Editions"), platform not confirmed as Shopify
+  specifically (search didn't surface the underlying stack) but confirmed as a real, live
+  e-commerce channel separate from the gallery's marketing site. Contact channel confirmed:
+  `contact@thinkspaceprojects.com` and gallery phone `(323) 643-4136`, LA address (4217 W.
+  Jefferson Blvd, West Adams District). Contact-ready; checkout-stack identification (Shopify vs.
+  other) is the one remaining unconfirmed technical detail, lower priority than for Hashimoto
+  since contact channel and live-store status are both already solid.
+
+Re-ran the IBG-relationship grep across `walter-os/businesses/ibg-collection/` for all 6
+candidate names (WITTMORE, Brain Dead, Hashimoto Contemporary, Thinkspace Projects, The Hundreds,
+Online Ceramics) — zero matches, same result as every prior pass. Did not re-verify Brain Dead,
+The Hundreds, or Online Ceramics this pass (their contact channels and live status were already
+confirmed 2026-09-11/13 with nothing suggesting drift). Both real blockers are unchanged and
+Walter-only: outreach approval, and confirmation of any existing IBG relationship with these six
+brands.
 
 ## 2026-09-18 re-check — no change
 

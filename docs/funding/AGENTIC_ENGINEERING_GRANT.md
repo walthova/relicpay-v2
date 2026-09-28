@@ -68,6 +68,16 @@ _Status: Draft. Do not submit without Walter approval._
 > `merchant_withdraw_reconciled` and `d169462` `cancel_agreement_reconciled`, both feature work,
 > not resolution of the divergence). Repo still confirmed **PRIVATE** via `gh repo view`. Colosseum
 > Fall Hackathon window re-confirmed unchanged (2026-09-28 to 2026-11-02) — now **10 days out**.
+>
+> **Re-checked 2026-09-28: still PAUSED**, corroborated via a third-party tracker
+> (`github.com/uknwplayer/coins-on-the-ground` issue #9, dated 2026-09-26) independently reporting
+> the same paused status and $200-receipt requirement — consistent with every direct-fetch check
+> since 2026-09-11. Repo divergence re-verified: `origin/main` still 2 commits ahead (unchanged),
+> local `main` now **28 commits ahead** of the shared base. Repo still confirmed **PRIVATE** via
+> `gh repo view`. **The Colosseum Fall Hackathon window opens today, 2026-09-28** (runs through
+> 2026-11-02) — re-confirmed via live search. The repo-visibility/merge decision below is now the
+> single blocker standing between Relic Pay and actually submitting to a live, open hackathon
+> window, not just a future one.
 
 **Proof of Work**
 
@@ -130,12 +140,14 @@ _Status: Draft. Do not submit without Walter approval._
 
 ## Related deadline (not this grant, but time-pressured)
 
-> Colosseum Solana Fall Hackathon: **2026-09-28 to 2026-11-02**, re-confirmed 2026-09-11 via live
-> web search (unchanged from every prior confirmation since 2026-07-13). Submission window opens
-> in **17 days**. The same repo-visibility/merge blocker above holds back
-> `docs/funding/COLOSSEUM_PACKET.md` — this is the only externally time-pressured deadline
+> Colosseum Solana Fall Hackathon: **2026-09-28 to 2026-11-02**, re-confirmed 2026-09-28 via live
+> web search (unchanged from every prior confirmation since 2026-07-13). **Submission window opens
+> today** and runs 35 days, closing 2026-11-02. The same repo-visibility/merge blocker above holds
+> back `docs/funding/COLOSSEUM_PACKET.md` — this is the only externally time-pressured deadline
 > tracked for Relic Pay right now (the Agentic Engineering Grant above is paused; no fixed
 > deadline was found for the Solana Foundation grant in `docs/funding/SOLANA_FOUNDATION_GRANT.md`).
+> NEEDS-WALTER: the repo-visibility/divergence decision is now blocking a live, open window, not
+> a future one — see progress note for details.
 
 ## Competitive differentiation note (wq-rp-002 input, 2026-09-07)
 
