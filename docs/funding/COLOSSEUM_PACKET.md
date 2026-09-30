@@ -141,3 +141,12 @@ extract. Repo and demo are linked in the submission."
 - Yield shown in the current demo is simulated.
 - Kamino CPI is the next milestone, not a live production claim.
 
+
+## Re-check 2026-09-30 (relicpay-growth)
+
+Fall hackathon window (Sep 28 to Nov 2, 2026) is open; close date is Nov 2, so 33 days remain.
+`gh repo view` now reports `walthova/relicpay-v2` as **PUBLIC** (earlier notes said PRIVATE). But
+the public `origin/main` (last push 2026-09-04, head `f03fe03`) is 2 commits ahead of and 29 commits
+behind local `main`: the public repo does not contain the Kamino reconciliation work, the
+v2 test suite growth, or anything since mid-August. A judge opening the link today sees stale code.
+Remaining blocker is now push/merge approval, not visibility.

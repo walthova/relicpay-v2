@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-19",
+  "updated": "2026-09-30",
   "thesis": {
     "stat": "89%",
     "stat_label": "of Aave v3 liquidations, last 12 months, hit positions under $10,000",
@@ -18,8 +18,8 @@
     "note": "not yet mainnet"
   },
   "clock": {
-    "colosseum_deadline": "2026-09-28",
-    "colosseum_blocker": "repo visibility: open decision",
+    "colosseum_deadline": "2026-11-02",
+    "colosseum_blocker": "repo is public, but 29 local commits are unpushed",
     "colosseum_blocker_level": "critical",
     "grant_status": "grant: paused",
     "grant_body": "The Superteam Agentic Engineering Grant remains paused ($200 USDG cheque, $62.2k across 311 recipients to date), so no application motion is warranted there yet."
