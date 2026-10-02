@@ -150,3 +150,14 @@ the public `origin/main` (last push 2026-09-04, head `f03fe03`) is 2 commits ahe
 behind local `main`: the public repo does not contain the Kamino reconciliation work, the
 v2 test suite growth, or anything since mid-August. A judge opening the link today sees stale code.
 Remaining blocker is now push/merge approval, not visibility.
+
+
+## CORRECTION 2026-10-02 (relicpay-growth): deadline is Oct 12, not Nov 2
+
+Direct fetch of colosseum.com/hackathon and colosseum.com/worldsfair: the live fall hackathon is the
+**Crypto World's Fair, Sep 14 to Oct 12, 2026** ("Live Now", "Submissions due October 12, 2026";
+time zone not stated, assume Pacific end of day or earlier). The "Sep 28 to Nov 2" window recorded
+above and in the 2026-09-28/30 notes could not be found on either page and should be treated as
+wrong. **10 days remain.** Prizes: Solana track $100k pool (10 x $10k), Grand Prize $30k, 20 x $15k,
+$2.5M seed funding total across tracks. Solana is one of 8 tracks, not required. Same blocker: public
+repo is 30 commits behind local main (plus 2 remote commits to merge), needs Walter's push approval.
