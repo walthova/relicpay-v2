@@ -9,10 +9,10 @@
     "link_label": "Read the full dashboard on Dune."
   },
   "build": {
-    "headline": "merchant_withdraw_reconciled shipped 2026-09-14",
-    "anchor_tests": "36/36",
+    "headline": "Kamino-aware reconciled exits complete: withdraw, cancel, default (2026-10-05)",
+    "anchor_tests": "59/59",
     "cargo_tests": "6/6",
-    "body": "Collapsed the two-transaction Kamino crank-then-withdraw flow into one. Modular Anchor v2 program: BNPL agreement lifecycle, escrow, merchant withdraw, cancellation and default paths, staking and yield accounting, emergency pause, per-agreement deposit caps.",
+    "body": "Every agreement exit (merchant withdraw, cancel, default) now redeems Kamino collateral and settles in a single transaction. Modular Anchor v2 program: BNPL agreement lifecycle, escrow, staking and yield accounting, emergency pause, per-agreement deposit caps.",
     "state": "devnet / public-demo candidate",
     "state_level": "warn",
     "note": "not yet mainnet"
