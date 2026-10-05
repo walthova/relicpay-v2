@@ -567,7 +567,20 @@ describe("relicpay v2 features", () => {
       const before = await program.account.protocolConfig.fetch(config);
       assert.isFalse(before.paused);
 
-      await payInstallment(agreement, escrow);
+      // The validator clock can lag wall-clock time under load, so a fixed
+      // sleep alone flakes with PaymentNotDue. Retry only on that specific
+      // error; any other failure (e.g. ProtocolPaused) still fails the test.
+      let paid = false;
+      for (let attempt = 0; attempt < 6 && !paid; attempt++) {
+        try {
+          await payInstallment(agreement, escrow);
+          paid = true;
+        } catch (err: any) {
+          if (!String(err.message).includes("PaymentNotDue")) throw err;
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+      assert.isTrue(paid, "pay_installment never became due");
 
       const acct = await program.account.bnplAgreement.fetch(agreement);
       assert.equal(acct.paidInstallments, 2);
@@ -1722,6 +1735,128 @@ describe("relicpay v2 features", () => {
 
       const collateralAcct = await getAccount(provider.connection, escrowCollateral);
       assert.equal(collateralAcct.amount.toString(), "0");
+    });
+
+    it("trigger_default_reconciled rejects before grace period expires, even with Kamino collateral present", async () => {
+      // Mirrors characterization.ts's "rejects trigger_default before grace
+      // period expires" — GRACE_PERIOD_SECONDS is a fixed 7-day wall-clock
+      // window with no test-only fast-forward available against
+      // solana-test-validator, so the real-default success path is untested
+      // here for the same reason it's untested for plain trigger_default.
+      // What IS new and worth proving: the Kamino-aware account wiring is
+      // correct, and — critically — the grace-period guard runs BEFORE any
+      // Kamino redeem is attempted, so an early call can never strand a
+      // wasted CPI or mutate collateral state. Deposit into Kamino first,
+      // then confirm the reconciled variant still rejects on the grace
+      // check alone, with the collateral balance completely untouched.
+      const { agreement, escrow } = await createAgreement(
+        "v2-tdr-early-with-kamino",
+        new BN(30_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      const firstInstallment = await getAccount(provider.connection, escrow);
+      await program.methods
+        .kaminoProbeDeposit(new BN(Number(firstInstallment.amount)))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const collateralBefore = await getAccount(provider.connection, escrowCollateral);
+      assert.ok(Number(collateralBefore.amount) > 0, "precondition: Kamino holds real collateral");
+
+      try {
+        await program.methods
+          .triggerDefaultReconciled()
+          .accounts({
+            agreement,
+            caller: buyer.publicKey,
+            escrowUsdc: escrow,
+            merchantUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            ...approvedAccounts(),
+            escrowKaminoCollateral: escrowCollateral,
+            payer: buyer.publicKey,
+            systemProgram: SystemProgram.programId,
+            rent: SYSVAR_RENT_PUBKEY,
+          })
+          .signers([buyer])
+          .rpc();
+        assert.fail("Expected GracePeriodNotExpired error");
+      } catch (err: any) {
+        assert.include(err.message, "GracePeriodNotExpired", "Wrong error type");
+      }
+
+      const collateralAfter = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(
+        collateralAfter.amount.toString(),
+        collateralBefore.amount.toString(),
+        "grace-period guard must run before any Kamino redeem is attempted"
+      );
+
+      const agreementAcct = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(
+        agreementAcct.state,
+        { active: {} },
+        "agreement must remain Active when the grace check rejects"
+      );
+    });
+
+    it("trigger_default_reconciled degrades to plain trigger_default gating when Kamino was never used", async () => {
+      // No prior kaminoProbeDeposit — escrow_kamino_collateral does not
+      // exist yet. init_if_needed would create it, but the grace-period
+      // guard rejects first and the whole transaction (including that
+      // account creation) reverts atomically, so the account never
+      // persists. The only thing this proves — same as the "with Kamino
+      // collateral present" case above — is that the reconciled variant's
+      // gating logic matches plain trigger_default's even when every
+      // Kamino account in the struct is wired up.
+      const { agreement, escrow } = await createAgreement(
+        "v2-tdr-no-kamino",
+        new BN(30_000_000),
+        3,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      try {
+        await program.methods
+          .triggerDefaultReconciled()
+          .accounts({
+            agreement,
+            caller: buyer.publicKey,
+            escrowUsdc: escrow,
+            merchantUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            ...approvedAccounts(),
+            escrowKaminoCollateral: escrowCollateral,
+            payer: buyer.publicKey,
+            systemProgram: SystemProgram.programId,
+            rent: SYSVAR_RENT_PUBKEY,
+          })
+          .signers([buyer])
+          .rpc();
+        assert.fail("Expected GracePeriodNotExpired error");
+      } catch (err: any) {
+        assert.include(err.message, "GracePeriodNotExpired", "Wrong error type");
+      }
+
+      const agreementAcct = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(
+        agreementAcct.state,
+        { active: {} },
+        "agreement must remain Active when the grace check rejects"
+      );
     });
   });
 });

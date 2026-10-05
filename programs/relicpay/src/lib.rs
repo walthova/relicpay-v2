@@ -203,4 +203,16 @@ pub mod relicpay {
     pub fn cancel_agreement_reconciled(ctx: Context<CancelAgreementReconciled>) -> Result<()> {
         instructions::cancel_agreement_reconciled::handler(ctx)
     }
+
+    /// v2.1: single-transaction, Kamino-aware `trigger_default`. Redeems the
+    /// full `escrow_kamino_collateral` balance (if any) back into
+    /// `escrow_usdc` first, then runs the same full-recovery transfer
+    /// `trigger_default` does — so a liquidator/bot never needs to know a
+    /// separate `kamino_probe_redeem` crank exists before it can recover a
+    /// defaulted agreement's full value. Purely additive: `trigger_default`
+    /// is untouched, and this degrades to the same behavior when an
+    /// agreement never touched Kamino. See `trigger_default_reconciled.rs`.
+    pub fn trigger_default_reconciled(ctx: Context<TriggerDefaultReconciled>) -> Result<()> {
+        instructions::trigger_default_reconciled::handler(ctx)
+    }
 }

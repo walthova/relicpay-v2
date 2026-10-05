@@ -13,6 +13,7 @@ pub mod pay_installment;
 pub mod protocol_config;
 pub mod stake_usdc;
 pub mod trigger_default;
+pub mod trigger_default_reconciled;
 pub mod unstake_usdc;
 pub mod update_pool_rate;
 
@@ -30,5 +31,6 @@ pub use pay_installment::*;
 pub use protocol_config::*;
 pub use stake_usdc::*;
 pub use trigger_default::*;
+pub use trigger_default_reconciled::*;
 pub use unstake_usdc::*;
 pub use update_pool_rate::*;
