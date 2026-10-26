@@ -1791,6 +1791,118 @@ describe("relicpay v2 features", () => {
       assert.equal(acct.paidInstallments, 1, "failed tx must not advance the schedule");
     });
 
+    // create_agreement_kamino (v2.1 inline deposit of the first installment)
+    const createKamino = (productId: string, overrides: any = {}, total = new BN(40_000_000)) => {
+      const agreement = agreementPDA(productId);
+      const escrow = escrowPDA(agreement);
+      return program.methods
+        .createAgreementKamino(total, 2, new BN(1), productId, MERCHANT_NAME)
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          merchant: merchant.publicKey,
+          usdcMint,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateralPDA(agreement),
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+          ...overrides,
+        })
+        .signers([buyer])
+        .rpc()
+        .then(() => ({ agreement, escrow }));
+    };
+
+    it("create_agreement_kamino creates the agreement and deposits the first installment into Kamino", async () => {
+      const buyerBefore = await getAccount(provider.connection, buyerUsdc);
+      const { agreement, escrow } = await createKamino("v2-create-kamino-inline");
+
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(acct.paidInstallments, 1);
+      assert.deepEqual(acct.state, { active: {} });
+      assert.equal(acct.installmentAmount.toString(), "20000000");
+      assert.equal(acct.escrowDeposited.toString(), "20000000");
+      assert.equal(acct.yieldSource, 1, "yield_source is KaminoLend from the first USDC");
+
+      const escrowAcct = await getAccount(provider.connection, escrow);
+      assert.equal(escrowAcct.amount.toString(), "0", "first installment left escrow_usdc");
+      const collateral = await getAccount(provider.connection, escrowCollateralPDA(agreement));
+      assert.equal(collateral.amount.toString(), "20000000", "held as kTokens");
+      const buyerAfter = await getAccount(provider.connection, buyerUsdc);
+      assert.equal((buyerBefore.amount - buyerAfter.amount).toString(), "20000000");
+
+      // Reconciled cancel recovers the money with no crank.
+      const buyerPre = await getAccount(provider.connection, buyerUsdc);
+      await program.methods
+        .cancelAgreementReconciled()
+        .accounts({
+          agreement,
+          escrowUsdc: escrow,
+          buyerUsdc,
+          merchantUsdc,
+          buyer: buyer.publicKey,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateralPDA(agreement),
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+      const buyerPost = await getAccount(provider.connection, buyerUsdc);
+      const merchantPost = await getAccount(provider.connection, merchantUsdc);
+      assert.isTrue(buyerPost.amount > buyerPre.amount, "buyer refunded from redeemed collateral");
+      const collateralAfter = await getAccount(provider.connection, escrowCollateralPDA(agreement));
+      assert.equal(collateralAfter.amount.toString(), "0");
+      assert.isTrue(merchantPost.amount >= 0n);
+    });
+
+    it("create_agreement_kamino falls back to raw USDC when the reserve is paused", async () => {
+      await mockKamino.methods
+        .setPaused(true)
+        .accounts({ reserve: reservePDA, authority: reserveAuthority.publicKey })
+        .signers([reserveAuthority])
+        .rpc();
+      let created: { agreement: PublicKey; escrow: PublicKey };
+      try {
+        created = await createKamino("v2-create-kamino-fallback");
+      } finally {
+        await mockKamino.methods
+          .setPaused(false)
+          .accounts({ reserve: reservePDA, authority: reserveAuthority.publicKey })
+          .signers([reserveAuthority])
+          .rpc();
+      }
+      const acct = await program.account.bnplAgreement.fetch(created.agreement);
+      assert.equal(acct.paidInstallments, 1, "purchase flow must not be blocked");
+      assert.equal(acct.yieldSource, 0, "still Simulated");
+      const escrowAcct = await getAccount(provider.connection, created.escrow);
+      assert.equal(escrowAcct.amount.toString(), "20000000", "held as raw USDC");
+      const collateral = await getAccount(provider.connection, escrowCollateralPDA(created.agreement));
+      assert.equal(collateral.amount.toString(), "0");
+    });
+
+    it("create_agreement_kamino rejects Kamino accounts that do not match KaminoConfig and creates nothing", async () => {
+      try {
+        await createKamino("v2-create-kamino-mismatch", { kaminoLendingMarket: dummyPubkey() });
+        assert.fail("Expected KaminoAccountMismatch");
+      } catch (err: any) {
+        assert.include(err.message, "KaminoAccountMismatch");
+      }
+      const info = await provider.connection.getAccountInfo(agreementPDA("v2-create-kamino-mismatch"));
+      assert.isNull(info, "failed tx must not leave an agreement behind");
+    });
+
+    it("create_agreement_kamino enforces the same argument validation as create_agreement", async () => {
+      try {
+        await createKamino("v2-create-kamino-zero", {}, new BN(0));
+        assert.fail("Expected InvalidAmount");
+      } catch (err: any) {
+        assert.include(err.message, "InvalidAmount");
+      }
+    });
+
     it("cancel_agreement_reconciled redeems Kamino collateral and splits the fee/refund in a single transaction", async () => {
       // Same shape as the merchant_withdraw_reconciled proof above: an
       // Active agreement whose first installment was cranked into Kamino.

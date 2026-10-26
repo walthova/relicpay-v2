@@ -25,6 +25,84 @@ pub fn handler(
     product_id: String,
     merchant_name: String,
 ) -> Result<()> {
+    let config_info = ctx.accounts.protocol_config.to_account_info();
+    let buyer = ctx.accounts.buyer.key();
+    let merchant = ctx.accounts.merchant.key();
+    let usdc_mint = ctx.accounts.usdc_mint.key();
+    let bump = ctx.bumps.agreement;
+    let first_installment = init_agreement(
+        &mut ctx.accounts.agreement,
+        &config_info,
+        ctx.program_id,
+        AgreementParams {
+            buyer,
+            merchant,
+            usdc_mint,
+            total_price,
+            installment_count,
+            interval_seconds,
+            product_id,
+            merchant_name,
+            bump,
+        },
+    )?;
+
+    token::transfer(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.buyer_usdc.to_account_info(),
+                to: ctx.accounts.escrow_usdc.to_account_info(),
+                authority: ctx.accounts.buyer.to_account_info(),
+            },
+        ),
+        first_installment,
+    )?;
+
+    let agreement_key = ctx.accounts.agreement.key();
+    finish_agreement(
+        &mut ctx.accounts.agreement,
+        agreement_key,
+        first_installment,
+    );
+    Ok(())
+}
+
+/// Inputs to [`init_agreement`], shared with `create_agreement_kamino`.
+pub(crate) struct AgreementParams {
+    pub buyer: Pubkey,
+    pub merchant: Pubkey,
+    pub usdc_mint: Pubkey,
+    pub total_price: u64,
+    pub installment_count: u8,
+    pub interval_seconds: i64,
+    pub product_id: String,
+    pub merchant_name: String,
+    pub bump: u8,
+}
+
+/// Everything `create_agreement` does BEFORE moving USDC: argument
+/// validation, pause + deposit-cap checks, agreement initialization, and the
+/// TVL cap update. Shared with `create_agreement_kamino` so the two cannot
+/// drift. Returns the first installment amount the caller must move into
+/// escrow, then call [`finish_agreement`].
+pub(crate) fn init_agreement(
+    agreement: &mut BnplAgreement,
+    config_info: &AccountInfo,
+    program_id: &Pubkey,
+    p: AgreementParams,
+) -> Result<u64> {
+    let AgreementParams {
+        buyer,
+        merchant,
+        usdc_mint,
+        total_price,
+        installment_count,
+        interval_seconds,
+        product_id,
+        merchant_name,
+        bump,
+    } = p;
     require!(total_price > 0, RelicPayError::InvalidAmount);
     require!(
         (MIN_INSTALLMENTS..=MAX_INSTALLMENTS).contains(&installment_count),
@@ -49,9 +127,8 @@ pub fn handler(
     // account owned by the System Program here, which read_config/
     // check_not_paused treat as "no risk controls configured" rather than an
     // error (see protocol_config.rs).
-    let config_info = ctx.accounts.protocol_config.to_account_info();
-    check_not_paused(&config_info, ctx.program_id)?;
-    if let Some(config) = read_config(&config_info, ctx.program_id)? {
+    check_not_paused(config_info, program_id)?;
+    if let Some(config) = read_config(config_info, program_id)? {
         if config.max_agreement_deposit > 0 {
             require!(
                 total_price <= config.max_agreement_deposit,
@@ -60,12 +137,11 @@ pub fn handler(
         }
     }
 
-    let agreement = &mut ctx.accounts.agreement;
     let clock = Clock::get()?;
 
-    agreement.buyer = ctx.accounts.buyer.key();
-    agreement.merchant = ctx.accounts.merchant.key();
-    agreement.usdc_mint = ctx.accounts.usdc_mint.key();
+    agreement.buyer = buyer;
+    agreement.merchant = merchant;
+    agreement.usdc_mint = usdc_mint;
     agreement.total_price = total_price;
     agreement.installment_count = installment_count;
     // Integer division: any remainder is absorbed into the final installment
@@ -80,50 +156,45 @@ pub fn handler(
     agreement.yield_accrued = 0;
     // V2_KAMINO: replaced by actual Kamino Lend supply APY.
     agreement.yield_rate_bps_annual = DEFAULT_YIELD_RATE_BPS;
-    agreement.bump = ctx.bumps.agreement;
+    agreement.bump = bump;
     agreement.merchant_withdrawn = false;
     agreement.version = BnplAgreement::VERSION;
-    // V2_KAMINO: flips to YIELD_SOURCE_KAMINO_LEND once escrow deposits are
-    // routed through Kamino Lend via CPI. Every agreement created today is
-    // simulated-yield, recorded explicitly rather than left implicit.
+    // Starts simulated; `create_agreement_kamino` flips it to
+    // YIELD_SOURCE_KAMINO_LEND after a successful deposit CPI.
     agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
 
-    // Transfer first installment: buyer_usdc → escrow_usdc
     let first_installment = agreement.installment_amount;
 
     // v2.1: enforce + update the protocol-wide TVL cap before the transfer
     // (checks-effects-interactions) — a cap violation must revert before any
     // USDC moves. No-op if the config PDA isn't initialized.
-    apply_tvl_increase(&config_info, ctx.program_id, first_installment)?;
+    apply_tvl_increase(config_info, program_id, first_installment)?;
 
-    token::transfer(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.buyer_usdc.to_account_info(),
-                to: ctx.accounts.escrow_usdc.to_account_info(),
-                authority: ctx.accounts.buyer.to_account_info(),
-            },
-        ),
-        first_installment,
-    )?;
+    Ok(first_installment)
+}
 
+/// Post-transfer bookkeeping + the `AgreementCreated` event. Call BEFORE any
+/// Kamino deposit so the event reports the simulated source consistently
+/// with plain `create_agreement`.
+pub(crate) fn finish_agreement(
+    agreement: &mut BnplAgreement,
+    agreement_key: Pubkey,
+    first_installment: u64,
+) {
     agreement.paid_installments = 1;
     agreement.escrow_deposited = first_installment;
 
     emit!(AgreementCreated {
-        agreement: agreement.key(),
+        agreement: agreement_key,
         buyer: agreement.buyer,
         merchant: agreement.merchant,
-        total_price,
-        installment_count,
+        total_price: agreement.total_price,
+        installment_count: agreement.installment_count,
         installment_amount: agreement.installment_amount,
         product_id: agreement.product_id.clone(),
         merchant_name: agreement.merchant_name.clone(),
         yield_source: agreement.yield_source,
     });
-
-    Ok(())
 }
 
 #[derive(Accounts)]

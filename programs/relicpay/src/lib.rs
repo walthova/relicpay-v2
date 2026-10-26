@@ -204,6 +204,27 @@ pub mod relicpay {
         instructions::cancel_agreement_reconciled::handler(ctx)
     }
 
+    /// v2.1: `create_agreement` plus an inline Kamino deposit of the first
+    /// installment (same fallback rules as `pay_installment_kamino`).
+    /// Purely additive; see `create_agreement_kamino.rs`.
+    pub fn create_agreement_kamino(
+        ctx: Context<CreateAgreementKamino>,
+        total_price: u64,
+        installment_count: u8,
+        interval_seconds: i64,
+        product_id: String,
+        merchant_name: String,
+    ) -> Result<()> {
+        instructions::create_agreement_kamino::handler(
+            ctx,
+            total_price,
+            installment_count,
+            interval_seconds,
+            product_id,
+            merchant_name,
+        )
+    }
+
     /// v2.1: `pay_installment` plus an inline Kamino deposit of the
     /// installment into the governance-approved reserve (falls back to raw
     /// USDC if Kamino is disabled or the reserve is paused). Purely
