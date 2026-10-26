@@ -2,7 +2,7 @@
 
 **Yield-bearing Buy Now, Pay Later — where your payment plan makes you money.**
 
-Relic Pay lets crypto holders buy real-world goods in installments without selling their crypto. The buyer locks USDC into on-chain escrow, pays over time, and the locked repayment capital is modeled today as yield-bearing capital. The next milestone routes escrow USDC into Kamino Lend for real yield.
+Relic Pay lets crypto holders buy real-world goods in installments without selling their crypto. The buyer locks USDC into on-chain escrow, pays over time, and the escrowed capital earns yield while it waits. Yield routing is protocol-agnostic: Kamino Lend is the first adapter, with more to follow.
 
 Built on Solana. Ground-up v2 rebuild of the original MVP, verified against the full v1 characterization test suite.
 
@@ -20,19 +20,21 @@ What works now:
 - Frozen v1 characterization suite plus v2 feature tests and Rust math unit tests.
 - Simulated yield accounting so the buyer-facing mechanic can be demoed safely.
 - `yield_source` groundwork to distinguish simulated yield from future real yield.
-- ProtocolConfig risk controls: emergency pause and per-agreement deposit caps.
+- ProtocolConfig risk controls: emergency pause, per-agreement deposit cap, protocol-wide TVL cap.
+- Kamino Lend adapter (CPI), tested end to end against a local mock reserve: deposit on installment, and single-transaction reconciled exits (`merchant_withdraw_reconciled`, `cancel_agreement_reconciled`, `trigger_default_reconciled`) that redeem collateral inline, with automatic fallback to raw USDC if the reserve is paused.
+- Deployer-gated governance initialization. See [SECURITY.md](SECURITY.md).
 - IBG Collection is the first merchant/pilot story.
 
 What is next:
 
-- Kamino Lend CPI for real yield.
+- Kamino adapter against the real klend program on devnet.
 - IBG checkout demo connected to the production Relic Pay story.
 - Merchant checkout SDK/spec.
 - Mainnet readiness: security review, legal review, real merchant wallet, conservative TVL caps, and monitoring.
 
 Important limitation:
 
-> The current devnet demo uses simulated yield. Do not market it as real Kamino yield until the CPI integration lands and is tested.
+> The demo uses simulated yield. The Kamino adapter is tested only against a local mock. Do not market real yield until it is tested against the real klend program and reviewed.
 
 ## How It Works in 5 Steps
 
@@ -54,9 +56,11 @@ Important limitation:
 | Default recovery | escrow could be sent to any token account passed in | recovery account must belong to the recorded merchant |
 | Rent | locked forever | `close_agreement` reclaims agreement + escrow rent after settlement |
 | Governance | fixed 3% APY | `update_pool_rate` (authority-only, capped 20%) |
-| Risk controls | none | `ProtocolConfig` emergency pause + per-agreement deposit cap |
+| Risk controls | none | `ProtocolConfig` emergency pause, per-agreement deposit cap, TVL cap |
+| Real yield | none | Kamino Lend adapter (CPI) with reconciled single-transaction exits |
+| Cancellation fee | could be routed to any token account | must belong to the recorded merchant |
 | Yield source | implicit simulation | explicit `yield_source` field for simulated-now / Kamino-next |
-| Tests | 18 integration | 18 characterization (v1 spec) + v2 feature suite + Rust unit tests |
+| Tests | 18 integration | 18 characterization (v1 spec) + 48 v2 feature tests + Rust unit tests |
 
 ## Repository Map
 
@@ -64,16 +68,19 @@ Important limitation:
 relicpay/
 ├── programs/relicpay/src/
 │   ├── lib.rs               ← program entry: instruction routing only
-│   ├── state.rs             ← BnplAgreement, StakePool, UserStake
+│   ├── state.rs             ← BnplAgreement, StakePool, UserStake, ProtocolConfig, KaminoConfig
 │   ├── constants.rs         ← seeds, fees, tiers, grace period
 │   ├── errors.rs            ← typed protocol errors
 │   ├── events.rs            ← indexable on-chain events
 │   ├── math.rs              ← yield + tier math (unit tested)
-│   └── instructions/        ← one file per instruction (11 total)
+│   └── instructions/        ← one file per instruction (22 total) + kamino_cpi helpers
+├── programs/mock_kamino_lend/ ← localnet stand-in for the klend reserve
 ├── tests/
 │   ├── characterization.ts  ← v1 behavior spec — must always pass
 │   └── v2-features.ts       ← new v2 behavior
-└── docs/                    ← whitepaper, technical breakdown, funding, plans
+├── app/                     ← Next.js demo checkout + Claude guide
+├── extension/               ← browser extension (tier-based price overlay)
+└── docs/                    ← whitepaper, technical breakdown, design, funding
 ```
 
 ## Quick Start
@@ -107,10 +114,11 @@ This repo is being prepared as the canonical public Relic Pay repository for gra
 - [Pitch Packet](docs/funding/PITCH_PACKET.md)
 - [Lovable Homepage Update Prompt](docs/funding/LOVABLE_HOMEPAGE_UPDATE.md)
 
-## Public Launch Blockers
+## Mainnet Blockers
 
-- Replace the placeholder IBG merchant wallet in `app/src/lib/constants.ts`.
-- Align the production Lovable Relic Pay site with the v2 story.
-- Make `walthova/relicpay-v2` public only after final secret scan.
-- Keep AI session transcripts ignored and attach them only to grant applications.
-- Do not claim real yield until Kamino CPI is implemented, tested, and reviewed.
+- Independent security audit; resolve the known limitations in [SECURITY.md](SECURITY.md).
+- Kamino adapter tested against the real klend program on devnet.
+- Upgrade and governance authority moved to a multisig.
+- Real merchant payout wallet configured via `NEXT_PUBLIC_MERCHANT_WALLET` (see `app/.env.example`).
+- Legal review of the BNPL terms.
+- Do not claim real yield until the above is done.
