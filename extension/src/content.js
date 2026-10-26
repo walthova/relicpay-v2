@@ -95,9 +95,15 @@ class RelicPayContentScript {
   }
 
   setupMutationObserver() {
+    // Debounced: busy pages fire thousands of mutations, and a rescan per
+    // mutation would query the whole DOM each time.
+    let pending = null;
     const observer = new MutationObserver(() => {
-      // Recheck prices every 500ms if page updates
-      setTimeout(() => this.detectPrices(), 500);
+      if (pending) return;
+      pending = setTimeout(() => {
+        pending = null;
+        this.detectPrices();
+      }, 500);
     });
 
     observer.observe(document.body, {

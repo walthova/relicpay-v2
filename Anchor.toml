@@ -19,5 +19,10 @@ url = "https://api.apr.dev"
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
+[test]
+# Load programs through the upgradeable loader so ProgramData exists on
+# localnet: the config init instructions are gated on the upgrade authority.
+upgradeable = true
+
 [scripts]
 test = "node scripts/test.js"

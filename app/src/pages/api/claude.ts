@@ -10,6 +10,12 @@ const rateLimits = new Map<string, { count: number; reset: number }>();
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
+  // Drop expired entries so the map cannot grow without bound.
+  if (rateLimits.size > 10_000) {
+    rateLimits.forEach((entry, key) => {
+      if (now > entry.reset) rateLimits.delete(key);
+    });
+  }
   const limit = rateLimits.get(ip);
   if (!limit || now > limit.reset) {
     rateLimits.set(ip, { count: 1, reset: now + 60_000 });
@@ -65,14 +71,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Rate limit by IP
-  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "unknown";
+  // Behind Vercel/most proxies the platform appends the real client IP last;
+  // the first x-forwarded-for entry is client-controlled and spoofable.
+  const forwarded = (req.headers["x-forwarded-for"] as string | undefined)?.split(",");
+  const ip = forwarded?.[forwarded.length - 1]?.trim() || req.socket.remoteAddress || "unknown";
   if (!checkRateLimit(ip)) {
     return res.status(429).json({ error: "Too many requests — wait a minute and try again." });
   }
 
-  const { messages } = req.body;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "Assistant is not configured." });
+  }
 
-  if (!messages || !Array.isArray(messages)) {
+  const { messages } = req.body ?? {};
+
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages array required" });
   }
 
@@ -89,18 +102,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  if (messages[messages.length - 1].role !== "user") {
+    return res.status(400).json({ error: "Last message must be from the user" });
+  }
+
   try {
     const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 512,
+      model: "claude-opus-5-5",
+      // Thinking is always on for this model; low effort keeps a short chat
+      // reply fast, and the headroom stops thinking from truncating the answer.
+      max_tokens: 4096,
+      output_config: { effort: "low" },
       system: SYSTEM_PROMPT,
-      messages,
+      messages: messages.map((m: { role: "user" | "assistant"; content: string }) => ({
+        role: m.role,
+        content: m.content,
+      })),
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    if (response.stop_reason === "refusal") {
+      return res.status(200).json({ text: "I can't help with that one. Ask me anything about how Relic Pay works." });
+    }
+
+    const text = response.content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("")
+      .trim();
     return res.status(200).json({ text });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return res.status(500).json({ error: message });
+    // Log the detail server-side; never echo upstream error text to the browser.
+    if (err instanceof Anthropic.RateLimitError) {
+      return res.status(429).json({ error: "The assistant is busy. Try again in a moment." });
+    }
+    console.error("[api/claude]", err instanceof Anthropic.APIError ? `${err.status} ${err.message}` : err);
+    return res.status(502).json({ error: "The assistant is unavailable right now." });
   }
 }

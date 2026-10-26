@@ -396,6 +396,26 @@ describe("relicpay v2 features", () => {
       );
     });
 
+    it("rejects init_protocol_config from anyone but the program upgrade authority", async () => {
+      try {
+        await program.methods
+          .initProtocolConfig()
+          .accounts({
+            config: configPDA(),
+            authority: attacker.publicKey,
+            upgradeAuthority: attacker.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([attacker])
+          .rpc();
+        assert.fail("Expected Unauthorized");
+      } catch (err: any) {
+        assert.include(err.message, "Unauthorized");
+      }
+      const info = await provider.connection.getAccountInfo(configPDA());
+      assert.isNull(info, "a front-runner must not be able to create the singleton");
+    });
+
     it("initializes the ProtocolConfig PDA with permissive defaults", async () => {
       const config = configPDA();
       await program.methods
@@ -403,6 +423,7 @@ describe("relicpay v2 features", () => {
         .accounts({
           config,
           authority: govAuthority.publicKey,
+          upgradeAuthority: provider.wallet.publicKey,
           systemProgram: SystemProgram.programId,
         })
         .signers([govAuthority])
@@ -828,6 +849,26 @@ describe("relicpay v2 features", () => {
       );
     });
 
+    it("rejects init_kamino_config from anyone but the program upgrade authority", async () => {
+      try {
+        await program.methods
+          .initKaminoConfig()
+          .accounts({
+            config: configPDA(),
+            authority: attacker.publicKey,
+            upgradeAuthority: attacker.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([attacker])
+          .rpc();
+        assert.fail("Expected Unauthorized");
+      } catch (err: any) {
+        assert.include(err.message, "Unauthorized");
+      }
+      const info = await provider.connection.getAccountInfo(configPDA());
+      assert.isNull(info, "a front-runner must not be able to create the singleton");
+    });
+
     it("initializes the KaminoConfig PDA disabled, with zeroed accounts", async () => {
       const config = configPDA();
       await program.methods
@@ -835,6 +876,7 @@ describe("relicpay v2 features", () => {
         .accounts({
           config,
           authority: govAuthority.publicKey,
+          upgradeAuthority: provider.wallet.publicKey,
           systemProgram: SystemProgram.programId,
         })
         .signers([govAuthority])

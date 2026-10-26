@@ -47,6 +47,21 @@ pub struct InitKaminoConfig<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    /// Only the program's upgrade authority (the deployer) may create this
+    /// singleton. Without this gate the first caller after deploy would
+    /// become governance and could point every escrow's Kamino CPI (signed
+    /// by the agreement PDA) at a program of their choosing.
+    pub upgrade_authority: Signer<'info>,
+
+    #[account(
+        seeds = [crate::ID.as_ref()],
+        bump,
+        seeds::program = anchor_lang::solana_program::bpf_loader_upgradeable::ID,
+        constraint = program_data.upgrade_authority_address == Some(upgrade_authority.key())
+            @ RelicPayError::Unauthorized
+    )]
+    pub program_data: Account<'info, ProgramData>,
+
     pub system_program: Program<'info, System>,
 }
 
