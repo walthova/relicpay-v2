@@ -74,4 +74,13 @@ of funds. This draft maps directly to those criteria.
 - Final demo URL.
 - Whether to apply as standard grant or convertible grant.
 - Walter's contact email and entity/person details for the form.
+- **Submission channel decision (found 2026-08-07):** Solana Foundation grants
+  are also listed through Superteam Earn's regional/USA grant programs (e.g.
+  "Solana Foundation USA Grants" at `superteam.fun/earn/grants/solana-foundation-usa-grants`,
+  funding up to $10k USDC, rolling, no fixed deadline, open-source/non-custodial
+  eligibility). This may be a faster or better-fit intake path than the direct
+  `solana.org/grants-funding` form this draft was written against — the ask
+  size ($10k cap) is inside the "$10,000-$25,000" range already suggested
+  above at the low end. Needs Walter's call on which channel to target; not
+  a different draft, same underlying content applies. Not submitted anywhere.
 
