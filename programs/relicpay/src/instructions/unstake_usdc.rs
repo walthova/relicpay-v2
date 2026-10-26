@@ -21,7 +21,10 @@ pub fn handler(ctx: Context<UnstakeUsdc>, amount: u64) -> Result<()> {
         user_stake.owner == ctx.accounts.user.key(),
         RelicPayError::Unauthorized
     );
-    require!(user_stake.staked_amount > 0, RelicPayError::NothingToWithdraw);
+    require!(
+        user_stake.staked_amount > 0,
+        RelicPayError::NothingToWithdraw
+    );
 
     // Accrue yield for the period since last stake/unstake.
     let elapsed = (clock.unix_timestamp - user_stake.last_update) as u64;

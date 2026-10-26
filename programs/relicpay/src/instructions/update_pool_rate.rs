@@ -10,7 +10,10 @@ use crate::events::PoolRateUpdated;
 use crate::state::StakePool;
 
 pub fn handler(ctx: Context<UpdatePoolRate>, new_rate_bps: u16) -> Result<()> {
-    require!(new_rate_bps <= MAX_YIELD_RATE_BPS, RelicPayError::RateTooHigh);
+    require!(
+        new_rate_bps <= MAX_YIELD_RATE_BPS,
+        RelicPayError::RateTooHigh
+    );
 
     let pool = &mut ctx.accounts.stake_pool;
     let old_rate = pool.yield_rate_bps_annual;

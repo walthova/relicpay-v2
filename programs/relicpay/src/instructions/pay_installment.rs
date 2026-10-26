@@ -83,7 +83,10 @@ pub(crate) fn prepare_installment(
                 .ok_or(RelicPayError::MathOverflow)?,
         )
         .ok_or(RelicPayError::MathOverflow)?;
-    require!(clock.unix_timestamp >= due_time, RelicPayError::PaymentNotDue);
+    require!(
+        clock.unix_timestamp >= due_time,
+        RelicPayError::PaymentNotDue
+    );
 
     // Accrue yield only for the window since last update.
     let elapsed_since_last_update = (clock.unix_timestamp - agreement.last_yield_update) as u64;

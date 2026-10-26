@@ -27,8 +27,14 @@ pub fn handler(ctx: Context<CloseAgreement>) -> Result<()> {
         RelicPayError::AgreementNotSettled
     );
     if agreement.state == AgreementState::Completed {
-        require!(agreement.merchant_withdrawn, RelicPayError::AgreementNotSettled);
-        require!(agreement.yield_accrued == 0, RelicPayError::AgreementNotSettled);
+        require!(
+            agreement.merchant_withdrawn,
+            RelicPayError::AgreementNotSettled
+        );
+        require!(
+            agreement.yield_accrued == 0,
+            RelicPayError::AgreementNotSettled
+        );
     }
 
     // Close the escrow token account; its rent goes to the buyer.

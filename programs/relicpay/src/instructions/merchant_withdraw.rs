@@ -27,7 +27,10 @@ pub fn handler(ctx: Context<MerchantWithdraw>) -> Result<()> {
         ctx.accounts.merchant.key() == agreement.merchant,
         RelicPayError::Unauthorized
     );
-    require!(!agreement.merchant_withdrawn, RelicPayError::AlreadyWithdrawn);
+    require!(
+        !agreement.merchant_withdrawn,
+        RelicPayError::AlreadyWithdrawn
+    );
 
     let merchant_amount = agreement.total_price;
     require!(

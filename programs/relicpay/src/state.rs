@@ -47,7 +47,7 @@ impl BnplAgreement {
         + 1                        // bump
         + 1 + 1                    // merchant_withdrawn, version
         + 1                        // yield_source
-        + 29;                      // reserved for future fields
+        + 29; // reserved for future fields
 
     pub const YIELD_SOURCE_SIMULATED: u8 = 0;
     pub const YIELD_SOURCE_KAMINO_LEND: u8 = 1;
@@ -68,12 +68,12 @@ impl StakePool {
 
 #[account]
 pub struct UserStake {
-    pub owner: Pubkey,        // staker wallet
-    pub staked_amount: u64,   // current USDC in pool
-    pub yield_accrued: u64,   // pending yield (paid on full unstake)
-    pub last_update: i64,     // timestamp of last stake/unstake
-    pub tier: u8,             // discount tier 0–4 (read by browser extension)
-    pub bump: u8,             // PDA bump
+    pub owner: Pubkey,      // staker wallet
+    pub staked_amount: u64, // current USDC in pool
+    pub yield_accrued: u64, // pending yield (paid on full unstake)
+    pub last_update: i64,   // timestamp of last stake/unstake
+    pub tier: u8,           // discount tier 0–4 (read by browser extension)
+    pub bump: u8,           // PDA bump
 }
 
 impl UserStake {
@@ -141,15 +141,15 @@ impl ProtocolConfig {
 /// hardcoded per-instruction.
 #[account]
 pub struct KaminoConfig {
-    pub authority: Pubkey,                 // governance wallet
-    pub enabled: bool,                     // master switch — false until CPI code lands
-    pub kamino_program: Pubkey,            // klend program id (mainnet or devnet)
-    pub lending_market: Pubkey,            // the Kamino market holding the USDC reserve
-    pub lending_market_authority: Pubkey,  // PDA: seeds = ["lma", lending_market]
-    pub reserve: Pubkey,                   // the specific USDC reserve
-    pub reserve_liquidity_supply: Pubkey,  // Kamino's USDC vault for that reserve
-    pub reserve_collateral_mint: Pubkey,   // the kToken mint for that reserve
-    pub bump: u8,                          // PDA bump
+    pub authority: Pubkey,                // governance wallet
+    pub enabled: bool,                    // master switch — false until CPI code lands
+    pub kamino_program: Pubkey,           // klend program id (mainnet or devnet)
+    pub lending_market: Pubkey,           // the Kamino market holding the USDC reserve
+    pub lending_market_authority: Pubkey, // PDA: seeds = ["lma", lending_market]
+    pub reserve: Pubkey,                  // the specific USDC reserve
+    pub reserve_liquidity_supply: Pubkey, // Kamino's USDC vault for that reserve
+    pub reserve_collateral_mint: Pubkey,  // the kToken mint for that reserve
+    pub bump: u8,                         // PDA bump
 }
 
 impl KaminoConfig {

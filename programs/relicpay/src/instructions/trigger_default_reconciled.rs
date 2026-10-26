@@ -73,7 +73,11 @@ fn require_matches_kamino_config(
         config.lending_market_authority,
         RelicPayError::KaminoAccountMismatch
     );
-    require_keys_eq!(*reserve, config.reserve, RelicPayError::KaminoAccountMismatch);
+    require_keys_eq!(
+        *reserve,
+        config.reserve,
+        RelicPayError::KaminoAccountMismatch
+    );
     require_keys_eq!(
         *reserve_liquidity_supply,
         config.reserve_liquidity_supply,
@@ -153,18 +157,29 @@ pub fn handler(ctx: Context<TriggerDefaultReconciled>) -> Result<()> {
         let owner_info = ctx.accounts.agreement.to_account_info();
         let kamino_program_info = ctx.accounts.kamino_program.to_account_info();
         let lending_market_info = ctx.accounts.kamino_lending_market.to_account_info();
-        let lending_market_authority_info =
-            ctx.accounts.kamino_lending_market_authority.to_account_info();
+        let lending_market_authority_info = ctx
+            .accounts
+            .kamino_lending_market_authority
+            .to_account_info();
         let reserve_info = ctx.accounts.kamino_reserve.to_account_info();
-        let reserve_liquidity_supply_info =
-            ctx.accounts.kamino_reserve_liquidity_supply.to_account_info();
-        let reserve_collateral_mint_info =
-            ctx.accounts.kamino_reserve_collateral_mint.to_account_info();
+        let reserve_liquidity_supply_info = ctx
+            .accounts
+            .kamino_reserve_liquidity_supply
+            .to_account_info();
+        let reserve_collateral_mint_info = ctx
+            .accounts
+            .kamino_reserve_collateral_mint
+            .to_account_info();
         let user_source_collateral_info = ctx.accounts.escrow_kamino_collateral.to_account_info();
         let user_destination_liquidity_info = ctx.accounts.escrow_usdc.to_account_info();
         let token_program_info = ctx.accounts.token_program.to_account_info();
 
-        let seeds: &[&[u8]] = &[SEED_AGREEMENT, buyer.as_ref(), product_id.as_bytes(), &[bump]];
+        let seeds: &[&[u8]] = &[
+            SEED_AGREEMENT,
+            buyer.as_ref(),
+            product_id.as_bytes(),
+            &[bump],
+        ];
         let signer_seeds: &[&[&[u8]]] = &[seeds];
 
         if mock_reserve_looks_paused(&reserve_info) {

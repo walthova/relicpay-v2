@@ -37,11 +37,8 @@ use crate::state::{BnplAgreement, KaminoConfig};
 
 pub fn handler(ctx: Context<PayInstallmentKamino>) -> Result<()> {
     let config_info = ctx.accounts.protocol_config.to_account_info();
-    let (next_installment, amount_due, is_last) = prepare_installment(
-        &mut ctx.accounts.agreement,
-        &config_info,
-        ctx.program_id,
-    )?;
+    let (next_installment, amount_due, is_last) =
+        prepare_installment(&mut ctx.accounts.agreement, &config_info, ctx.program_id)?;
 
     token::transfer(
         CpiContext::new(
@@ -91,12 +88,18 @@ pub fn handler(ctx: Context<PayInstallmentKamino>) -> Result<()> {
     let owner_info = ctx.accounts.agreement.to_account_info();
     let kamino_program_info = ctx.accounts.kamino_program.to_account_info();
     let lending_market_info = ctx.accounts.kamino_lending_market.to_account_info();
-    let lending_market_authority_info =
-        ctx.accounts.kamino_lending_market_authority.to_account_info();
-    let reserve_liquidity_supply_info =
-        ctx.accounts.kamino_reserve_liquidity_supply.to_account_info();
-    let reserve_collateral_mint_info =
-        ctx.accounts.kamino_reserve_collateral_mint.to_account_info();
+    let lending_market_authority_info = ctx
+        .accounts
+        .kamino_lending_market_authority
+        .to_account_info();
+    let reserve_liquidity_supply_info = ctx
+        .accounts
+        .kamino_reserve_liquidity_supply
+        .to_account_info();
+    let reserve_collateral_mint_info = ctx
+        .accounts
+        .kamino_reserve_collateral_mint
+        .to_account_info();
     let user_source_liquidity_info = ctx.accounts.escrow_usdc.to_account_info();
     let user_destination_collateral_info = ctx.accounts.escrow_kamino_collateral.to_account_info();
     let token_program_info = ctx.accounts.token_program.to_account_info();
@@ -114,7 +117,12 @@ pub fn handler(ctx: Context<PayInstallmentKamino>) -> Result<()> {
         token_program: &token_program_info,
     };
 
-    let seeds: &[&[u8]] = &[SEED_AGREEMENT, buyer.as_ref(), product_id.as_bytes(), &[bump]];
+    let seeds: &[&[u8]] = &[
+        SEED_AGREEMENT,
+        buyer.as_ref(),
+        product_id.as_bytes(),
+        &[bump],
+    ];
     let signer_seeds: &[&[&[u8]]] = &[seeds];
 
     try_kamino_deposit(&accs, amount_due, signer_seeds)?;
