@@ -19,7 +19,7 @@
   },
   "clock": {
     "colosseum_deadline": "2026-10-12",
-    "colosseum_blocker": "Oct 12 deadline passed 4 days ago; no submission recorded, and local main is 35 commits ahead of the public repo. Next window unconfirmed.",
+    "colosseum_blocker": "Oct 12 deadline passed 14 days ago (colosseum.com/hackathon now shows Judging Underway); no submission recorded. Public repo now includes the v2 merge; local main is 4 commits ahead. Next window is April to May 2027, dates unannounced.",
     "colosseum_blocker_level": "critical",
     "grant_status": "grant: paused",
     "grant_body": "The Superteam Agentic Engineering Grant remains paused ($200 USDG cheque, $62.2k across 311 recipients to date), so no application motion is warranted there yet."

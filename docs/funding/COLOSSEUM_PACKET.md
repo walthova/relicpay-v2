@@ -161,3 +161,8 @@ above and in the 2026-09-28/30 notes could not be found on either page and shoul
 wrong. **10 days remain.** Prizes: Solana track $100k pool (10 x $10k), Grand Prize $30k, 20 x $15k,
 $2.5M seed funding total across tracks. Solana is one of 8 tracks, not required. Same blocker: public
 repo is 30 commits behind local main (plus 2 remote commits to merge), needs Walter's push approval.
+
+
+## Re-check 2026-10-26 (relicpay-growth)
+
+First-party colosseum.com/hackathon shows Crypto World's Fair (Sep 14 to Oct 12) as "Judging Underway"; winners roughly one month after the deadline. The page says Colosseum runs two hackathons a year (April to May, September to October) and announces no next dates. A Colosseum blog post still lists a "fall edition Sep 28 to Nov 2"; it is a stale schedule and conflicts with the live page, so do not rely on it. Public `origin/main` now contains the v2 merge (head 8db281a); local main is 4 commits ahead (Kamino single-tx work, security hardening, CI). Next realistic window: April to May 2027. Use the gap to ship the real devnet Kamino integration and the checkout SDK so the packet's TODO links (demo URL, repo) are real.
