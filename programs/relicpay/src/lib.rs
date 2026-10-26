@@ -204,6 +204,14 @@ pub mod relicpay {
         instructions::cancel_agreement_reconciled::handler(ctx)
     }
 
+    /// v2.1: `pay_installment` plus an inline Kamino deposit of the
+    /// installment into the governance-approved reserve (falls back to raw
+    /// USDC if Kamino is disabled or the reserve is paused). Purely
+    /// additive; see `pay_installment_kamino.rs`.
+    pub fn pay_installment_kamino(ctx: Context<PayInstallmentKamino>) -> Result<()> {
+        instructions::pay_installment_kamino::handler(ctx)
+    }
+
     /// v2.1: single-transaction, Kamino-aware `trigger_default`. Redeems the
     /// full `escrow_kamino_collateral` balance (if any) back into
     /// `escrow_usdc` first, then runs the same full-recovery transfer

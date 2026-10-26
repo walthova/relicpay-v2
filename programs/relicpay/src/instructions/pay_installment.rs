@@ -27,9 +27,41 @@ pub fn handler(ctx: Context<PayInstallment>) -> Result<()> {
     // that predate `init_protocol_config` (or the frozen v1 characterization
     // suite, which never lists this account) are unaffected.
     let config_info = ctx.accounts.protocol_config.to_account_info();
-    check_not_paused(&config_info, ctx.program_id)?;
+    let (next_installment, amount_due, is_last) =
+        prepare_installment(&mut ctx.accounts.agreement, &config_info, ctx.program_id)?;
 
-    let agreement = &mut ctx.accounts.agreement;
+    token::transfer(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.buyer_usdc.to_account_info(),
+                to: ctx.accounts.escrow_usdc.to_account_info(),
+                authority: ctx.accounts.buyer.to_account_info(),
+            },
+        ),
+        amount_due,
+    )?;
+
+    let agreement_key = ctx.accounts.agreement.key();
+    finish_installment(
+        &mut ctx.accounts.agreement,
+        agreement_key,
+        next_installment,
+        amount_due,
+        is_last,
+    )
+}
+
+/// Everything `pay_installment` does BEFORE moving USDC: pause check, state
+/// and due-date gating, yield accrual, amount calculation, TVL cap. Shared
+/// with `pay_installment_kamino` so the two cannot drift. Returns
+/// `(next_installment, amount_due, is_last)`.
+pub(crate) fn prepare_installment(
+    agreement: &mut BnplAgreement,
+    config_info: &AccountInfo,
+    program_id: &Pubkey,
+) -> Result<(u8, u64, bool)> {
+    check_not_paused(config_info, program_id)?;
     let clock = Clock::get()?;
 
     require!(
@@ -79,20 +111,20 @@ pub fn handler(ctx: Context<PayInstallment>) -> Result<()> {
 
     // v2.1: this installment's USDC is new TVL entering escrow — enforce +
     // update the cap before the transfer (checks-effects-interactions).
-    apply_tvl_increase(&config_info, ctx.program_id, amount_due)?;
+    apply_tvl_increase(config_info, program_id, amount_due)?;
 
-    token::transfer(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.buyer_usdc.to_account_info(),
-                to: ctx.accounts.escrow_usdc.to_account_info(),
-                authority: ctx.accounts.buyer.to_account_info(),
-            },
-        ),
-        amount_due,
-    )?;
+    Ok((next_installment, amount_due, is_last))
+}
 
+/// Everything `pay_installment` does AFTER the USDC transfer: bookkeeping,
+/// events, auto-completion on the final installment.
+pub(crate) fn finish_installment(
+    agreement: &mut BnplAgreement,
+    agreement_key: Pubkey,
+    next_installment: u8,
+    amount_due: u64,
+    is_last: bool,
+) -> Result<()> {
     agreement.paid_installments = next_installment;
     agreement.escrow_deposited = agreement
         .escrow_deposited
@@ -100,7 +132,7 @@ pub fn handler(ctx: Context<PayInstallment>) -> Result<()> {
         .ok_or(RelicPayError::MathOverflow)?;
 
     emit!(InstallmentPaid {
-        agreement: agreement.key(),
+        agreement: agreement_key,
         buyer: agreement.buyer,
         installment_number: next_installment,
         amount: amount_due,
@@ -110,7 +142,7 @@ pub fn handler(ctx: Context<PayInstallment>) -> Result<()> {
     if is_last {
         agreement.state = AgreementState::Completed;
         emit!(AgreementCompleted {
-            agreement: agreement.key(),
+            agreement: agreement_key,
             buyer: agreement.buyer,
             merchant: agreement.merchant,
             total_paid: agreement.total_price,

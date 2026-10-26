@@ -45,7 +45,7 @@ use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
 /// Mirrors `kamino_probe::require_matches_kamino_config` — every Kamino
 /// target account must match the governance-approved `KaminoConfig` before
 /// anything is read or invoked.
-fn require_matches_kamino_config(
+pub(crate) fn require_matches_kamino_config(
     config: &KaminoConfig,
     kamino_program: &Pubkey,
     lending_market: &Pubkey,
@@ -88,7 +88,7 @@ fn require_matches_kamino_config(
 /// only; a real mid-invoke CPI failure still fails the whole transaction.
 const MOCK_RESERVE_PAUSED_OFFSET: usize = 8 + 32 + 32 + 32 + 32;
 
-fn mock_reserve_looks_paused(reserve_info: &AccountInfo) -> bool {
+pub(crate) fn mock_reserve_looks_paused(reserve_info: &AccountInfo) -> bool {
     match reserve_info.try_borrow_data() {
         Ok(data) if data.len() > MOCK_RESERVE_PAUSED_OFFSET => {
             data[MOCK_RESERVE_PAUSED_OFFSET] != 0
