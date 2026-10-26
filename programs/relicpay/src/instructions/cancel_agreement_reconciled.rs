@@ -271,7 +271,13 @@ pub struct CancelAgreementReconciled<'info> {
     )]
     pub escrow_usdc: Box<Account<'info, TokenAccount>>,
 
-    #[account(mut)]
+    /// Cancellation-fee destination — must belong to the recorded merchant so
+    /// the buyer cannot route the fee back to themselves (see cancel_agreement.rs).
+    #[account(
+        mut,
+        token::mint = agreement.usdc_mint,
+        token::authority = agreement.merchant,
+    )]
     pub merchant_usdc: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,

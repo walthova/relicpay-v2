@@ -80,6 +80,11 @@ relicpay/
 
 Install Solana, Anchor, Rust, and Node dependencies first. Then:
 
+Toolchain: Anchor 0.32.1, Agave/Solana CLI 3.0.11 (platform-tools v1.51), Node 22.12+
+(`nvm use`). Older Solana CLIs ship a Cargo that cannot parse edition-2024 dependencies;
+older Node cannot `require()` the ESM modules in the web3 dependency chain. The committed
+`Cargo.lock` and `.cargo/config.toml` keep resolution on versions the SBF toolchain compiles.
+
 ```bash
 npm install
 anchor build                                   # compile the program

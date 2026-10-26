@@ -287,6 +287,46 @@ describe("relicpay v2 features", () => {
     }
   });
 
+  // ── Cancellation fee routing ──────────────────────────────────────────────
+
+  it("rejects cancel_agreement when the fee destination is not the merchant's", async () => {
+    const { agreement, escrow } = await createAgreement(
+      "v2-cancel-fee-001",
+      new BN(100_000_000),
+      4,
+      new BN(60)
+    );
+
+    const buyerOwnedUsdc = await createAccount(
+      provider.connection,
+      buyer,
+      usdcMint,
+      buyer.publicKey,
+      Keypair.generate()
+    );
+
+    try {
+      await program.methods
+        .cancelAgreement()
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          merchantUsdc: buyerOwnedUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([buyer])
+        .rpc();
+      assert.fail("Expected ConstraintTokenOwner");
+    } catch (err: any) {
+      assert.include(err.message, "ConstraintTokenOwner");
+    }
+
+    const feeAcct = await getAccount(provider.connection, buyerOwnedUsdc);
+    assert.equal(feeAcct.amount.toString(), "0", "Fee must not reach a buyer-owned account");
+  });
+
   // ── update_pool_rate governance ───────────────────────────────────────────
 
   it("rejects update_pool_rate from a non-authority wallet", async () => {
@@ -1846,6 +1886,50 @@ describe("relicpay v2 features", () => {
 
       const collateralAcct = await getAccount(provider.connection, escrowCollateral);
       assert.equal(collateralAcct.amount.toString(), "0");
+    });
+
+    it("rejects cancel_agreement_reconciled when the fee destination is not the merchant's", async () => {
+      const { agreement, escrow } = await createAgreement(
+        "v2-car-fee-route",
+        new BN(30_000_000),
+        3,
+        new BN(60)
+      );
+
+      const buyerOwnedUsdc = await createAccount(
+        provider.connection,
+        buyer,
+        usdcMint,
+        buyer.publicKey,
+        Keypair.generate()
+      );
+
+      try {
+        await program.methods
+          .cancelAgreementReconciled()
+          .accounts({
+            agreement,
+            buyer: buyer.publicKey,
+            buyerUsdc,
+            escrowUsdc: escrow,
+            merchantUsdc: buyerOwnedUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            ...approvedAccounts(),
+            escrowKaminoCollateral: escrowCollateralPDA(agreement),
+            systemProgram: SystemProgram.programId,
+            rent: SYSVAR_RENT_PUBKEY,
+          })
+          .signers([buyer])
+          .rpc();
+        assert.fail("Expected ConstraintTokenOwner");
+      } catch (err: any) {
+        assert.include(err.message, "ConstraintTokenOwner");
+      }
+
+      const feeAcct = await getAccount(provider.connection, buyerOwnedUsdc);
+      assert.equal(feeAcct.amount.toString(), "0", "Fee must not reach a buyer-owned account");
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(acct.state, { active: {} });
     });
 
     it("trigger_default_reconciled rejects before grace period expires, even with Kamino collateral present", async () => {

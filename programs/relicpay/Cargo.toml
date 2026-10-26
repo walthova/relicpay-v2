@@ -3,6 +3,9 @@ name = "relicpay"
 version = "2.0.0"
 description = "Relic Pay v2 — Decentralized BNPL on Solana using USDC"
 edition = "2021"
+# Matches the Rust shipped in the Solana platform-tools used to build the SBF
+# binary; keeps dependency resolution on versions that toolchain can compile.
+rust-version = "1.84"
 
 [lib]
 crate-type = ["cdylib", "lib"]

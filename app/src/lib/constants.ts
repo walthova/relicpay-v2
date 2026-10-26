@@ -1,25 +1,30 @@
 import { PublicKey } from "@solana/web3.js";
 
-// Devnet USDC mint (Circle's official devnet USDC)
+// Circle's devnet USDC unless overridden for another cluster.
 export const USDC_MINT = new PublicKey(
-  "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+  process.env.NEXT_PUBLIC_USDC_MINT ?? "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 );
 
-// Program ID — update after anchor deploy
 export const PROGRAM_ID = new PublicKey(
-  "5GPVYpyzdosbzWcdttcCdziJVqUCCARf98J857C3T6Gi"
+  process.env.NEXT_PUBLIC_PROGRAM_ID ?? "5GPVYpyzdosbzWcdttcCdziJVqUCCARf98J857C3T6Gi"
 );
 
-// Demo merchant: IBG Collection
-// SECURITY: Replace wallet placeholder before mainnet deployment
-const IBG_WALLET = "IBGMerchantWalletxxxxxxxxxxxxxxxxxxxxxxxx";
-if (typeof window !== "undefined" && IBG_WALLET.includes("xxxxxxxx")) {
-  console.warn("[Relic Pay] IBG merchant wallet is still a placeholder — do not deploy to mainnet.");
+// Merchant payout wallet. Deployment-specific, so it comes from the
+// environment; checkout throws rather than sending funds to a bad address.
+const MERCHANT_WALLET = process.env.NEXT_PUBLIC_MERCHANT_WALLET ?? "";
+
+export function getMerchantWallet(): PublicKey {
+  if (!MERCHANT_WALLET) {
+    throw new Error(
+      "NEXT_PUBLIC_MERCHANT_WALLET is not set — configure the merchant payout wallet before checkout."
+    );
+  }
+  return new PublicKey(MERCHANT_WALLET);
 }
 
 export const IBG_MERCHANT = {
   name: "IBG Collection",
-  wallet: IBG_WALLET,
+  wallet: MERCHANT_WALLET,
   products: [
     {
       id: "optic-relic-hoodie-001",

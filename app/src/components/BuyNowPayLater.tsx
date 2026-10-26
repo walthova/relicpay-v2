@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useRelicPay } from "../hooks/useRelicPay";
-import { IBG_MERCHANT, INSTALLMENT_OPTIONS } from "../lib/constants";
+import { IBG_MERCHANT, INSTALLMENT_OPTIONS, getMerchantWallet } from "../lib/constants";
 
 interface Product {
   id: string;
@@ -32,7 +32,7 @@ export function BuyNowPayLater({ product }: { product: Product }) {
 
     try {
       const res = await createAgreement({
-        merchantWallet: IBG_MERCHANT.wallet,
+        merchantWallet: getMerchantWallet().toBase58(),
         productId: product.id,
         merchantName: IBG_MERCHANT.name,
         totalPriceUsdc: priceUsd,

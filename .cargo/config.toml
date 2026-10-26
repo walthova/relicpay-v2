@@ -1,0 +1,5 @@
+[resolver]
+# The SBF toolchain ships an older Cargo than crates.io's newest releases
+# require. Resolve to versions compatible with the package `rust-version`
+# instead of failing on edition-2024 transitive dependencies.
+incompatible-rust-versions = "fallback"
