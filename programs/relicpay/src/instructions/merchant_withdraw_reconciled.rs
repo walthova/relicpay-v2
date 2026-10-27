@@ -38,7 +38,9 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::{KaminoRedeemProbeFallback, KaminoRedeemProbeSucceeded, MerchantPaid};
-use crate::instructions::kamino_cpi::{try_kamino_redeem, KaminoRedeemAccounts};
+use crate::instructions::kamino_cpi::{
+    mock_reserve_looks_paused, try_kamino_redeem, KaminoRedeemAccounts,
+};
 use crate::instructions::protocol_config::apply_tvl_decrease;
 use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
 
@@ -86,19 +88,6 @@ pub(crate) fn require_matches_kamino_config(
         RelicPayError::KaminoAccountMismatch
     );
     Ok(())
-}
-
-/// Mirrors `kamino_probe::mock_reserve_looks_paused` — best-effort preflight
-/// only; a real mid-invoke CPI failure still fails the whole transaction.
-const MOCK_RESERVE_PAUSED_OFFSET: usize = 8 + 32 + 32 + 32 + 32;
-
-pub(crate) fn mock_reserve_looks_paused(reserve_info: &AccountInfo) -> bool {
-    match reserve_info.try_borrow_data() {
-        Ok(data) if data.len() > MOCK_RESERVE_PAUSED_OFFSET => {
-            data[MOCK_RESERVE_PAUSED_OFFSET] != 0
-        }
-        _ => false,
-    }
 }
 
 pub fn handler(ctx: Context<MerchantWithdrawReconciled>) -> Result<()> {

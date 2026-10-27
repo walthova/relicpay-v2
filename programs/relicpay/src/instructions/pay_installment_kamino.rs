@@ -28,10 +28,10 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::constants::*;
 use crate::events::{KaminoDepositProbeFallback, KaminoDepositProbeSucceeded};
-use crate::instructions::kamino_cpi::{try_kamino_deposit, KaminoDepositAccounts};
-use crate::instructions::merchant_withdraw_reconciled::{
-    mock_reserve_looks_paused, require_matches_kamino_config,
+use crate::instructions::kamino_cpi::{
+    mock_reserve_looks_paused, try_kamino_deposit, KaminoDepositAccounts,
 };
+use crate::instructions::merchant_withdraw_reconciled::require_matches_kamino_config;
 use crate::instructions::pay_installment::{finish_installment, prepare_installment};
 use crate::state::{BnplAgreement, KaminoConfig};
 

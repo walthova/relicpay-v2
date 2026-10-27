@@ -120,7 +120,8 @@ use crate::events::{
     KaminoRedeemProbeSucceeded,
 };
 use crate::instructions::kamino_cpi::{
-    try_kamino_deposit, try_kamino_redeem, KaminoDepositAccounts, KaminoRedeemAccounts,
+    mock_reserve_looks_paused, try_kamino_deposit, try_kamino_redeem, KaminoDepositAccounts,
+    KaminoRedeemAccounts,
 };
 use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
 
@@ -169,32 +170,6 @@ fn require_matches_kamino_config(
         RelicPayError::KaminoAccountMismatch
     );
     Ok(())
-}
-
-/// Byte offset of `mock_kamino_lend::Reserve.paused` within its account
-/// data: 8-byte Anchor discriminator + 4 * 32-byte pubkeys
-/// (authority, liquidity_mint, collateral_mint, liquidity_supply).
-///
-/// MOCK-SPECIFIC AND FRAGILE BY DESIGN — see module doc, preflight option
-/// (a). This is not a general "is this CPI target healthy" check: real
-/// Kamino's reserve account has a completely different layout (oracle
-/// price, cumulative borrow rate, obligation data, ...) that would need
-/// Kamino's actual account schema to parse, which this proof-of-concept
-/// deliberately does not take on. It exists only to demonstrate the
-/// preflight pattern against our own mock, whose layout we control.
-const MOCK_RESERVE_PAUSED_OFFSET: usize = 8 + 32 + 32 + 32 + 32;
-
-/// Best-effort, mock-specific check: does this reserve account's data say
-/// `paused = true`? Returns `false` (i.e. "looks usable, try it") on any
-/// read failure — a preflight guard that can't prove unhealthiness should
-/// not block the attempt.
-fn mock_reserve_looks_paused(reserve_info: &AccountInfo) -> bool {
-    match reserve_info.try_borrow_data() {
-        Ok(data) if data.len() > MOCK_RESERVE_PAUSED_OFFSET => {
-            data[MOCK_RESERVE_PAUSED_OFFSET] != 0
-        }
-        _ => false,
-    }
 }
 
 pub fn probe_deposit_handler(ctx: Context<KaminoProbeDeposit>, amount: u64) -> Result<()> {

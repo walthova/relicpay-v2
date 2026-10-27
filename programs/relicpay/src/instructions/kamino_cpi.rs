@@ -181,3 +181,71 @@ pub fn try_kamino_redeem(
     invoke_signed(&ix, &account_infos, signer_seeds)?;
     Ok(())
 }
+
+/// Byte offset of `mock_kamino_lend::Reserve.paused` within its account
+/// data: 8-byte Anchor discriminator + 4 * 32-byte pubkeys
+/// (authority, liquidity_mint, collateral_mint, liquidity_supply).
+///
+/// MOCK-SPECIFIC AND FRAGILE BY DESIGN. Real klend's reserve has a
+/// completely different layout. This is the single place to swap in real
+/// reserve parsing once it is verified against the real program on devnet;
+/// every Kamino-aware instruction preflights through
+/// [`mock_reserve_looks_paused`].
+pub const MOCK_RESERVE_PAUSED_OFFSET: usize = 8 + 32 + 32 + 32 + 32;
+
+/// Pure byte-level form of the preflight, unit-testable off-chain.
+/// Unreadable or short data reads as "not paused" (try the CPI anyway):
+/// a preflight that cannot prove unhealthiness must not block the attempt.
+pub fn reserve_data_looks_paused(data: &[u8]) -> bool {
+    data.get(MOCK_RESERVE_PAUSED_OFFSET)
+        .map(|b| *b != 0)
+        .unwrap_or(false)
+}
+
+/// Best-effort preflight only; a real mid-invoke CPI failure still fails
+/// the whole transaction.
+pub fn mock_reserve_looks_paused(reserve_info: &AccountInfo) -> bool {
+    match reserve_info.try_borrow_data() {
+        Ok(data) => reserve_data_looks_paused(&data),
+        Err(_) => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paused_flag_detected_at_offset() {
+        let mut data = vec![0u8; MOCK_RESERVE_PAUSED_OFFSET + 8];
+        assert!(!reserve_data_looks_paused(&data));
+        data[MOCK_RESERVE_PAUSED_OFFSET] = 1;
+        assert!(reserve_data_looks_paused(&data));
+    }
+
+    #[test]
+    fn short_or_empty_data_is_not_paused() {
+        assert!(!reserve_data_looks_paused(&[]));
+        let data = vec![1u8; MOCK_RESERVE_PAUSED_OFFSET];
+        assert!(!reserve_data_looks_paused(&data));
+    }
+
+    #[test]
+    fn only_the_paused_byte_matters() {
+        let mut data = vec![0xFFu8; MOCK_RESERVE_PAUSED_OFFSET + 4];
+        data[MOCK_RESERVE_PAUSED_OFFSET] = 0;
+        assert!(!reserve_data_looks_paused(&data));
+    }
+
+    #[test]
+    fn sighash_is_stable_and_distinct() {
+        assert_eq!(
+            sighash("deposit_reserve_liquidity"),
+            sighash("deposit_reserve_liquidity")
+        );
+        assert_ne!(
+            sighash("deposit_reserve_liquidity"),
+            sighash("redeem_reserve_collateral")
+        );
+    }
+}
