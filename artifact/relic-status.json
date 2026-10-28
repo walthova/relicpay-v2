@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-27",
+  "updated": "2026-10-28",
   "thesis": {
     "stat": "89%",
     "stat_label": "of Aave v3 liquidations, last 12 months, hit positions under $10,000",
@@ -9,8 +9,8 @@
     "link_label": "Read the full dashboard on Dune."
   },
   "build": {
-    "headline": "Kamino-backed from the first USDC: create_agreement_kamino and pay_installment_kamino (2026-10-26)",
-    "anchor_tests": "70/70",
+    "headline": "Risk controls verified on every Kamino path: pause, caps, exact TVL accounting (2026-10-28)",
+    "anchor_tests": "74/74",
     "cargo_tests": "10/10",
     "body": "A purchase can now be created and paid with every installment deposited into Kamino in the same transaction, with a raw-USDC fallback so a DeFi outage never blocks checkout. All exits (withdraw, cancel, default) redeem inline. Modular Anchor v2 program with emergency pause and deposit caps.",
     "state": "devnet / public-demo candidate",
