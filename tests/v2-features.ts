@@ -41,6 +41,11 @@ describe("relicpay v2 features", () => {
   // — the account already exists).
   let kaminoConfigAuthority: Keypair;
 
+  // ProtocolConfig governance authority, assigned by the "protocol config
+  // (risk controls)" describe so later describes (Kamino variants) can flip
+  // the pause flag / caps.
+  let protocolGovAuthority: Keypair;
+
   const MERCHANT_NAME = "IBG Collection";
 
   const agreementPDA = (productId: string): PublicKey =>
@@ -375,6 +380,7 @@ describe("relicpay v2 features", () => {
 
   describe("protocol config (risk controls)", () => {
     const govAuthority = Keypair.generate();
+    protocolGovAuthority = govAuthority;
     const attacker = Keypair.generate();
 
     const configPDA = (): PublicKey =>
@@ -1901,6 +1907,115 @@ describe("relicpay v2 features", () => {
       } catch (err: any) {
         assert.include(err.message, "InvalidAmount");
       }
+    });
+
+    // ── Risk controls on the Kamino variants (DEVELOPMENT_PLAN.md v2.1 item 5)
+    const riskConfigPDA = () =>
+      PublicKey.findProgramAddressSync([Buffer.from("protocol_config")], program.programId)[0];
+    const setRiskPaused = (paused: boolean) =>
+      program.methods
+        .setProtocolPaused(paused)
+        .accounts({ config: riskConfigPDA(), authority: protocolGovAuthority.publicKey })
+        .signers([protocolGovAuthority])
+        .rpc();
+    const setRiskLimits = (maxDeposit: BN, tvlCap: BN) =>
+      program.methods
+        .updateRiskLimits(maxDeposit, tvlCap)
+        .accounts({ config: riskConfigPDA(), authority: protocolGovAuthority.publicKey })
+        .signers([protocolGovAuthority])
+        .rpc();
+
+    it("create_agreement_kamino is blocked by the protocol pause flag and creates nothing", async () => {
+      await setRiskPaused(true);
+      try {
+        await createKamino("v2-create-kamino-paused");
+        assert.fail("Expected ProtocolPaused");
+      } catch (err: any) {
+        assert.include(err.message, "ProtocolPaused");
+      } finally {
+        await setRiskPaused(false);
+      }
+      const info = await provider.connection.getAccountInfo(agreementPDA("v2-create-kamino-paused"));
+      assert.isNull(info);
+    });
+
+    it("create_agreement_kamino enforces the per-agreement cap and the TVL cap", async () => {
+      try {
+        await setRiskLimits(new BN(10_000_000), new BN(0));
+        try {
+          await createKamino("v2-create-kamino-cap");
+          assert.fail("Expected DepositCapExceeded");
+        } catch (err: any) {
+          assert.include(err.message, "DepositCapExceeded");
+        }
+
+        const { currentTvl } = await program.account.protocolConfig.fetch(riskConfigPDA());
+        await setRiskLimits(new BN(0), currentTvl.add(new BN(10_000_000)));
+        try {
+          await createKamino("v2-create-kamino-tvl");
+          assert.fail("Expected TvlCapExceeded");
+        } catch (err: any) {
+          assert.include(err.message, "TvlCapExceeded");
+        }
+      } finally {
+        await setRiskLimits(new BN(0), new BN(0));
+      }
+      assert.isNull(await provider.connection.getAccountInfo(agreementPDA("v2-create-kamino-cap")));
+      assert.isNull(await provider.connection.getAccountInfo(agreementPDA("v2-create-kamino-tvl")));
+    });
+
+    it("pay_installment_kamino is blocked by the protocol pause flag", async () => {
+      const { agreement, escrow } = await createAgreement(
+        "v2-pay-kamino-paused",
+        new BN(40_000_000),
+        2,
+        new BN(1)
+      );
+      await setRiskPaused(true);
+      try {
+        await new Promise((r) => setTimeout(r, 5000));
+        await payKamino(agreement, escrow);
+        assert.fail("Expected ProtocolPaused");
+      } catch (err: any) {
+        assert.include(err.message, "ProtocolPaused");
+      } finally {
+        await setRiskPaused(false);
+      }
+      const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(acct.paidInstallments, 1, "paused tx must not advance the schedule");
+    });
+
+    it("keeps current_tvl exact across a Kamino create and a reconciled cancel", async () => {
+      const before = await program.account.protocolConfig.fetch(riskConfigPDA());
+      const { agreement, escrow } = await createKamino("v2-create-kamino-tvl-track");
+      const mid = await program.account.protocolConfig.fetch(riskConfigPDA());
+      assert.equal(
+        mid.currentTvl.sub(before.currentTvl).toString(),
+        "20000000",
+        "first installment counted once even though it landed in Kamino"
+      );
+
+      await program.methods
+        .cancelAgreementReconciled()
+        .accounts({
+          agreement,
+          escrowUsdc: escrow,
+          buyerUsdc,
+          merchantUsdc,
+          buyer: buyer.publicKey,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateralPDA(agreement),
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+      const after = await program.account.protocolConfig.fetch(riskConfigPDA());
+      assert.equal(
+        after.currentTvl.toString(),
+        before.currentTvl.toString(),
+        "reconciled cancel must release exactly what the Kamino create added"
+      );
     });
 
     it("cancel_agreement_reconciled redeems Kamino collateral and splits the fee/refund in a single transaction", async () => {
