@@ -1,0 +1,13 @@
+{
+  "name": "@relicpay/checkout",
+  "version": "0.1.0",
+  "description": "Merchant checkout SDK for Relic Pay: quote, validate, and build create_agreement transactions.",
+  "main": "src/index.ts",
+  "license": "UNLICENSED",
+  "private": true,
+  "peerDependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.6",
+    "@solana/web3.js": "^1.95.4"
+  }
+}
