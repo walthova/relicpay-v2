@@ -31,7 +31,11 @@ export interface CheckoutRequest {
 export interface Installment {
   index: number; // 1-based
   amount: bigint;
-  /** Unix seconds offset from agreement start when it falls due. */
+  /**
+   * Seconds after agreement start when it falls due. Installment 1 is the
+   * upfront charge (offset 0); installment N >= 2 is due at N * interval,
+   * matching pay_installment.rs (installment 2 is NOT due after one interval).
+   */
   dueOffsetSeconds: number;
 }
 
@@ -70,11 +74,11 @@ export function quote(req: CheckoutRequest): Quote {
     installments.push({
       index: i + 1,
       amount: last ? req.totalPrice - base * (n - 1n) : base,
-      dueOffsetSeconds: i * req.intervalSeconds,
+      dueOffsetSeconds: i === 0 ? 0 : (i + 1) * req.intervalSeconds,
     });
   }
   // Escrow balance integrated over time: each installment sits from its due time to the final due time.
-  const end = BigInt((req.installmentCount - 1) * req.intervalSeconds);
+  const end = BigInt(req.installmentCount * req.intervalSeconds);
   let weighted = 0n;
   for (const it of installments) weighted += it.amount * (end - BigInt(it.dueOffsetSeconds));
   return {
@@ -131,4 +135,84 @@ export async function buildCreateAgreement(p: BuildCreateAgreementParams): Promi
     })
     .instruction();
   return { instruction, agreement, escrow, quote: q };
+}
+
+// ---------------------------------------------------------------------------
+// Status reader and event decoding (v2.2 SDK slice 2)
+// ---------------------------------------------------------------------------
+
+export type AgreementPhase = "active" | "completed" | "defaulted" | "cancelled";
+export type YieldSource = "simulated" | "kamino";
+
+export interface AgreementStatus {
+  phase: AgreementPhase;
+  yieldSource: YieldSource;
+  paidInstallments: number;
+  installmentCount: number;
+  /** USDC base units the buyer still owes (0 unless active). */
+  remainingToPay: bigint;
+  /** Null once no further installment is expected. */
+  nextInstallmentNumber: number | null;
+  nextDueAt: number | null;
+  graceExpiresAt: number | null;
+  /** True when the next installment can be paid right now. */
+  payable: boolean;
+  overdue: boolean;
+  /** True when anyone may call trigger_default. */
+  defaultable: boolean;
+  /** Completed, not yet withdrawn by the merchant. */
+  merchantPayoutPending: boolean;
+  yieldAccrued: bigint;
+}
+
+const num = (v: any): number => (typeof v === "number" ? v : Number(v.toString()));
+const big = (v: any): bigint => BigInt(v.toString());
+
+/** Pure: derives a merchant-facing status from a fetched BnplAgreement account and a unix time. */
+export function deriveStatus(acct: any, nowUnix: number): AgreementStatus {
+  const phase = Object.keys(acct.state)[0] as AgreementPhase;
+  const paid = num(acct.paidInstallments);
+  const count = num(acct.installmentCount);
+  const interval = num(acct.intervalSeconds);
+  const start = num(acct.startTime);
+  const total = big(acct.totalPrice);
+  const per = big(acct.installmentAmount);
+  const active = phase === "active" && paid < count;
+  const nextNo = active ? paid + 1 : null;
+  const nextDueAt = nextNo === null ? null : start + nextNo * interval;
+  const graceExpiresAt = nextDueAt === null ? null : nextDueAt + GRACE_PERIOD_SECONDS;
+  const paidSoFar = paid >= count ? total : per * BigInt(paid);
+  return {
+    phase,
+    yieldSource: num(acct.yieldSource) === 1 ? "kamino" : "simulated",
+    paidInstallments: paid,
+    installmentCount: count,
+    remainingToPay: phase === "active" ? total - paidSoFar : 0n,
+    nextInstallmentNumber: nextNo,
+    nextDueAt,
+    graceExpiresAt,
+    payable: nextDueAt !== null && nowUnix >= nextDueAt,
+    overdue: nextDueAt !== null && nowUnix > nextDueAt,
+    defaultable: graceExpiresAt !== null && nowUnix > graceExpiresAt,
+    merchantPayoutPending: phase === "completed" && !acct.merchantWithdrawn,
+    yieldAccrued: big(acct.yieldAccrued),
+  };
+}
+
+/** Fetches the agreement and derives its status. Returns null if the account does not exist (never created or closed). */
+export async function getAgreementStatus(program: any, agreement: PublicKey, nowUnix: number = Math.floor(Date.now() / 1000)): Promise<AgreementStatus | null> {
+  const acct = await program.account.bnplAgreement.fetchNullable(agreement);
+  return acct ? deriveStatus(acct, nowUnix) : null;
+}
+
+export interface DecodedEvent {
+  name: string;
+  data: any;
+}
+
+/** Decodes Relic Pay events from transaction log lines (webhook / indexer helper). Unknown programs' logs are ignored. */
+export function decodeEvents(program: any, logs: string[]): DecodedEvent[] {
+  const { EventParser } = require("@coral-xyz/anchor");
+  const parser = new EventParser(program.programId, program.coder);
+  return Array.from(parser.parseLogs(logs)).map((e: any) => ({ name: e.name, data: e.data }));
 }
