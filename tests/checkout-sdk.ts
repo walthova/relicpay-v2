@@ -16,6 +16,10 @@ import {
   deriveStatus,
   getAgreementStatus,
   decodeEvents,
+  getMerchantDashboard,
+  summarizeMerchant,
+  toMerchantRows,
+  AGREEMENT_MERCHANT_OFFSET,
   buildCheckout,
   buildCreateAgreementKamino,
   kaminoConfigAddress,
@@ -127,6 +131,16 @@ describe("@relicpay/checkout SDK", () => {
     assert.equal(created!.data.productId, req.productId);
     assert.isEmpty(decodeEvents(program, ["Program 11111111111111111111111111111111 invoke [1]", "Program 11111111111111111111111111111111 success"]));
 
+    // Merchant dashboard: the memcmp offset must hit the real merchant field on a live account.
+    const dash = await getMerchantDashboard(program, merchant.publicKey, Number(acct.startTime));
+    assert.equal(dash.rows.length, 1);
+    assert.isTrue(dash.rows[0].address.equals(built.agreement));
+    assert.isTrue(dash.rows[0].buyer.equals(buyer.publicKey));
+    assert.equal(dash.summary.counts.active, 1);
+    assert.equal(dash.summary.outstandingReceivable, req.totalPrice - built.quote.upfront);
+    assert.equal(dash.summary.nextDueAt, st0!.nextDueAt);
+    assert.equal((await getMerchantDashboard(program, Keypair.generate().publicKey)).rows.length, 0);
+
     assert.equal(acct.installmentAmount.toString(), built.quote.upfront.toString());
     assert.equal(acct.totalPrice.toString(), req.totalPrice.toString());
     const escrow = await getAccount(provider.connection, built.escrow);
@@ -192,6 +206,59 @@ describe("@relicpay/checkout SDK", () => {
       try { await buildCreateAgreementKamino({ ...params(prog), request: { ...req, totalPrice: 0n }, kaminoConfig: cfg }); } catch (e) { err = e; }
       assert.match(String(err), /invalid checkout request/);
       assert.isUndefined(prog.calls.name);
+    });
+  });
+
+  describe("merchant dashboard", () => {
+    const pk = () => Keypair.generate().publicKey;
+    const G = GRACE_PERIOD_SECONDS;
+    const acct = (o: any = {}) => ({
+      buyer: pk(), productId: "p", state: { active: {} }, paidInstallments: 1, installmentCount: 3, intervalSeconds: 100, startTime: 1000,
+      totalPrice: 90n, installmentAmount: 30n, escrowDeposited: 30n, merchantWithdrawn: false, yieldSource: 0, yieldAccrued: 0n, ...o,
+    });
+
+    it("pins the merchant memcmp offset to the account layout", () => {
+      const src = fs.readFileSync(path.join(__dirname, "..", "programs/relicpay/src/state.rs"), "utf8");
+      const body = src.slice(src.indexOf("pub struct BnplAgreement"));
+      assert.isTrue(body.indexOf("pub buyer: Pubkey") < body.indexOf("pub merchant: Pubkey"));
+      assert.isTrue(body.indexOf("pub merchant: Pubkey") < body.indexOf("pub usdc_mint: Pubkey"));
+      assert.equal(AGREEMENT_MERCHANT_OFFSET, 8 + 32);
+    });
+
+    it("aggregates receivables, overdue exposure, default recovery, and pending payouts", () => {
+      const now = 1000 + 2 * 100 + G + 1; // agreement A (paid 1) is past grace
+      const accounts = [
+        { publicKey: pk(), account: acct() }, // defaultable: owes 60, escrow 30
+        { publicKey: pk(), account: acct({ paidInstallments: 2, startTime: now - 150, escrowDeposited: 60n }) }, // next due at now+50: not overdue, owes 30
+        { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3, escrowDeposited: 90n }) }, // payout pending 90
+        { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3, merchantWithdrawn: true }) },
+        { publicKey: pk(), account: acct({ state: { defaulted: {} } }) },
+        { publicKey: pk(), account: acct({ state: { cancelled: {} } }) },
+      ];
+      const rows = toMerchantRows(accounts, now);
+      assert.equal(rows[0].status.nextDueAt, 1200); // earliest due first; finished agreements last
+      assert.isNull(rows[rows.length - 1].status.nextDueAt);
+      const s = summarizeMerchant(rows);
+      assert.deepEqual(s.counts, { active: 2, completed: 2, defaulted: 1, cancelled: 1 });
+      assert.equal(s.outstandingReceivable, 90n);
+      assert.equal(s.overdueCount, 1);
+      assert.equal(s.overdueExposure, 60n);
+      assert.equal(s.defaultableCount, 1);
+      assert.equal(s.recoverableOnDefault, 30n);
+      assert.equal(s.pendingPayouts, 90n);
+      assert.equal(s.nextDueAt, 1200);
+    });
+
+    it("returns an empty summary for a merchant with no agreements and queries by merchant filter", async () => {
+      assert.deepEqual(summarizeMerchant([]).counts, { active: 0, completed: 0, defaulted: 0, cancelled: 0 });
+      assert.isNull(summarizeMerchant([]).nextDueAt);
+      let filters: any;
+      const m = pk();
+      const prog = { account: { bnplAgreement: { all: async (f: any) => { filters = f; return []; } } } };
+      const d = await getMerchantDashboard(prog, m, 5);
+      assert.equal(d.rows.length, 0);
+      assert.equal(filters[0].memcmp.offset, 40);
+      assert.equal(filters[0].memcmp.bytes, m.toBase58());
     });
   });
 
