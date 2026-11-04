@@ -216,3 +216,90 @@ export function decodeEvents(program: any, logs: string[]): DecodedEvent[] {
   const parser = new EventParser(program.programId, program.coder);
   return Array.from(parser.parseLogs(logs)).map((e: any) => ({ name: e.name, data: e.data }));
 }
+
+// ---------------------------------------------------------------------------
+// Kamino-aware builder (v2.2 SDK slice 3)
+// ---------------------------------------------------------------------------
+
+export function kaminoConfigAddress(programId: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([Buffer.from("kamino_config")], programId)[0];
+}
+
+export function protocolConfigAddress(programId: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([Buffer.from("protocol_config")], programId)[0];
+}
+
+export function kaminoCollateralAddress(programId: PublicKey, agreement: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([Buffer.from("kamino_collateral"), agreement.toBuffer()], programId)[0];
+}
+
+export interface KaminoConfigView {
+  enabled: boolean;
+  kaminoProgram: PublicKey;
+  lendingMarket: PublicKey;
+  lendingMarketAuthority: PublicKey;
+  reserve: PublicKey;
+  reserveLiquiditySupply: PublicKey;
+  reserveCollateralMint: PublicKey;
+}
+
+/** Reads the governance KaminoConfig. Returns null if it is not initialized or not enabled. */
+export async function fetchKaminoConfig(program: any): Promise<KaminoConfigView | null> {
+  const addr = kaminoConfigAddress(program.programId);
+  const acct = await program.account.kaminoConfig.fetchNullable(addr);
+  if (!acct || !acct.enabled) return null;
+  return {
+    enabled: true,
+    kaminoProgram: acct.kaminoProgram,
+    lendingMarket: acct.lendingMarket,
+    lendingMarketAuthority: acct.lendingMarketAuthority,
+    reserve: acct.reserve,
+    reserveLiquiditySupply: acct.reserveLiquiditySupply,
+    reserveCollateralMint: acct.reserveCollateralMint,
+  };
+}
+
+/** Builds create_agreement_kamino, using the accounts governance approved in KaminoConfig. */
+export async function buildCreateAgreementKamino(p: BuildCreateAgreementParams & { kaminoConfig: KaminoConfigView }): Promise<BuiltCheckout> {
+  const q = quote(p.request);
+  const agreement = agreementAddress(p.program.programId, p.buyer, p.request.productId);
+  const escrow = escrowAddress(p.program.programId, agreement);
+  const bn = (v: bigint | number) => new (require("bn.js"))(v.toString());
+  const k = p.kaminoConfig;
+  const instruction: TransactionInstruction = await p.program.methods
+    .createAgreementKamino(bn(p.request.totalPrice), p.request.installmentCount, bn(p.request.intervalSeconds), p.request.productId, p.request.merchantName)
+    .accounts({
+      agreement,
+      buyer: p.buyer,
+      merchant: p.merchant,
+      usdcMint: p.usdcMint,
+      buyerUsdc: p.buyerUsdc,
+      escrowUsdc: escrow,
+      protocolConfig: protocolConfigAddress(p.program.programId),
+      config: kaminoConfigAddress(p.program.programId),
+      kaminoProgram: k.kaminoProgram,
+      kaminoLendingMarket: k.lendingMarket,
+      kaminoLendingMarketAuthority: k.lendingMarketAuthority,
+      kaminoReserve: k.reserve,
+      kaminoReserveLiquiditySupply: k.reserveLiquiditySupply,
+      kaminoReserveCollateralMint: k.reserveCollateralMint,
+      escrowKaminoCollateral: kaminoCollateralAddress(p.program.programId, agreement),
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+      rent: SYSVAR_RENT_PUBKEY,
+    })
+    .instruction();
+  return { instruction, agreement, escrow, quote: q };
+}
+
+/**
+ * One-call checkout: uses create_agreement_kamino when governance has an enabled KaminoConfig,
+ * otherwise plain create_agreement. Never blocks a purchase on the DeFi dependency.
+ */
+export async function buildCheckout(p: BuildCreateAgreementParams): Promise<BuiltCheckout & { kamino: boolean }> {
+  quote(p.request); // fail fast before any RPC
+  let cfg: KaminoConfigView | null = null;
+  try { cfg = await fetchKaminoConfig(p.program); } catch { cfg = null; }
+  if (cfg) return { ...(await buildCreateAgreementKamino({ ...p, kaminoConfig: cfg })), kamino: true };
+  return { ...(await buildCreateAgreement(p)), kamino: false };
+}

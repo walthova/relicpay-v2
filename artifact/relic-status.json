@@ -9,8 +9,8 @@
     "link_label": "Read the full dashboard on Dune."
   },
   "build": {
-    "headline": "Checkout SDK adds agreement status reader and event decoding; fixed installment due-time quote (2026-10-30)",
-    "anchor_tests": "82/82",
+    "headline": "Checkout SDK now builds Kamino-aware checkout with automatic raw-USDC fallback (2026-11-03)",
+    "anchor_tests": "85/85",
     "cargo_tests": "10/10",
     "body": "A purchase can now be created and paid with every installment deposited into Kamino in the same transaction, with a raw-USDC fallback so a DeFi outage never blocks checkout. All exits (withdraw, cancel, default) redeem inline. Modular Anchor v2 program with emergency pause and deposit caps.",
     "state": "devnet / public-demo candidate",

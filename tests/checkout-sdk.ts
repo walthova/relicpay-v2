@@ -16,6 +16,11 @@ import {
   deriveStatus,
   getAgreementStatus,
   decodeEvents,
+  buildCheckout,
+  buildCreateAgreementKamino,
+  kaminoConfigAddress,
+  protocolConfigAddress,
+  kaminoCollateralAddress,
   agreementAddress,
   escrowAddress,
   MIN_INSTALLMENTS,
@@ -86,9 +91,10 @@ describe("@relicpay/checkout SDK", () => {
     const latest = await provider.connection.getLatestBlockhash();
     const sig = await provider.connection.requestAirdrop(buyer.publicKey, 5 * LAMPORTS_PER_SOL);
     await provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
-    const mint = await createMint(provider.connection, buyer, buyer.publicKey, null, 6);
-    const buyerUsdc = await createAccount(provider.connection, buyer, mint, buyer.publicKey);
-    await mintTo(provider.connection, buyer, mint, buyerUsdc, buyer, 500_000_000);
+    const conf = { commitment: "confirmed" as const, preflightCommitment: "confirmed" as const };
+    const mint = await createMint(provider.connection, buyer, buyer.publicKey, null, 6, undefined, conf);
+    const buyerUsdc = await createAccount(provider.connection, buyer, mint, buyer.publicKey, undefined, conf);
+    await mintTo(provider.connection, buyer, mint, buyerUsdc, buyer, 500_000_000, [], conf);
 
     const built = await buildCreateAgreement({
       program,
@@ -101,7 +107,8 @@ describe("@relicpay/checkout SDK", () => {
     assert.isTrue(built.agreement.equals(agreementAddress(program.programId, buyer.publicKey, req.productId)));
     assert.isTrue(built.escrow.equals(escrowAddress(program.programId, built.agreement)));
 
-    const createSig = await provider.sendAndConfirm(new Transaction().add(built.instruction), [buyer], { commitment: "confirmed" });
+    // Use a confirmed blockhash and confirmed preflight; the default "processed" lookup can lag the validator after long suites.
+    const createSig = await provider.sendAndConfirm(new Transaction().add(built.instruction), [buyer], { commitment: "confirmed", preflightCommitment: "confirmed" });
 
     const acct = await program.account.bnplAgreement.fetch(built.agreement);
     // Quote due offsets must match the program's due-time rule.
@@ -135,6 +142,57 @@ describe("@relicpay/checkout SDK", () => {
     } catch (e) { err = e; }
     assert.match(String(err), /invalid checkout request/);
     assert.isFalse(called);
+  });
+
+  describe("kamino-aware builder", () => {
+    const pk = () => Keypair.generate().publicKey;
+    const cfg = { enabled: true, kaminoProgram: pk(), lendingMarket: pk(), lendingMarketAuthority: pk(), reserve: pk(), reserveLiquiditySupply: pk(), reserveCollateralMint: pk() };
+    const fakeProgram = (cfgAcct: any, fetchThrows = false) => {
+      const calls: any = {};
+      const chain = (name: string) => (...args: any[]) => ({
+        accounts: (a: any) => { calls.name = name; calls.args = args; calls.accounts = a; return { instruction: async () => ({ name }) }; },
+      });
+      return {
+        calls,
+        programId: pk(),
+        account: { kaminoConfig: { fetchNullable: async () => { if (fetchThrows) throw new Error("rpc down"); return cfgAcct; } } },
+        methods: { createAgreement: chain("createAgreement"), createAgreementKamino: chain("createAgreementKamino") },
+      };
+    };
+    const params = (program: any) => ({ program, request: req, buyer: pk(), merchant: pk(), usdcMint: pk(), buyerUsdc: pk() });
+
+    it("passes the governance-approved accounts and derived PDAs to create_agreement_kamino", async () => {
+      const prog = fakeProgram({ ...cfg });
+      const built: any = await buildCheckout(params(prog));
+      assert.isTrue(built.kamino);
+      assert.equal(prog.calls.name, "createAgreementKamino");
+      const a = prog.calls.accounts;
+      assert.isTrue(a.kaminoReserve.equals(cfg.reserve));
+      assert.isTrue(a.kaminoProgram.equals(cfg.kaminoProgram));
+      assert.isTrue(a.config.equals(kaminoConfigAddress(prog.programId)));
+      assert.isTrue(a.protocolConfig.equals(protocolConfigAddress(prog.programId)));
+      assert.isTrue(a.escrowKaminoCollateral.equals(kaminoCollateralAddress(prog.programId, built.agreement)));
+      assert.equal(prog.calls.args[1], req.installmentCount);
+    });
+
+    it("falls back to plain create_agreement when config is missing, disabled, or unreadable", async () => {
+      for (const prog of [fakeProgram(null), fakeProgram({ ...cfg, enabled: false }), fakeProgram(null, true)]) {
+        const built: any = await buildCheckout(params(prog));
+        assert.isFalse(built.kamino);
+        assert.equal(prog.calls.name, "createAgreement");
+      }
+    });
+
+    it("validates before any RPC and rejects bad requests in the kamino builder", async () => {
+      const prog = fakeProgram({ ...cfg });
+      let err: any;
+      try { await buildCheckout({ ...params(prog), request: { ...req, installmentCount: 1 } }); } catch (e) { err = e; }
+      assert.match(String(err), /invalid checkout request/);
+      err = undefined;
+      try { await buildCreateAgreementKamino({ ...params(prog), request: { ...req, totalPrice: 0n }, kaminoConfig: cfg }); } catch (e) { err = e; }
+      assert.match(String(err), /invalid checkout request/);
+      assert.isUndefined(prog.calls.name);
+    });
   });
 
   describe("deriveStatus", () => {
