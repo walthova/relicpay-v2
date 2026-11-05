@@ -205,6 +205,98 @@ export async function getAgreementStatus(program: any, agreement: PublicKey, now
   return acct ? deriveStatus(acct, nowUnix) : null;
 }
 
+// ---------------------------------------------------------------------------
+// Merchant dashboard data layer (v2.2 merchant surface)
+// ---------------------------------------------------------------------------
+
+/** Byte offset of `merchant` in a BnplAgreement account (8 discriminator + 32 buyer). */
+export const AGREEMENT_MERCHANT_OFFSET = 40;
+
+export interface MerchantAgreementRow {
+  address: PublicKey;
+  buyer: PublicKey;
+  productId: string;
+  totalPrice: bigint;
+  /** Escrow balance the merchant would receive if the agreement defaulted now. */
+  escrowDeposited: bigint;
+  status: AgreementStatus;
+}
+
+export interface MerchantSummary {
+  counts: Record<AgreementPhase, number>;
+  /** Active agreements where the next installment is past due. */
+  overdueCount: number;
+  /** Active agreements the merchant (or anyone) can default right now. */
+  defaultableCount: number;
+  /** Sum of remainingToPay across active agreements: what buyers still owe. */
+  outstandingReceivable: bigint;
+  /** Unpaid balance on overdue agreements: the merchant's default exposure. */
+  overdueExposure: bigint;
+  /** Escrow the merchant would recover from defaultable agreements right now. */
+  recoverableOnDefault: bigint;
+  /** Total price of completed agreements awaiting merchant_withdraw. */
+  pendingPayouts: bigint;
+  /** Next unpaid due time across active agreements, or null. */
+  nextDueAt: number | null;
+}
+
+/** Pure: aggregates merchant-facing numbers from derived rows. */
+export function summarizeMerchant(rows: MerchantAgreementRow[]): MerchantSummary {
+  const out: MerchantSummary = {
+    counts: { active: 0, completed: 0, defaulted: 0, cancelled: 0 },
+    overdueCount: 0,
+    defaultableCount: 0,
+    outstandingReceivable: 0n,
+    overdueExposure: 0n,
+    recoverableOnDefault: 0n,
+    pendingPayouts: 0n,
+    nextDueAt: null,
+  };
+  for (const r of rows) {
+    const st = r.status;
+    out.counts[st.phase] += 1;
+    out.outstandingReceivable += st.remainingToPay;
+    if (st.overdue) {
+      out.overdueCount += 1;
+      out.overdueExposure += st.remainingToPay;
+    }
+    if (st.defaultable) {
+      out.defaultableCount += 1;
+      out.recoverableOnDefault += r.escrowDeposited;
+    }
+    if (st.merchantPayoutPending) out.pendingPayouts += r.totalPrice;
+    if (st.nextDueAt !== null && (out.nextDueAt === null || st.nextDueAt < out.nextDueAt)) out.nextDueAt = st.nextDueAt;
+  }
+  return out;
+}
+
+/** Pure: maps fetched `{publicKey, account}` pairs to dashboard rows. Sorted by next due time, finished agreements last. */
+export function toMerchantRows(accounts: { publicKey: PublicKey; account: any }[], nowUnix: number): MerchantAgreementRow[] {
+  return accounts
+    .map(({ publicKey, account }) => ({
+      address: publicKey,
+      buyer: account.buyer as PublicKey,
+      productId: account.productId as string,
+      totalPrice: big(account.totalPrice),
+      escrowDeposited: big(account.escrowDeposited),
+      status: deriveStatus(account, nowUnix),
+    }))
+    .sort((a, b) => (a.status.nextDueAt ?? Infinity) - (b.status.nextDueAt ?? Infinity));
+}
+
+/** Fetches every agreement for a merchant wallet (memcmp filter on the merchant field) with derived status and totals. */
+export async function getMerchantDashboard(
+  program: any,
+  merchant: PublicKey,
+  nowUnix: number = Math.floor(Date.now() / 1000)
+): Promise<{ rows: MerchantAgreementRow[]; summary: MerchantSummary }> {
+  const accounts = await program.account.bnplAgreement.all([
+    { memcmp: { offset: AGREEMENT_MERCHANT_OFFSET, bytes: merchant.toBase58() } },
+  ]);
+  const rows = toMerchantRows(accounts, nowUnix);
+  return { rows, summary: summarizeMerchant(rows) };
+}
+
 export interface DecodedEvent {
   name: string;
   data: any;
