@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-03",
+  "updated": "2026-11-05",
   "thesis": {
     "stat": "89%",
     "stat_label": "of Aave v3 liquidations, last 12 months, hit positions under $10,000",
@@ -9,8 +9,8 @@
     "link_label": "Read the full dashboard on Dune."
   },
   "build": {
-    "headline": "Checkout SDK now builds Kamino-aware checkout with automatic raw-USDC fallback (2026-11-03)",
-    "anchor_tests": "85/85",
+    "headline": "Checkout SDK adds merchant dashboard data layer: receivables, overdue exposure, pending payouts (2026-11-05)",
+    "anchor_tests": "88/88",
     "cargo_tests": "10/10",
     "body": "A purchase can now be created and paid with every installment deposited into Kamino in the same transaction, with a raw-USDC fallback so a DeFi outage never blocks checkout. All exits (withdraw, cancel, default) redeem inline. Modular Anchor v2 program with emergency pause and deposit caps.",
     "state": "devnet / public-demo candidate",
