@@ -19,6 +19,8 @@ import {
   getMerchantDashboard,
   summarizeMerchant,
   toMerchantRows,
+  formatUsdc,
+  toDashboardView,
   AGREEMENT_MERCHANT_OFFSET,
   buildCheckout,
   buildCreateAgreementKamino,
@@ -247,6 +249,32 @@ describe("@relicpay/checkout SDK", () => {
       assert.equal(s.recoverableOnDefault, 30n);
       assert.equal(s.pendingPayouts, 90n);
       assert.equal(s.nextDueAt, 1200);
+    });
+
+    it("formats USDC base units and builds a display view with per-row actions", () => {
+      assert.equal(formatUsdc(0n), "0.00");
+      assert.equal(formatUsdc(1_234_500_000n), "1,234.50");
+      assert.equal(formatUsdc(9_999n), "0.00"); // sub-cent dust truncated
+      assert.equal(formatUsdc(-5_000_000n), "-5.00");
+      const now = 1000 + 2 * 100 + G + 1;
+      const rows = toMerchantRows([
+        { publicKey: pk(), account: acct() }, // past grace
+        { publicKey: pk(), account: acct({ paidInstallments: 2, startTime: now - 150 }) }, // on schedule
+        { publicKey: pk(), account: acct({ paidInstallments: 1, startTime: now - 300 }) }, // overdue within grace
+        { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3 }) }, // payout pending
+        { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3, merchantWithdrawn: true }) },
+        { publicKey: pk(), account: acct({ state: { defaulted: {} } }) },
+      ], now);
+      const v = toDashboardView(rows, summarizeMerchant(rows));
+      const by = (l: string) => v.rows.filter((r) => r.label === l);
+      assert.equal(by("Past grace, can default")[0].action, "default");
+      assert.equal(by("Overdue, in grace")[0].tone, "overdue");
+      assert.equal(by("On schedule").length, 1);
+      assert.equal(by("Payout ready")[0].action, "withdraw");
+      assert.equal(by("Settled")[0].action, "none");
+      assert.equal(by("Defaulted")[0].tone, "danger");
+      assert.equal(v.headline[0].value, "3");
+      assert.equal(v.headline.length, 5);
     });
 
     it("returns an empty summary for a merchant with no agreements and queries by merchant filter", async () => {

@@ -1,3 +1,4 @@
+const path = require("path");
 /** @type {import('next').NextConfig} */
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
@@ -8,6 +9,7 @@ const securityHeaders = [
 
 const nextConfig = {
   poweredByHeader: false,
+  experimental: { externalDir: true },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
@@ -30,6 +32,10 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "@ledgerhq/errors": require.resolve("@ledgerhq/errors"),
+      // The shared checkout SDK lives outside app/; pin its Solana deps to the
+      // app's own copies so there is a single PublicKey class in the bundle.
+      "@solana/web3.js": path.join(__dirname, "node_modules/@solana/web3.js"),
+      "@solana/spl-token": path.join(__dirname, "node_modules/@solana/spl-token"),
     };
     return config;
   },

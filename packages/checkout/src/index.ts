@@ -297,6 +297,89 @@ export async function getMerchantDashboard(
   return { rows, summary: summarizeMerchant(rows) };
 }
 
+// ---------------------------------------------------------------------------
+// Merchant dashboard view model (pure formatting, consumed by the Next.js app)
+// ---------------------------------------------------------------------------
+
+/** Formats USDC base units (6 decimals) as a fixed 2-decimal dollar string, e.g. 1234500000n -> "1,234.50". Truncates sub-cent dust. */
+export function formatUsdc(units: bigint): string {
+  const neg = units < 0n;
+  const abs = neg ? -units : units;
+  const cents = abs / 10_000n;
+  const whole = (cents / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const frac = (cents % 100n).toString().padStart(2, "0");
+  return `${neg ? "-" : ""}${whole}.${frac}`;
+}
+
+export type RowTone = "ok" | "due" | "overdue" | "danger" | "done";
+
+export interface MerchantRowView {
+  address: string;
+  buyer: string;
+  productId: string;
+  label: string;
+  tone: RowTone;
+  progress: string; // "2/3 paid"
+  owed: string; // formatted USDC the buyer still owes
+  nextDueAt: number | null;
+  action: "none" | "withdraw" | "default";
+}
+
+export interface MerchantDashboardView {
+  headline: { label: string; value: string }[];
+  rows: MerchantRowView[];
+}
+
+/** Pure: turns dashboard rows and a summary into display-ready strings and an action hint per row. */
+export function toDashboardView(rows: MerchantAgreementRow[], summary: MerchantSummary): MerchantDashboardView {
+  const headline = [
+    { label: "Active agreements", value: String(summary.counts.active) },
+    { label: "Outstanding receivable (USDC)", value: formatUsdc(summary.outstandingReceivable) },
+    { label: "Pending payouts (USDC)", value: formatUsdc(summary.pendingPayouts) },
+    { label: "Overdue exposure (USDC)", value: formatUsdc(summary.overdueExposure) },
+    { label: "Recoverable on default (USDC)", value: formatUsdc(summary.recoverableOnDefault) },
+  ];
+  const view = rows.map((r): MerchantRowView => {
+    const st = r.status;
+    let label = "On schedule";
+    let tone: RowTone = "ok";
+    let action: MerchantRowView["action"] = "none";
+    if (st.phase === "completed") {
+      label = st.merchantPayoutPending ? "Payout ready" : "Settled";
+      tone = st.merchantPayoutPending ? "due" : "done";
+      if (st.merchantPayoutPending) action = "withdraw";
+    } else if (st.phase === "defaulted") {
+      label = "Defaulted";
+      tone = "danger";
+    } else if (st.phase === "cancelled") {
+      label = "Cancelled";
+      tone = "done";
+    } else if (st.defaultable) {
+      label = "Past grace, can default";
+      tone = "danger";
+      action = "default";
+    } else if (st.overdue) {
+      label = "Overdue, in grace";
+      tone = "overdue";
+    } else if (st.payable) {
+      label = "Installment due";
+      tone = "due";
+    }
+    return {
+      address: r.address.toBase58(),
+      buyer: r.buyer.toBase58(),
+      productId: r.productId,
+      label,
+      tone,
+      progress: `${st.paidInstallments}/${st.installmentCount} paid`,
+      owed: formatUsdc(st.remainingToPay),
+      nextDueAt: st.nextDueAt,
+      action,
+    };
+  });
+  return { headline, rows: view };
+}
+
 export interface DecodedEvent {
   name: string;
   data: any;
