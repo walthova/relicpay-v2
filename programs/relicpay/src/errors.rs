@@ -49,4 +49,23 @@ pub enum RelicPayError {
     KaminoAccountMismatch,
     #[msg("Kamino collateral can only be redeemed while an agreement is Active or Completed")]
     AgreementNotRedeemable,
+    // ── Agent BNPL: owner-set agent spending mandates ──
+    #[msg("Mandate limits are invalid")]
+    InvalidMandate,
+    #[msg("This agent mandate has been revoked by its owner")]
+    MandateRevoked,
+    #[msg("This agent mandate has expired")]
+    MandateExpired,
+    #[msg("Merchant is not on this mandate's approved list")]
+    MerchantNotApproved,
+    #[msg("Purchase exceeds the mandate's per-purchase cap")]
+    AgentPurchaseCapExceeded,
+    #[msg("Purchase would exceed the mandate's spending cap for this period")]
+    AgentPeriodCapExceeded,
+    #[msg("Mandate's purchase count for this period is used up")]
+    AgentPurchaseLimitReached,
+    #[msg("Purchase is above the owner-approval threshold — the owner must co-sign")]
+    OwnerApprovalRequired,
+    #[msg("Mandate must be revoked before it can be closed")]
+    MandateNotRevoked,
 }

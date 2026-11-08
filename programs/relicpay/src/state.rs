@@ -155,3 +155,44 @@ pub struct KaminoConfig {
 impl KaminoConfig {
     pub const SIZE: usize = 8 + 32 + 1 + 32 + 32 + 32 + 32 + 32 + 32 + 1 + 32; // +32 reserved
 }
+
+/// Agent BNPL: what an owner lets one AI agent buy on their behalf.
+///
+/// PDA seeds: ["agent_mandate", owner, agent]. The owner keeps custody: USDC
+/// stays in the owner's own token account, which delegates a bounded SPL
+/// allowance to this PDA. Agreements the agent opens are recorded with
+/// `buyer = owner`, so repayment, cancellation and default work exactly as
+/// for any other agreement.
+#[account]
+pub struct AgentMandate {
+    pub owner: Pubkey,                  // wallet whose credit the agent spends
+    pub agent: Pubkey,                  // agent signing key
+    pub per_purchase_cap: u64,          // max total_price of one agent purchase
+    pub period_cap: u64,                // max total_price committed per period
+    pub period_seconds: i64,            // length of a spending period
+    pub max_purchases_per_period: u16,  // purchase-frequency limit
+    pub approval_threshold: u64,        // above this the owner must co-sign, 0 = never
+    pub expires_at: i64,                // unix time the mandate lapses, 0 = no expiry
+    pub delegated_allowance: u64,       // SPL allowance granted to this PDA
+    pub revoked: bool,                  // one-tap kill switch, terminal
+    pub period_start: i64,              // start of the current period
+    pub period_spent: u64,              // total_price committed this period
+    pub period_purchases: u16,          // purchases this period
+    pub total_purchases: u32,           // lifetime purchase count (trust history)
+    pub total_spent: u64,               // lifetime total_price committed
+    pub allowed_merchants: Vec<Pubkey>, // empty = any merchant
+    pub created_at: i64,
+    pub bump: u8,
+}
+
+impl AgentMandate {
+    pub const SIZE: usize = 8          // discriminator
+        + 32 + 32                      // owner, agent
+        + 8 + 8 + 8 + 2 + 8 + 8 + 8    // limits
+        + 1                            // revoked
+        + 8 + 8 + 2                    // current period
+        + 4 + 8                        // lifetime counters
+        + 4 + 32 * crate::constants::MAX_MANDATE_MERCHANTS
+        + 8 + 1                        // created_at, bump
+        + 32; // reserved for future fields (agent identity / reputation)
+}

@@ -1,3 +1,4 @@
+pub mod agent_mandate;
 pub mod cancel_agreement;
 pub mod cancel_agreement_reconciled;
 pub mod claim_yield;
@@ -19,6 +20,7 @@ pub mod trigger_default_reconciled;
 pub mod unstake_usdc;
 pub mod update_pool_rate;
 
+pub use agent_mandate::*;
 pub use cancel_agreement::*;
 pub use cancel_agreement_reconciled::*;
 pub use claim_yield::*;

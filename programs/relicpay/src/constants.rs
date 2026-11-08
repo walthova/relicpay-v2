@@ -10,6 +10,7 @@ pub const SEED_USER_STAKE: &[u8] = b"user_stake";
 pub const SEED_PROTOCOL_CONFIG: &[u8] = b"protocol_config";
 pub const SEED_KAMINO_CONFIG: &[u8] = b"kamino_config";
 pub const SEED_KAMINO_COLLATERAL: &[u8] = b"kamino_collateral";
+pub const SEED_AGENT_MANDATE: &[u8] = b"agent_mandate";
 
 /// Installment bounds
 pub const MIN_INSTALLMENTS: u8 = 2;
@@ -41,3 +42,7 @@ pub const TIER_1_MIN: u64 = 10_000_000; //  $10 → 0.5% off
 pub const TIER_2_MIN: u64 = 50_000_000; //  $50 → 1.0% off
 pub const TIER_3_MIN: u64 = 200_000_000; // $200 → 2.0% off
 pub const TIER_4_MIN: u64 = 500_000_000; // $500 → 3.0% off
+
+/// Agent BNPL: most merchants an owner can allow-list on one mandate.
+/// An empty list means "any merchant" (still bounded by the caps).
+pub const MAX_MANDATE_MERCHANTS: usize = 8;

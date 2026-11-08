@@ -158,3 +158,35 @@ pub struct KaminoRedeemProbeFallback {
     pub agreement: Pubkey,
     pub amount: u64,
 }
+
+// ── Agent BNPL (agent_mandate.rs) ──
+
+#[event]
+pub struct AgentMandateSet {
+    pub mandate: Pubkey,
+    pub owner: Pubkey,
+    pub agent: Pubkey,
+    pub per_purchase_cap: u64,
+    pub period_cap: u64,
+    pub delegated_allowance: u64,
+}
+
+#[event]
+pub struct AgentMandateRevoked {
+    pub mandate: Pubkey,
+    pub owner: Pubkey,
+    pub agent: Pubkey,
+}
+
+/// The on-chain audit record of every agent purchase.
+#[event]
+pub struct AgentPurchase {
+    pub mandate: Pubkey,
+    pub agreement: Pubkey,
+    pub owner: Pubkey,
+    pub agent: Pubkey,
+    pub merchant: Pubkey,
+    pub total_price: u64,
+    pub owner_cosigned: bool,
+    pub period_spent: u64,
+}

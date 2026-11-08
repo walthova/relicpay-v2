@@ -27,6 +27,7 @@ declare_id!("5GPVYpyzdosbzWcdttcCdziJVqUCCARf98J857C3T6Gi");
 //   BUYER    — buys today, pays over time, earns yield on escrowed funds
 //   MERCHANT — paid in full automatically when the buyer completes payments
 //   STAKER   — deposits USDC for 3% APY + browser extension discount tiers
+//   AGENT    — an AI agent buying for its owner inside an AgentMandate
 //
 // YIELD ENGINE:
 //   v2.0 (this contract): yield tracked on-chain via simple interest math,
@@ -243,5 +244,53 @@ pub mod relicpay {
     /// agreement never touched Kamino. See `trigger_default_reconciled.rs`.
     pub fn trigger_default_reconciled(ctx: Context<TriggerDefaultReconciled>) -> Result<()> {
         instructions::trigger_default_reconciled::handler(ctx)
+    }
+
+    // ── Agent BNPL: owner-set agent spending mandates (agent_mandate.rs) ──
+
+    /// Owner lets one agent buy on their behalf inside `limits`, and
+    /// delegates a bounded USDC allowance to the mandate PDA.
+    pub fn create_agent_mandate(
+        ctx: Context<CreateAgentMandate>,
+        limits: MandateLimits,
+    ) -> Result<()> {
+        instructions::agent_mandate::create_handler(ctx, limits)
+    }
+
+    /// Owner changes an active mandate's limits and allowance.
+    pub fn update_agent_mandate(
+        ctx: Context<UpdateAgentMandate>,
+        limits: MandateLimits,
+    ) -> Result<()> {
+        instructions::agent_mandate::update_handler(ctx, limits)
+    }
+
+    /// One-tap revoke: kills the mandate and pulls back the allowance.
+    pub fn revoke_agent_mandate(ctx: Context<RevokeAgentMandate>) -> Result<()> {
+        instructions::agent_mandate::revoke_handler(ctx)
+    }
+
+    /// Reclaims rent from a revoked mandate.
+    pub fn close_agent_mandate(ctx: Context<CloseAgentMandate>) -> Result<()> {
+        instructions::agent_mandate::close_handler(ctx)
+    }
+
+    /// The agent opens a BNPL agreement for its owner, inside the mandate.
+    pub fn agent_create_agreement(
+        ctx: Context<AgentCreateAgreement>,
+        total_price: u64,
+        installment_count: u8,
+        interval_seconds: i64,
+        product_id: String,
+        merchant_name: String,
+    ) -> Result<()> {
+        instructions::agent_mandate::agent_purchase_handler(
+            ctx,
+            total_price,
+            installment_count,
+            interval_seconds,
+            product_id,
+            merchant_name,
+        )
     }
 }
