@@ -33,7 +33,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: |
+            app/package-lock.json
+            package-lock.json
+      # The merchant page imports packages/checkout, which resolves
+      # @solana/web3.js from the root workspace's node_modules.
+      - run: npm ci
+        working-directory: .
       - run: npm ci
       - run: npm run build
         env:
@@ -44,4 +50,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: for f in extension/src/*.js; do node --check "$f"; done
+      # background.js is an ES module (MV3 service worker); check it as one.
+      - run: |
+          for f in extension/src/*.js; do
+            if grep -q '^import ' "$f"; then
+              cp "$f" "$RUNNER_TEMP/check.mjs" && node --check "$RUNNER_TEMP/check.mjs"
+            else
+              node --check "$f"
+            fi
+          done
