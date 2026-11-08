@@ -36,6 +36,11 @@ Important limitation:
 
 > The demo uses simulated yield. The Kamino adapter is tested only against a local mock. Do not market real yield until it is tested against the real klend program and reviewed.
 
+## RelicPay Agents (agent buy now, pay later)
+
+Product direction: **credit for you and your agent** (see `RELICPAY_V2.md`).
+The agent-credit layer is prototyped in [relicpay-agents](https://github.com/walthova/relicpay-agents), built at the MLH Solana Hackathon (Nov 2026) and live on devnet: an 80% LTV credit vault, a pool that pays merchants up front, and on-chain agent mandates the agent key cannot bypass. This repo is the core protocol it grows into: yield-bearing escrow, the Kamino adapter, risk controls, and `AgentMandate`. The plan is to merge the two into one RelicPay protocol, with v2's yield engine earning on the agents' collateral.
+
 ## How It Works in 5 Steps
 
 ```
