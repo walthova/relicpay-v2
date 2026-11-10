@@ -207,7 +207,15 @@ describe("agent BNPL: agent mandates", () => {
 
   it("lets the owner repay an agent-opened agreement with the normal flow", async () => {
     const agreement = agreementPDA("agent-buy-1");
-    await new Promise((r) => setTimeout(r, 3000)); // installment 2 due at start + 2s
+    // Wait on the validator's clock, not the wall clock: a lagging local
+    // validator made a fixed sleep flaky (PaymentNotDue).
+    const ag: any = await program.account.bnplAgreement.fetch(agreement);
+    const due = ag.startTime.toNumber() + (ag.paidInstallments + 1) * ag.intervalSeconds.toNumber();
+    for (let i = 0; i < 60; i++) {
+      const t = await provider.connection.getBlockTime(await provider.connection.getSlot());
+      if (t !== null && t >= due) break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
     await program.methods
       .payInstallment()
       .accounts({

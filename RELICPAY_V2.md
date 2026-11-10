@@ -1,6 +1,6 @@
 # RelicPay v2: Product Source of Truth
 
-Last updated: 2026-11-08. Source: "RelicPay Concept: Agent Buy Now, Pay Later (Investor Brief)", November 5, 2026.
+Last updated: 2026-11-09. Source: "RelicPay Concept: Agent Buy Now, Pay Later (Investor Brief)", November 5, 2026.
 If this file and any other doc disagree on product direction, this file wins. `SECURITY.md` wins on security facts.
 
 ## The concept
@@ -38,8 +38,8 @@ Be exact about this in every pitch. The investor brief lists some items as "alre
 | Collateralized credit line, 80% LTV against staked USDC | **Not built here.** Staking exists (`stake_usdc`) but does not back credit. Built in `relicpay-agents` (hackathon repo). |
 | Sellers paid up front in USDC | **Not built here.** v2 pays the merchant after the buyer completes all installments. Built in `relicpay-agents`. |
 | Collateral earns yield during repayment | Escrow yield exists (simulated, plus a Kamino adapter). |
-| Bounded agent permissions, one-tap revoke | **Added 2026-11-08** as `AgentMandate` (`instructions/agent_mandate.rs`): per-purchase cap, period cap, purchases per period, approved merchants, expiry, owner co-sign above a threshold, one-tap revoke. Local commit only. |
-| On devnet | **No.** The program is not deployed to devnet. `relicpay-agents` is the devnet build. |
+| Bounded agent permissions, one-tap revoke | **Added 2026-11-08** as `AgentMandate` (`instructions/agent_mandate.rs`): per-purchase cap, period cap, purchases per period, approved merchants, expiry, owner co-sign above a threshold, one-tap revoke. On GitHub (e33f3a1). |
+| On devnet | **No** for this program. `relicpay-agents` is live on devnet: program `HwMQv76mcuPCMmoW3APdn3ceqikHWoWRq1YVy5n3PurH`. |
 
 ## Build direction
 
