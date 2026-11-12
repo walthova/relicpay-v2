@@ -69,6 +69,12 @@ describe("agent BNPL: agent mandates", () => {
     expiresAt: new BN(0),
     delegatedAllowance: USDC(500),
     allowedMerchants: [merchant.publicKey],
+    // parity fields (feat/base-parity)
+    validFrom: new BN(0),
+    windowStart: 0,
+    windowEnd: 0,
+    minIntervalSeconds: new BN(1),
+    maxInstallments: 4,
     ...overrides,
   });
 
@@ -76,15 +82,22 @@ describe("agent BNPL: agent mandates", () => {
   async function agentBuy(
     productId: string,
     totalPrice: BN,
-    opts: { cosign?: boolean; merchantKey?: PublicKey; signer?: Keypair } = {}
+    opts: {
+      cosign?: boolean;
+      merchantKey?: PublicKey;
+      signer?: Keypair;
+      count?: number;
+      interval?: BN;
+      mandateKey?: PublicKey;
+    } = {}
   ) {
     const signer = opts.signer ?? agent;
     const agreement = agreementPDA(productId);
     const ix = await program.methods
       // 1-second interval so the repayment test can reach a due date quickly.
-      .agentCreateAgreement(totalPrice, 2, new BN(1), productId, "IBG Collection")
+      .agentCreateAgreement(totalPrice, opts.count ?? 2, opts.interval ?? new BN(1), productId, "IBG Collection")
       .accounts({
-        mandate: mandate(),
+        mandate: opts.mandateKey ?? mandate(),
         agent: signer.publicKey,
         owner: owner.publicKey,
         agreement,
@@ -309,5 +322,85 @@ describe("agent BNPL: agent mandates", () => {
       .signers([owner])
       .rpc();
     assert.isNull(await provider.connection.getAccountInfo(mandate()));
+  });
+
+  // ── Two-chain parity (feat/base-parity): same rules as RelicAgentDelegate on Base ──
+
+  describe("parity: mandate bounds", () => {
+    const agent2 = Keypair.generate();
+    const mandate2 = () => mandatePDA(owner.publicKey, agent2.publicKey);
+    const create = (l: ReturnType<typeof limits>) =>
+      program.methods
+        .createAgentMandate(l)
+        .accounts({
+          mandate: mandate2(),
+          owner: owner.publicKey,
+          agent: agent2.publicKey,
+          ownerUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([owner])
+        .rpc();
+    const update = (l: ReturnType<typeof limits>) =>
+      program.methods
+        .updateAgentMandate(l)
+        .accounts({ mandate: mandate2(), owner: owner.publicKey, ownerUsdc, tokenProgram: TOKEN_PROGRAM_ID })
+        .signers([owner])
+        .rpc();
+    const buy2 = (id: string, opts: { count?: number; interval?: BN } = {}) =>
+      agentBuy(id, USDC(10), { signer: agent2, mandateKey: mandate2(), ...opts });
+
+    before(async () => {
+      const latest = await provider.connection.getLatestBlockhash();
+      const sig = await provider.connection.requestAirdrop(agent2.publicKey, 5 * LAMPORTS_PER_SOL);
+      await provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
+    });
+
+    it("rejects an empty merchant allowlist (empty never means any merchant)", async () => {
+      await expectError(() => create(limits({ allowedMerchants: [] })), "InvalidMandate");
+    });
+
+    it("rejects missing term bounds and bad time windows", async () => {
+      await expectError(() => create(limits({ minIntervalSeconds: new BN(0) })), "InvalidMandate");
+      await expectError(() => create(limits({ maxInstallments: 13 })), "InvalidMandate");
+      await expectError(() => create(limits({ maxInstallments: 1 })), "InvalidMandate");
+      await expectError(() => create(limits({ windowEnd: 86_400 })), "InvalidMandate");
+    });
+
+    it("re-enables a closed agent key with a fresh mandate (audit C-14)", async () => {
+      await create(limits({ minIntervalSeconds: new BN(7 * 24 * 60 * 60) }));
+      const m = await program.account.agentMandate.fetch(mandate2());
+      assert.equal(m.maxInstallments, 4);
+      assert.equal(m.minIntervalSeconds.toNumber(), 7 * 24 * 60 * 60);
+    });
+
+    it("keeps agent-chosen terms inside the owner's bounds (audit C-6)", async () => {
+      await expectError(() => buy2("p-fast", { count: 2, interval: new BN(1) }), "TermsOutOfBounds");
+      await expectError(
+        () => buy2("p-long", { count: 6, interval: new BN(7 * 24 * 60 * 60) }),
+        "TermsOutOfBounds"
+      );
+      await buy2("p-ok", { count: 4, interval: new BN(7 * 24 * 60 * 60) });
+      const a = await program.account.bnplAgreement.fetch(agreementPDA("p-ok"));
+      assert.equal(a.buyer.toBase58(), owner.publicKey.toBase58());
+    });
+
+    it("blocks spending before valid_from and outside the daily window", async () => {
+      const now = (await provider.connection.getBlockTime(await provider.connection.getSlot()))!;
+      await update(limits({ validFrom: new BN(now + 3600), minIntervalSeconds: new BN(1) }));
+      await expectError(() => buy2("p-early"), "MandateNotYetValid");
+
+      const sod = now % 86_400;
+      const start = (sod + 3 * 3600) % 86_400;
+      const end = (sod + 4 * 3600) % 86_400;
+      await update(limits({ windowStart: start, windowEnd: end, minIntervalSeconds: new BN(1) }));
+      await expectError(() => buy2("p-window"), "OutsideTimeWindow");
+
+      const openStart = (sod + 86_400 - 3600) % 86_400; // window that contains now
+      const openEnd = (sod + 3600) % 86_400;
+      await update(limits({ windowStart: openStart, windowEnd: openEnd, minIntervalSeconds: new BN(1) }));
+      await buy2("p-in-window");
+    });
   });
 });

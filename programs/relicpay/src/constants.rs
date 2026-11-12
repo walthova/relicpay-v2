@@ -44,5 +44,34 @@ pub const TIER_3_MIN: u64 = 200_000_000; // $200 → 2.0% off
 pub const TIER_4_MIN: u64 = 500_000_000; // $500 → 3.0% off
 
 /// Agent BNPL: most merchants an owner can allow-list on one mandate.
-/// An empty list means "any merchant" (still bounded by the caps).
+/// The list must be non-empty: an empty list never means "any merchant" (audit C-3).
 pub const MAX_MANDATE_MERCHANTS: usize = 8;
+
+// ── Two-chain parity (feat/base-parity). Every value below has the same name and
+// ── value in evm/contracts/base/RelicConstants.sol. See docs/CHAIN_PARITY.md.
+
+pub const SEED_PROTOCOL_CONFIG_EXT: &[u8] = b"protocol_config_ext";
+pub const SEED_YIELD_RESERVE: &[u8] = b"yield_reserve";
+pub const SEED_CREDIT_POOL: &[u8] = b"credit_pool";
+pub const SEED_CREDIT_VAULT: &[u8] = b"credit_vault";
+pub const SEED_CREDIT_LINE: &[u8] = b"credit_line";
+pub const SEED_LENDER: &[u8] = b"lender";
+pub const SEED_CHARGE_REF: &[u8] = b"charge_ref";
+
+/// Fixed-point scale for the stake pool yield index (Base: YIELD_INDEX_SCALE)
+pub const YIELD_INDEX_SCALE: u128 = 1_000_000_000_000;
+
+pub const SECONDS_PER_DAY: i64 = 86_400;
+
+/// Collateralized credit line (feature flagged, off by default)
+pub const MAX_LTV_BPS: u128 = 8_000; // draw up to 80% of collateral
+pub const LIQUIDATION_LTV_BPS: u128 = 9_000; // liquidatable above 90%
+pub const LIQUIDATION_PENALTY_BPS: u128 = 500; // 5% of debt, half to the liquidator
+pub const DEFAULT_CREDIT_RATE_BPS: u16 = 800; // 8% APR simple interest
+pub const MAX_CREDIT_RATE_BPS: u16 = 3_000; // governance cap 30% APR
+
+/// Trust score: repayment based and sybil damped
+pub const TRUST_MIN_DEBT_AGE: i64 = 24 * 60 * 60; // repaying debt younger than a day earns nothing
+pub const TRUST_EPOCH_SECONDS: i64 = 30 * 24 * 60 * 60;
+pub const TRUST_POINTS_PER_EPOCH_CAP: u64 = 100;
+pub const TRUST_UNIT: u64 = 1_000_000; // 1 point per 1 USDC of aged principal repaid

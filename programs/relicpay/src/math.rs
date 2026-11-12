@@ -34,6 +34,52 @@ pub fn compute_tier(staked_amount: u64) -> u8 {
     }
 }
 
+/// Stake pool yield index growth over `dt` seconds at `rate_bps_annual`, scaled by
+/// YIELD_INDEX_SCALE. Identical to RelicStakePool._indexDelta on Base.
+pub fn index_delta(rate_bps_annual: u16, dt: i64) -> Result<u128> {
+    if dt <= 0 {
+        return Ok(0);
+    }
+    (rate_bps_annual as u128)
+        .checked_mul(dt as u128)
+        .and_then(|n| n.checked_mul(YIELD_INDEX_SCALE))
+        .map(|n| n / (BPS_DIVISOR * SECONDS_PER_YEAR))
+        .ok_or(RelicPayError::MathOverflow.into())
+}
+
+/// Advance the pool index to `now`. A pool upgraded from the pre-index layout has
+/// last_index_update == 0; its first checkpoint starts the index instead of accruing from 1970.
+pub fn checkpoint_pool(pool: &mut crate::state::StakePool, now: i64) -> Result<()> {
+    if pool.last_index_update == 0 {
+        pool.last_index_update = now;
+        return Ok(());
+    }
+    let delta = index_delta(pool.yield_rate_bps_annual, now - pool.last_index_update)?;
+    pool.yield_index = pool
+        .yield_index
+        .checked_add(delta)
+        .ok_or(RelicPayError::MathOverflow)?;
+    pool.last_index_update = now;
+    Ok(())
+}
+
+/// Credit a stake with yield earned since its last settlement, then move its snapshot.
+pub fn settle_stake(stake: &mut crate::state::UserStake, pool_index: u128) -> Result<()> {
+    if stake.staked_amount > 0 && pool_index > stake.index_snapshot {
+        let earned = (stake.staked_amount as u128)
+            .checked_mul(pool_index - stake.index_snapshot)
+            .ok_or(RelicPayError::MathOverflow)?
+            / YIELD_INDEX_SCALE;
+        let earned = u64::try_from(earned).map_err(|_| RelicPayError::MathOverflow)?;
+        stake.yield_accrued = stake
+            .yield_accrued
+            .checked_add(earned)
+            .ok_or(RelicPayError::MathOverflow)?;
+    }
+    stake.index_snapshot = pool_index;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -61,6 +107,20 @@ mod tests {
         let y = calculate_yield(u64::MAX, 300, 31_536_000).unwrap();
         let expected = (u64::MAX as u128 * 300 / 10_000) as u64;
         assert_eq!(y, expected);
+    }
+
+    #[test]
+    fn index_one_year_at_3pct_is_three_percent() {
+        let d = index_delta(300, 31_536_000).unwrap();
+        // 1e12 * 0.03
+        assert_eq!(d, 30_000_000_000);
+        assert_eq!((100_000_000u128 * d) / YIELD_INDEX_SCALE, 3_000_000);
+    }
+
+    #[test]
+    fn index_negative_or_zero_time_is_zero() {
+        assert_eq!(index_delta(2_000, 0).unwrap(), 0);
+        assert_eq!(index_delta(2_000, -5).unwrap(), 0);
     }
 
     #[test]

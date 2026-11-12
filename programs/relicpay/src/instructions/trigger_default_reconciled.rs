@@ -114,6 +114,17 @@ pub fn handler(ctx: Context<TriggerDefaultReconciled>) -> Result<()> {
         .checked_add(GRACE_PERIOD_SECONDS)
         .ok_or(RelicPayError::MathOverflow)?;
 
+    // Parity (audit C-5): no default while paused, and a fresh 7-day window after an unpause.
+    {
+        let config_info = ctx.accounts.protocol_config.to_account_info();
+        crate::instructions::protocol_config::check_not_paused(&config_info, ctx.program_id)?;
+    }
+    let ext_info = ctx.accounts.protocol_config_ext.to_account_info();
+    let grace_expiry = crate::instructions::protocol_config_ext::effective_grace_expiry(
+        &ext_info,
+        ctx.program_id,
+        grace_expiry,
+    )?;
     require!(
         clock.unix_timestamp > grace_expiry,
         RelicPayError::GracePeriodNotExpired
@@ -277,6 +288,10 @@ pub struct TriggerDefaultReconciled<'info> {
     /// CHECK: v2.1 risk controls — see trigger_default.rs.
     #[account(mut, seeds = [SEED_PROTOCOL_CONFIG], bump)]
     pub protocol_config: UncheckedAccount<'info>,
+
+    /// CHECK: parity singleton at a constant-seed PDA; may be uninitialized (then ignored).
+    #[account(seeds = [SEED_PROTOCOL_CONFIG_EXT], bump)]
+    pub protocol_config_ext: UncheckedAccount<'info>,
 
     /// See kamino_probe.rs — governance-approved Kamino target set.
     #[account(

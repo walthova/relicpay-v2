@@ -4,37 +4,36 @@
 
 Relic Pay lets crypto holders buy real-world goods in installments without selling their crypto. The buyer locks USDC into on-chain escrow, pays over time, and the escrowed capital earns yield while it waits. Yield routing is protocol-agnostic: Kamino Lend is the first adapter, with more to follow.
 
-Built on Solana. Ground-up v2 rebuild of the original MVP, verified against the full v1 characterization test suite.
+Two chains, one set of mechanics: **Solana** (Anchor program in `programs/relicpay`) and **Base** (Solidity contracts in `evm/contracts/base`). Every instruction and constant is mapped one to one in [docs/CHAIN_PARITY.md](docs/CHAIN_PARITY.md), and a change lands on both chains or on neither.
 
-> Live site: [relicpay.app](https://relicpay.app) | [Whitepaper](docs/WHITEPAPER.md) | [Development Plan](docs/DEVELOPMENT_PLAN.md) | [Marketing Plan](docs/MARKETING.md) | [Funding Pipeline](docs/FUNDING_PIPELINE.md)
+> Live site: [relicpay.app](https://relicpay.app) | [Whitepaper](docs/WHITEPAPER.md) | [Technical Breakdown](docs/TECHNICAL_BREAKDOWN.md) | [Chain Parity](docs/CHAIN_PARITY.md) | [Agent Credit Layer](docs/AGENT_CREDIT_LAYER.md) | [Development Plan](docs/DEVELOPMENT_PLAN.md)
 
 ---
 
-## Current Status
+## Status
 
-Relic Pay v2 is a devnet/public-demo candidate, not a mainnet consumer finance product.
+Stated plainly:
 
-What works now:
+- **No audit.** Neither chain's code has had an independent security audit. An internal review (audit run 1, 2026-11-10) found issues, and this branch fixes the ones listed in CHAIN_PARITY.md section 4. That review is not an audit.
+- **Simulated yield.** Buyer and staker yield is on-chain interest math, paid only from a separately funded yield reserve. The live adapters (Kamino on Solana, an ERC-4626 Morpho vault on Base) are tested only against local mocks. Do not market real yield.
+- **Testnet only.** Solana: localnet and devnet. Base: local Foundry tests, with a Base Sepolia deploy script that has not been run yet. Nothing is on mainnet.
+- **The agent layer is not live.** Agent mandates, agent credit charges and the x402 client are design plus testnet code. The collateralized credit line is behind a feature flag that is off by default on both chains.
 
-- Modular Anchor v2 program with BNPL agreement lifecycle, escrow, merchant withdraw, cancellation/default paths, staking/yield accounting, and close/rent cleanup.
-- Frozen v1 characterization suite plus v2 feature tests and Rust math unit tests.
-- Simulated yield accounting so the buyer-facing mechanic can be demoed safely.
-- `yield_source` groundwork to distinguish simulated yield from future real yield.
-- ProtocolConfig risk controls: emergency pause, per-agreement deposit cap, protocol-wide TVL cap.
-- Kamino Lend adapter (CPI), tested end to end against a local mock reserve: deposit on installment, and single-transaction reconciled exits (`merchant_withdraw_reconciled`, `cancel_agreement_reconciled`, `trigger_default_reconciled`) that redeem collateral inline, with automatic fallback to raw USDC if the reserve is paused.
-- Deployer-gated governance initialization. See [SECURITY.md](SECURITY.md).
-- IBG Collection is the first merchant/pilot story.
+## Two chains
 
-What is next:
+| | Solana | Base |
+|---|---|---|
+| Code | `programs/relicpay` (Anchor 0.32.1) | `evm/contracts/base` (Solidity 0.8.24, Foundry) |
+| Escrow BNPL | `create_agreement`, `pay_installment`, `merchant_withdraw`, `cancel_agreement`, `trigger_default`, `close_agreement` | `RelicEscrow` |
+| Staking and tiers | `stake_usdc`, `unstake_usdc`, `update_pool_rate` (capped at 20%) | `RelicStakePool` |
+| Pause and caps | `ProtocolConfig`, `ProtocolConfigExt` | `RelicEscrow.setPaused`, `setRiskLimits` |
+| Yield source | simulated, or Kamino (disabled) | simulated, or ERC-4626 vault (Morpho) |
+| Credit line (flagged) | `credit_line.rs` | `RelicCreditLine` |
+| Agent mandates | `AgentMandate`, `agent_create_agreement`, `agent_charge` | `RelicAgentDelegate` (with optional Coinbase Spend Permissions) |
+| Governance | authority keys. On mainnet these must be a Squads multisig with a 2-day time lock. | a TimelockController of at least 2 days, enforced in code, plus a pause-only guardian |
+| Deploy (not run) | `scripts/deploy-solana-devnet.sh` | `evm/script/DeployBaseSepolia.s.sol` |
 
-- Kamino adapter against the real klend program on devnet.
-- IBG checkout demo connected to the production Relic Pay story.
-- Merchant checkout SDK/spec.
-- Mainnet readiness: security review, legal review, real merchant wallet, conservative TVL caps, and monitoring.
-
-Important limitation:
-
-> The demo uses simulated yield. The Kamino adapter is tested only against a local mock. Do not market real yield until it is tested against the real klend program and reviewed.
+`evm/contracts/RelicPay.sol` and the other top-level EVM contracts are the earlier EVM v2 RWA relic module, imported unchanged. They are **not** the parity core. Deploy `evm/contracts/base` for two-chain RelicPay.
 
 ## RelicPay Agents (agent buy now, pay later)
 
@@ -80,6 +79,12 @@ relicpay/
 │   ├── math.rs              ← yield + tier math (unit tested)
 │   └── instructions/        ← one file per instruction (22 total) + kamino_cpi helpers
 ├── programs/mock_kamino_lend/ ← localnet stand-in for the klend reserve
+├── evm/                     ← Base: Foundry project
+│   ├── contracts/base/      ← parity core: RelicEscrow, RelicStakePool, RelicCreditLine, RelicAgentDelegate
+│   ├── contracts/           ← earlier EVM v2 RWA relic module (unchanged)
+│   ├── test/base/           ← parity, credit, agent, governance tests and invariants
+│   └── script/DeployBaseSepolia.s.sol
+├── agent-layer/x402/        ← x402 reference client policy (testnet design code)
 ├── tests/
 │   ├── characterization.ts  ← v1 behavior spec — must always pass
 │   └── v2-features.ts       ← new v2 behavior
@@ -102,8 +107,14 @@ npm install
 anchor build                                   # compile the program
 cargo test --manifest-path programs/relicpay/Cargo.toml   # unit tests
 anchor test                                    # integration suite on localnet
+
+cd evm && forge test                           # Base contracts (Foundry 1.9+), existing EVM v2 invariants included
+node --test agent-layer/x402/policy.test.js    # x402 reference client policy
+
 cd app && npm install && npm run build         # demo app build
 ```
+
+`evm/lib` holds git submodules: run `git submodule update --init --recursive` after cloning.
 
 Program ID (localnet/devnet): `5GPVYpyzdosbzWcdttcCdziJVqUCCARf98J857C3T6Gi`
 
@@ -123,7 +134,9 @@ This repo is being prepared as the canonical public Relic Pay repository for gra
 
 - Independent security audit; resolve the known limitations in [SECURITY.md](SECURITY.md).
 - Kamino adapter tested against the real klend program on devnet.
-- Upgrade and governance authority moved to a multisig.
+- Upgrade and governance authority moved to a multisig (Solana: Squads with a 2-day time lock; Base: the TimelockController proposer is a Safe).
+- Decisions D1 and D2 in docs/CHAIN_PARITY.md (they change the frozen v1 spec).
+- A refund and dispute path for agent purchases (docs/AGENT_CREDIT_LAYER.md, Q6).
 - Real merchant payout wallet configured via `NEXT_PUBLIC_MERCHANT_WALLET` (see `app/.env.example`).
 - Legal review of the BNPL terms.
 - Do not claim real yield until the above is done.

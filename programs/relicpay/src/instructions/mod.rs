@@ -1,3 +1,6 @@
+pub mod yield_reserve;
+pub mod protocol_config_ext;
+pub mod credit_line;
 pub mod agent_mandate;
 pub mod cancel_agreement;
 pub mod cancel_agreement_reconciled;
@@ -40,3 +43,6 @@ pub use trigger_default::*;
 pub use trigger_default_reconciled::*;
 pub use unstake_usdc::*;
 pub use update_pool_rate::*;
+pub use credit_line::*;
+pub use protocol_config_ext::*;
+pub use yield_reserve::*;

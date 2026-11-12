@@ -1,6 +1,10 @@
 # Relic Pay Whitepaper
 ### Yield-Bearing Buy Now, Pay Later — Where Your Payment Plan Makes You Money
-**Version 1.0 | May 2026**
+**Version 1.1 | November 2026 | Solana and Base**
+
+---
+
+> **Status, stated plainly:** no audit; simulated yield; testnet only; the agent layer is not live. Details in the [README Status section](../README.md#status).
 
 ---
 
@@ -17,7 +21,10 @@
 9. [Fee Structure](#9-fee-structure)
 10. [Roadmap](#10-roadmap)
 11. [Security Considerations](#11-security-considerations)
-12. [Conclusion](#12-conclusion)
+12. [Two Chains: Solana and Base](#12-two-chains-solana-and-base)
+13. [Collateralized Credit Line](#13-collateralized-credit-line)
+14. [The Agent Credit Layer](#14-the-agent-credit-layer)
+15. [Conclusion](#15-conclusion)
 
 ---
 
@@ -342,26 +349,66 @@ All funds are held in PDAs whose authority is the program itself — not any hum
 `trigger_default` is permissionless — any account can call it after the grace period. This ensures liquidation is not dependent on the protocol team being online. It is time-gated by the on-chain clock.
 
 ### Integer Overflow
-All arithmetic uses Rust's `saturating_add` / `saturating_sub`. Yield math uses `u128` intermediate values to prevent overflow on large principals.
+v2 uses checked arithmetic everywhere and fails with `MathOverflow` instead of saturating silently. Yield math uses `u128` intermediates. On Base, Solidity 0.8 checks every operation.
 
 ### Price Oracle (v2)
 Collateral LTV ratios in v2 will rely on a Pyth Network price feed. Stale price protection (price older than 60 seconds is rejected) will be enforced on-chain.
 
+### Pause and Default
+Pausing blocks new agreements, payments **and defaults**. After an unpause, every buyer gets a fresh 7-day grace window, so an emergency pause can never push a buyer into default. Cancel, withdraw and claim stay open so users can always exit.
+
+### Yield Solvency
+Simulated yield (escrow and staking) is paid only from a separately funded yield reserve. It is never paid from escrow or from other stakers' principal, so every staker can always withdraw their full principal. Stake pool rate changes are capped at 20% and never apply to time already elapsed.
+
 ### Audit Status
-v1: unaudited prototype. v2 testnet will be submitted for a security review before mainnet launch.
+No independent audit on either chain. Internal review run 1 (2026-11-10) found 1 critical, 4 high and 6 medium issues. This version fixes the ones listed in docs/CHAIN_PARITY.md section 4. An independent audit is required before mainnet.
 
 ---
 
-## 12. Conclusion
+## 12. Two Chains: Solana and Base
+
+RelicPay runs the same mechanics on Solana and on Base, so buyers, merchants and agents can use whichever chain their wallet and payment rails live on.
+
+| | Solana | Base |
+|---|---|---|
+| Program | Anchor program `relicpay` | `RelicEscrow`, `RelicStakePool`, `RelicCreditLine`, `RelicAgentDelegate` |
+| Currency | USDC (mint pinned by governance) | USDC (pinned at deploy) |
+| Live yield venue | Kamino Lend (disabled until tested on the real reserve) | ERC-4626 vault, Morpho chosen (disabled until a curated vault is approved) |
+| Governance | Squads multisig with a 2-day time lock (mainnet requirement) | TimelockController with a delay of at least 2 days, enforced in code, plus a pause-only guardian |
+| Agent payments | x402 on Solana | x402 on Base |
+
+Every constant and instruction is mapped one to one in [CHAIN_PARITY.md](CHAIN_PARITY.md). The rule is that a mechanic changes on both chains or on neither.
+
+## 13. Collateralized Credit Line
+
+A USDC-collateralized credit line, behind a feature flag that is off by default:
+
+- **Collateral and debt are both USDC.** There is no price oracle, so there are no price-driven liquidations. Loan-to-value moves only with interest, draws, repayments and top-ups.
+- **Draw up to 80% LTV.** Funds come from a lender pool and go straight to the payee, so the borrower never needs to hold them.
+- **Above 90% LTV, anyone may liquidate.** Collateral covers the debt plus a 5% penalty, and half of that penalty pays the liquidator. Any shortfall is recorded as bad debt against the pool.
+- **Top up any time,** including on someone else's behalf.
+- **Repayment-based trust score.** Points come only from principal repaid on debt at least a day old, capped per 30-day epoch, and reset on liquidation. The score does not raise the LTV limit today, so a farmed score buys nothing on-chain.
+
+## 14. The Agent Credit Layer
+
+A principal delegates spending to an AI agent's key with caps per transaction and per period, a non-empty merchant allowlist, validity and daily time windows, an owner approval threshold, and bounds on the BNPL terms the agent may choose. Revoking is one call. The agent pays merchants or APIs over x402, and each charge draws on the principal's credit line. Each payment request can be paid at most once.
+
+- On Solana, the delegate is an `AgentMandate` PDA.
+- On Base, it is `RelicAgentDelegate`, which can use a Coinbase Spend Permission as its funding rail.
+- On Base, repayments can post ERC-8004 reputation feedback for the agent (the standard is still a Draft). Solana has an equivalent registry design.
+
+The failure cases (overspend within limits, merchant fraud or disputes, a compromised agent key, oracle issues, sybil trust farming) are documented in [AGENT_CREDIT_LAYER.md](AGENT_CREDIT_LAYER.md). **This layer is design and testnet code only. It is not live.**
+
+## 15. Conclusion
 
 Relic Pay is the first BNPL protocol designed explicitly for the crypto holder. By combining on-chain escrow, automated yield, and browser-level price overlays, it creates a financial product that is better for buyers (earn while you pay), better for merchants (new customers, guaranteed payment), and better for the ecosystem (idle capital becomes productive).
 
-The protocol is built on Solana for speed and cost — a $300 purchase agreement costs under $0.01 in fees. It is governed by smart contracts alone, with La Familia DAO providing the governance layer for long-term parameter evolution.
+The protocol runs on Solana and Base, both chosen for speed and cost; a $300 purchase agreement costs cents or less in fees on either chain. It is governed by smart contracts alone, with La Familia DAO providing the governance layer for long-term parameter evolution.
 
 Relic Pay does not ask crypto holders to give up their assets to participate in commerce. It asks them to let their assets work harder.
 
 ---
 
-*Relic Pay is a work in progress. This whitepaper describes the v1 architecture and v2 roadmap as of May 2026. All yields described are estimates and not financial advice.*
+*Relic Pay is a work in progress. This whitepaper describes the architecture as of November 2026: testnet only, unaudited, simulated yield. All yields described are estimates and not financial advice.*
 
 *Built by Walter Mendez | github.com/walthova/relicpay-v2 | relicpay.app*

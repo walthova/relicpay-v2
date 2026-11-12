@@ -2323,4 +2323,501 @@ describe("relicpay v2 features", () => {
       );
     });
   });
+
+  // ── Two-chain parity (feat/base-parity) ─────────────────────────────────────
+  // Runs last on purpose: it pins the accepted USDC mint, a program-wide setting, and
+  // v2-features.ts is the last suite alphabetically. Base equivalents live in
+  // evm/test/base and docs/CHAIN_PARITY.md.
+  describe("two-chain parity (feat/base-parity)", () => {
+    const extGov = Keypair.generate();
+    const borrower = buyer; // reuse the funded buyer as the credit line owner
+    const lender = Keypair.generate();
+    const keeper = Keypair.generate();
+    const agentKey = Keypair.generate();
+    const outsider = Keypair.generate();
+    let lenderUsdc: PublicKey;
+    let keeperUsdc: PublicKey;
+    let outsiderUsdc: PublicKey;
+    let otherMint: PublicKey;
+    let otherMintBuyerUsdc: PublicKey;
+
+    const pda = (...seeds: Buffer[]) =>
+      PublicKey.findProgramAddressSync(seeds, program.programId)[0];
+    const extPDA = () => pda(Buffer.from("protocol_config_ext"));
+    const configPDA = () => pda(Buffer.from("protocol_config"));
+    const creditPoolPDA = () => pda(Buffer.from("credit_pool"));
+    const creditVaultPDA = () => pda(Buffer.from("credit_vault"));
+    const creditLinePDA = (o: PublicKey) => pda(Buffer.from("credit_line"), o.toBuffer());
+    const lenderPDA = (o: PublicKey) => pda(Buffer.from("lender"), o.toBuffer());
+    const mandatePDA = (o: PublicKey, a: PublicKey) =>
+      pda(Buffer.from("agent_mandate"), o.toBuffer(), a.toBuffer());
+    const chargeRefPDA = (m: PublicKey, ref: Buffer) =>
+      pda(Buffer.from("charge_ref"), m.toBuffer(), ref);
+
+    async function expectErr(fn: () => Promise<unknown>, code: string) {
+      try {
+        await fn();
+      } catch (err: any) {
+        const text = `${err?.error?.errorCode?.code ?? ""} ${err?.logs?.join("\n") ?? ""} ${err}`;
+        assert.include(text, code);
+        return;
+      }
+      assert.fail(`expected ${code}`);
+    }
+
+    const setPaused = (paused: boolean) =>
+      program.methods
+        .setProtocolPaused(paused)
+        .accounts({ config: configPDA(), authority: protocolGovAuthority.publicKey })
+        .signers([protocolGovAuthority])
+        .rpc();
+
+    const draw = (amount: BN, payeeUsdc = merchantUsdc) =>
+      program.methods
+        .drawCredit(amount)
+        .accounts({
+          ext: extPDA(),
+          creditPool: creditPoolPDA(),
+          creditVault: creditVaultPDA(),
+          creditLine: creditLinePDA(borrower.publicKey),
+          owner: borrower.publicKey,
+          payeeUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([borrower])
+        .rpc();
+
+    const repay = (amount: BN) =>
+      program.methods
+        .repayCredit(amount)
+        .accounts({
+          ext: extPDA(),
+          creditPool: creditPoolPDA(),
+          creditVault: creditVaultPDA(),
+          creditLine: creditLinePDA(borrower.publicKey),
+          payer: borrower.publicKey,
+          payerUsdc: buyerUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([borrower])
+        .rpc();
+
+    const deposit = (amount: BN) =>
+      program.methods
+        .depositCollateral(amount)
+        .accounts({
+          ext: extPDA(),
+          creditPool: creditPoolPDA(),
+          creditVault: creditVaultPDA(),
+          owner: borrower.publicKey,
+          creditLine: creditLinePDA(borrower.publicKey),
+          payer: borrower.publicKey,
+          payerUsdc: buyerUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([borrower])
+        .rpc();
+
+    const setCredit = (enabled: boolean, rate = 800) =>
+      program.methods
+        .setCreditParams(enabled, rate)
+        .accounts({ ext: extPDA(), authority: extGov.publicKey })
+        .signers([extGov])
+        .rpc();
+
+    before(async () => {
+      const latest = await provider.connection.getLatestBlockhash();
+      const sigs = await Promise.all(
+        [extGov, lender, keeper, agentKey, outsider].map((k) =>
+          provider.connection.requestAirdrop(k.publicKey, 3 * LAMPORTS_PER_SOL)
+        )
+      );
+      await Promise.all(
+        sigs.map((sig) => provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed"))
+      );
+      lenderUsdc = await createAccount(provider.connection, lender, usdcMint, lender.publicKey);
+      keeperUsdc = await createAccount(provider.connection, keeper, usdcMint, keeper.publicKey);
+      outsiderUsdc = await createAccount(provider.connection, outsider, usdcMint, outsider.publicKey);
+      await mintTo(provider.connection, buyer, usdcMint, lenderUsdc, buyer, 10_000_000_000);
+      await mintTo(provider.connection, buyer, usdcMint, buyerUsdc, buyer, 5_000_000_000);
+      otherMint = await createMint(provider.connection, buyer, buyer.publicKey, null, 6);
+      otherMintBuyerUsdc = await createAccount(provider.connection, buyer, otherMint, buyer.publicKey);
+      await mintTo(provider.connection, buyer, otherMint, otherMintBuyerUsdc, buyer, 1_000_000_000);
+
+      // Earlier describes may leave caps or the pause flag set; start from a clean config.
+      const cfg = await program.account.protocolConfig.fetch(configPDA());
+      if (cfg.paused) await setPaused(false);
+      await program.methods
+        .updateRiskLimits(new BN(0), new BN(0))
+        .accounts({ config: configPDA(), authority: protocolGovAuthority.publicKey })
+        .signers([protocolGovAuthority])
+        .rpc();
+    });
+
+    it("gates init_protocol_config_ext on the program upgrade authority", async () => {
+      await expectErr(
+        () =>
+          program.methods
+            .initProtocolConfigExt()
+            .accounts({
+              ext: extPDA(),
+              authority: outsider.publicKey,
+              upgradeAuthority: outsider.publicKey,
+              systemProgram: SystemProgram.programId,
+            })
+            .signers([outsider])
+            .rpc(),
+        "Unauthorized"
+      );
+      await program.methods
+        .initProtocolConfigExt()
+        .accounts({
+          ext: extPDA(),
+          authority: extGov.publicKey,
+          upgradeAuthority: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([extGov])
+        .rpc();
+      const ext = await program.account.protocolConfigExt.fetch(extPDA());
+      assert.isFalse(ext.creditEnabled);
+      assert.equal(ext.creditRateBps, 800);
+      assert.equal(ext.acceptedMint.toBase58(), PublicKey.default.toBase58());
+    });
+
+    it("blocks trigger_default while paused, and records the unpause for a fresh grace window (audit C-5)", async () => {
+      const { agreement, escrow } = await createAgreement("parity-pause", new BN(20_000_000), 2, new BN(1));
+      await setPaused(true);
+      await expectErr(
+        () =>
+          program.methods
+            .triggerDefault()
+            .accounts({ agreement, caller: buyer.publicKey, escrowUsdc: escrow, merchantUsdc, tokenProgram: TOKEN_PROGRAM_ID })
+            .rpc(),
+        "ProtocolPaused"
+      );
+      const before = Math.floor(Date.now() / 1000) - 120;
+      await setPaused(false);
+      const ext = await program.account.protocolConfigExt.fetch(extPDA());
+      assert.isAbove(ext.lastUnpausedAt.toNumber(), before, "unpause time recorded");
+      await expectErr(
+        () =>
+          program.methods
+            .triggerDefault()
+            .accounts({ agreement, caller: buyer.publicKey, escrowUsdc: escrow, merchantUsdc, tokenProgram: TOKEN_PROGRAM_ID })
+            .rpc(),
+        "GracePeriodNotExpired"
+      );
+      const a = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(a.state, { active: {} });
+    });
+
+    it("pins the accepted USDC mint; other mints are rejected everywhere (audit C-4)", async () => {
+      await expectErr(
+        () =>
+          program.methods
+            .setAcceptedMint(usdcMint)
+            .accounts({ ext: extPDA(), authority: outsider.publicKey })
+            .signers([outsider])
+            .rpc(),
+        "Unauthorized"
+      );
+      await program.methods
+        .setAcceptedMint(usdcMint)
+        .accounts({ ext: extPDA(), authority: extGov.publicKey })
+        .signers([extGov])
+        .rpc();
+
+      const productId = "parity-fake-mint";
+      const agreement = agreementPDA(productId);
+      await expectErr(
+        () =>
+          program.methods
+            .createAgreement(new BN(20_000_000), 2, new BN(1), productId, MERCHANT_NAME)
+            .accounts({
+              agreement,
+              buyer: buyer.publicKey,
+              merchant: merchant.publicKey,
+              usdcMint: otherMint,
+              buyerUsdc: otherMintBuyerUsdc,
+              escrowUsdc: escrowPDA(agreement),
+              tokenProgram: TOKEN_PROGRAM_ID,
+              systemProgram: SystemProgram.programId,
+              rent: SYSVAR_RENT_PUBKEY,
+            })
+            .signers([buyer])
+            .rpc(),
+        "MintNotAccepted"
+      );
+      await createAgreement("parity-real-mint", new BN(20_000_000), 2, new BN(1));
+    });
+
+    it("claim_yield_paid pays only from the yield reserve, in the reserve's mint", async () => {
+      const { agreement, escrow } = await createAgreement("parity-claim", new BN(20_000_000), 2, new BN(1));
+      const claim = () =>
+        program.methods
+          .claimYieldPaid()
+          .accounts({ agreement, buyer: buyer.publicKey, buyerUsdc, tokenProgram: TOKEN_PROGRAM_ID })
+          .signers([buyer])
+          .rpc();
+      await expectErr(claim, "AgreementNotComplete");
+      await new Promise((r) => setTimeout(r, 2500));
+      await payInstallment(agreement, escrow);
+      // The stake pool (and its reserve) was created by the frozen v1 suite in another mint, so
+      // the payout is refused instead of paying a token the agreement was never priced in.
+      await expectErr(claim, "MintNotAccepted");
+    });
+
+    it("init_yield_reserve cannot replace an existing reserve", async () => {
+      // The reserve already exists here (init_stake_pool created it), so Anchor's `init` refuses
+      // before the mint constraint runs. The mint check (address = stake_pool.usdc_mint) only
+      // matters on a pre-upgrade pool, which localnet cannot reproduce; it is covered by review.
+      const stakePool = pda(Buffer.from("stake_pool"));
+      const reserve = pda(Buffer.from("yield_reserve"));
+      const pool = await program.account.stakePool.fetch(stakePool);
+      const before = await getAccount(provider.connection, reserve);
+      for (const mint of [pool.usdcMint, otherMint]) {
+        await expectErr(
+          () =>
+            program.methods
+              .initYieldReserve()
+              .accounts({
+                stakePool,
+                yieldReserve: reserve,
+                usdcMint: mint,
+                payer: outsider.publicKey,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
+                rent: SYSVAR_RENT_PUBKEY,
+              })
+              .signers([outsider])
+              .rpc(),
+          "already in use"
+        );
+      }
+      const after = await getAccount(provider.connection, reserve);
+      assert.equal(after.mint.toBase58(), before.mint.toBase58());
+      assert.equal(after.owner.toBase58(), stakePool.toBase58());
+    });
+
+    it("keeps credit off until governance enables it, and caps the rate", async () => {
+      await expectErr(() => setCredit(true, 3_001), "RateTooHigh");
+      await program.methods
+        .initCreditPool()
+        .accounts({
+          ext: extPDA(),
+          authority: extGov.publicKey,
+          usdcMint,
+          creditPool: creditPoolPDA(),
+          creditVault: creditVaultPDA(),
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([extGov])
+        .rpc();
+      await expectErr(() => deposit(new BN(1_000_000_000)), "CreditDisabled");
+      await setCredit(true);
+    });
+
+    it("lends from the pool up to 80% LTV, straight to the payee", async () => {
+      await program.methods
+        .supplyLiquidity(new BN(5_000_000_000))
+        .accounts({
+          creditPool: creditPoolPDA(),
+          creditVault: creditVaultPDA(),
+          lenderPosition: lenderPDA(lender.publicKey),
+          supplier: lender.publicKey,
+          supplierUsdc: lenderUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([lender])
+        .rpc();
+      await deposit(new BN(1_000_000_000)); // $1,000 collateral
+      await expectErr(() => draw(new BN(800_000_001)), "LtvExceeded");
+      const m0 = (await getAccount(provider.connection, merchantUsdc)).amount;
+      await draw(new BN(700_000_000));
+      const m1 = (await getAccount(provider.connection, merchantUsdc)).amount;
+      assert.equal((m1 - m0).toString(), "700000000");
+      const line = await program.account.creditLine.fetch(creditLinePDA(borrower.publicKey));
+      assert.equal(line.principal.toString(), "700000000");
+      assert.equal(line.collateral.toString(), "1000000000");
+    });
+
+    it("refuses to liquidate a healthy line and to withdraw collateral past 80% LTV", async () => {
+      await expectErr(
+        () =>
+          program.methods
+            .liquidateCredit()
+            .accounts({
+              ext: extPDA(),
+              creditPool: creditPoolPDA(),
+              creditVault: creditVaultPDA(),
+              creditLine: creditLinePDA(borrower.publicKey),
+              liquidator: keeper.publicKey,
+              liquidatorUsdc: keeperUsdc,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            })
+            .signers([keeper])
+            .rpc(),
+        "NotLiquidatable"
+      );
+      await expectErr(
+        () =>
+          program.methods
+            .withdrawCollateral(new BN(200_000_000))
+            .accounts({
+              ext: extPDA(),
+              creditPool: creditPoolPDA(),
+              creditVault: creditVaultPDA(),
+              creditLine: creditLinePDA(borrower.publicKey),
+              owner: borrower.publicKey,
+              ownerUsdc: buyerUsdc,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            })
+            .signers([borrower])
+            .rpc(),
+        "LtvExceeded"
+      );
+    });
+
+    it("lets the lender withdraw only what is not lent out", async () => {
+      await expectErr(
+        () =>
+          program.methods
+            .withdrawLiquidity(new BN(5_000_000_000))
+            .accounts({
+              creditPool: creditPoolPDA(),
+              creditVault: creditVaultPDA(),
+              lenderPosition: lenderPDA(lender.publicKey),
+              supplier: lender.publicKey,
+              supplierUsdc: lenderUsdc,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            })
+            .signers([lender])
+            .rpc(),
+        "InsufficientLiquidity"
+      );
+    });
+
+    it("repays interest first then principal; same-day repayment earns no trust", async () => {
+      await repay(new BN(100_000_000));
+      const line = await program.account.creditLine.fetch(creditLinePDA(borrower.publicKey));
+      assert.isBelow(line.principal.toNumber(), 700_000_000);
+      assert.isAbove(line.principal.toNumber(), 600_000_000 - 1);
+      assert.equal(line.trustScore.toNumber(), 0, "debt younger than a day earns no points");
+      assert.equal(line.totalRepaid.toString(), "100000000");
+    });
+
+    describe("agent_charge: an agent pays over the owner's credit line", () => {
+      const mandate = () => mandatePDA(borrower.publicKey, agentKey.publicKey);
+      const charge = (amount: BN, ref: Buffer, opts: { payee?: Keypair; payeeUsdc?: PublicKey; cosign?: boolean } = {}) => {
+        const payee = opts.payee ?? merchant;
+        const builder = program.methods
+          .agentCharge(amount, Array.from(ref))
+          .accounts({
+            mandate: mandate(),
+            agent: agentKey.publicKey,
+            owner: borrower.publicKey,
+            chargeRef: chargeRefPDA(mandate(), ref),
+            payee: payee.publicKey,
+            payeeUsdc: opts.payeeUsdc ?? merchantUsdc,
+            ext: extPDA(),
+            creditPool: creditPoolPDA(),
+            creditVault: creditVaultPDA(),
+            creditLine: creditLinePDA(borrower.publicKey),
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          });
+        if (opts.cosign) {
+          return builder.instruction().then(async (ix: any) => {
+            ix.keys.find((k: any) => k.pubkey.equals(borrower.publicKey))!.isSigner = true;
+            const tx = new anchor.web3.Transaction().add(ix);
+            return anchor.web3.sendAndConfirmTransaction(provider.connection, tx, [agentKey, borrower]);
+          });
+        }
+        return builder.signers([agentKey]).rpc();
+      };
+      const ref = (s: string) => require("crypto").createHash("sha256").update(s).digest() as Buffer;
+
+      before(async () => {
+        await program.methods
+          .createAgentMandate({
+            perPurchaseCap: new BN(100_000_000),
+            periodCap: new BN(200_000_000),
+            periodSeconds: new BN(86_400),
+            maxPurchasesPerPeriod: 5,
+            approvalThreshold: new BN(60_000_000),
+            expiresAt: new BN(0),
+            delegatedAllowance: new BN(1),
+            allowedMerchants: [merchant.publicKey],
+            validFrom: new BN(0),
+            windowStart: 0,
+            windowEnd: 0,
+            minIntervalSeconds: new BN(86_400),
+            maxInstallments: 4,
+          })
+          .accounts({
+            mandate: mandate(),
+            owner: borrower.publicKey,
+            agent: agentKey.publicKey,
+            ownerUsdc: buyerUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([borrower])
+          .rpc();
+      });
+
+      it("draws on the line and pays the allowlisted payee; the agent never holds funds", async () => {
+        const m0 = (await getAccount(provider.connection, merchantUsdc)).amount;
+        const before = await program.account.creditLine.fetch(creditLinePDA(borrower.publicKey));
+        await charge(new BN(50_000_000), ref("x402-challenge-1"));
+        const m1 = (await getAccount(provider.connection, merchantUsdc)).amount;
+        assert.equal((m1 - m0).toString(), "50000000");
+        const after = await program.account.creditLine.fetch(creditLinePDA(borrower.publicKey));
+        assert.equal(after.principal.sub(before.principal).toString(), "50000000");
+        const r = await program.account.chargeRef.fetch(chargeRefPDA(mandate(), ref("x402-challenge-1")));
+        assert.equal(r.amount.toString(), "50000000");
+      });
+
+      it("never pays the same payment ref twice", async () => {
+        await expectErr(() => charge(new BN(10_000_000), ref("x402-challenge-1")), "already in use");
+      });
+
+      it("rejects payees that are not on the allowlist", async () => {
+        await expectErr(
+          () => charge(new BN(10_000_000), ref("x402-outsider"), { payee: outsider, payeeUsdc: outsiderUsdc }),
+          "MerchantNotApproved"
+        );
+      });
+
+      it("requires the owner's co-signature above the approval threshold", async () => {
+        await expectErr(() => charge(new BN(80_000_000), ref("x402-big")), "OwnerApprovalRequired");
+        await charge(new BN(80_000_000), ref("x402-big-cosigned"), { cosign: true });
+      });
+
+      it("stops at the period cap and when credit is switched off", async () => {
+        await expectErr(
+          () => charge(new BN(100_000_000), ref("x402-over-period"), { cosign: true }),
+          "AgentPeriodCapExceeded"
+        );
+        await setCredit(false);
+        await expectErr(() => charge(new BN(10_000_000), ref("x402-disabled")), "CreditDisabled");
+        await repay(new BN(10_000_000)); // exits still work with the flag off
+      });
+
+      it("is dead after one revoke", async () => {
+        await setCredit(true);
+        await program.methods
+          .revokeAgentMandate()
+          .accounts({ mandate: mandate(), owner: borrower.publicKey, ownerUsdc: buyerUsdc, tokenProgram: TOKEN_PROGRAM_ID })
+          .signers([borrower])
+          .rpc();
+        await expectErr(() => charge(new BN(10_000_000), ref("x402-after-revoke")), "MandateRevoked");
+      });
+    });
+  });
 });

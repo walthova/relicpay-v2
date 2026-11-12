@@ -42,6 +42,12 @@ pub struct MandateLimits {
     pub expires_at: i64,
     pub delegated_allowance: u64,
     pub allowed_merchants: Vec<Pubkey>,
+    // ── parity (feat/base-parity) ──
+    pub valid_from: i64,
+    pub window_start: u32,
+    pub window_end: u32,
+    pub min_interval_seconds: i64,
+    pub max_installments: u8,
 }
 
 fn validate(limits: &MandateLimits, now: i64) -> Result<()> {
@@ -51,8 +57,15 @@ fn validate(limits: &MandateLimits, now: i64) -> Result<()> {
             && limits.period_seconds > 0
             && limits.max_purchases_per_period > 0
             && limits.delegated_allowance > 0
+            && !limits.allowed_merchants.is_empty()
             && limits.allowed_merchants.len() <= MAX_MANDATE_MERCHANTS
-            && (limits.expires_at == 0 || limits.expires_at > now),
+            && !limits.allowed_merchants.contains(&Pubkey::default())
+            && (limits.expires_at == 0
+                || (limits.expires_at > now && limits.expires_at > limits.valid_from))
+            && (limits.window_start as i64) < SECONDS_PER_DAY
+            && (limits.window_end as i64) < SECONDS_PER_DAY
+            && limits.min_interval_seconds > 0
+            && (MIN_INSTALLMENTS..=MAX_INSTALLMENTS).contains(&limits.max_installments),
         RelicPayError::InvalidMandate
     );
     Ok(())
@@ -67,6 +80,92 @@ fn apply_limits(mandate: &mut AgentMandate, limits: MandateLimits) {
     mandate.expires_at = limits.expires_at;
     mandate.delegated_allowance = limits.delegated_allowance;
     mandate.allowed_merchants = limits.allowed_merchants;
+    mandate.valid_from = limits.valid_from;
+    mandate.window_start = limits.window_start;
+    mandate.window_end = limits.window_end;
+    mandate.min_interval_seconds = limits.min_interval_seconds;
+    mandate.max_installments = limits.max_installments;
+}
+
+/// Shared by agent_create_agreement and agent_charge: validity, expiry, daily window, allowlist,
+/// per-purchase cap, owner co-sign threshold, then the period books. Same order as the Base
+/// RelicAgentDelegate._authorize.
+pub(crate) fn authorize_spend(
+    mandate: &mut AgentMandate,
+    merchant: &Pubkey,
+    amount: u64,
+    owner_cosigned: bool,
+    now: i64,
+) -> Result<()> {
+    require!(!mandate.revoked, RelicPayError::MandateRevoked);
+    require!(now >= mandate.valid_from, RelicPayError::MandateNotYetValid);
+    require!(
+        mandate.expires_at == 0 || now < mandate.expires_at,
+        RelicPayError::MandateExpired
+    );
+    require!(
+        in_window(mandate.window_start, mandate.window_end, now),
+        RelicPayError::OutsideTimeWindow
+    );
+    // Audit C-3: an empty list never means "any merchant". Mandates created before this rule
+    // with an empty list are therefore unusable until the owner updates them.
+    require!(
+        mandate.allowed_merchants.contains(merchant),
+        RelicPayError::MerchantNotApproved
+    );
+    require!(
+        amount > 0 && amount <= mandate.per_purchase_cap,
+        RelicPayError::AgentPurchaseCapExceeded
+    );
+    require!(
+        mandate.approval_threshold == 0 || amount <= mandate.approval_threshold || owner_cosigned,
+        RelicPayError::OwnerApprovalRequired
+    );
+
+    let period_end = mandate
+        .period_start
+        .checked_add(mandate.period_seconds)
+        .ok_or(RelicPayError::MathOverflow)?;
+    if now >= period_end {
+        mandate.period_start = now;
+        mandate.period_spent = 0;
+        mandate.period_purchases = 0;
+    }
+    let period_spent = mandate
+        .period_spent
+        .checked_add(amount)
+        .ok_or(RelicPayError::MathOverflow)?;
+    require!(
+        period_spent <= mandate.period_cap,
+        RelicPayError::AgentPeriodCapExceeded
+    );
+    require!(
+        mandate.period_purchases < mandate.max_purchases_per_period,
+        RelicPayError::AgentPurchaseLimitReached
+    );
+    mandate.period_spent = period_spent;
+    mandate.period_purchases += 1;
+    mandate.total_purchases = mandate
+        .total_purchases
+        .checked_add(1)
+        .ok_or(RelicPayError::MathOverflow)?;
+    mandate.total_spent = mandate
+        .total_spent
+        .checked_add(amount)
+        .ok_or(RelicPayError::MathOverflow)?;
+    Ok(())
+}
+
+fn in_window(start: u32, end: u32, now: i64) -> bool {
+    if start == end {
+        return true;
+    }
+    let sod = now.rem_euclid(SECONDS_PER_DAY) as u32;
+    if start < end {
+        sod >= start && sod < end
+    } else {
+        sod >= start || sod < end // window wraps past midnight
+    }
 }
 
 /// Points the owner's USDC allowance at the mandate PDA and emits the
@@ -278,65 +377,24 @@ pub fn agent_purchase_handler(
     product_id: String,
     merchant_name: String,
 ) -> Result<()> {
+    // Parity (audit C-4): only the pinned USDC mint, once governance has pinned one.
+    crate::instructions::protocol_config_ext::check_accepted_mint(
+        &ctx.accounts.protocol_config_ext.to_account_info(),
+        ctx.program_id,
+        &ctx.accounts.usdc_mint.key(),
+    )?;
     let now = Clock::get()?.unix_timestamp;
     let merchant = ctx.accounts.merchant.key();
     let owner_cosigned = ctx.accounts.owner.is_signer;
 
     let mandate = &mut ctx.accounts.mandate;
-    require!(!mandate.revoked, RelicPayError::MandateRevoked);
+    authorize_spend(mandate, &merchant, total_price, owner_cosigned, now)?;
+    // Audit C-6: the agent picks terms only inside the owner's bounds.
     require!(
-        mandate.expires_at == 0 || now < mandate.expires_at,
-        RelicPayError::MandateExpired
+        installment_count <= mandate.max_installments
+            && interval_seconds >= mandate.min_interval_seconds,
+        RelicPayError::TermsOutOfBounds
     );
-    require!(
-        mandate.allowed_merchants.is_empty() || mandate.allowed_merchants.contains(&merchant),
-        RelicPayError::MerchantNotApproved
-    );
-    require!(
-        total_price <= mandate.per_purchase_cap,
-        RelicPayError::AgentPurchaseCapExceeded
-    );
-    require!(
-        mandate.approval_threshold == 0
-            || total_price <= mandate.approval_threshold
-            || owner_cosigned,
-        RelicPayError::OwnerApprovalRequired
-    );
-
-    // Roll into a new period once the current one has elapsed.
-    let period_end = mandate
-        .period_start
-        .checked_add(mandate.period_seconds)
-        .ok_or(RelicPayError::MathOverflow)?;
-    if now >= period_end {
-        mandate.period_start = now;
-        mandate.period_spent = 0;
-        mandate.period_purchases = 0;
-    }
-
-    let period_spent = mandate
-        .period_spent
-        .checked_add(total_price)
-        .ok_or(RelicPayError::MathOverflow)?;
-    require!(
-        period_spent <= mandate.period_cap,
-        RelicPayError::AgentPeriodCapExceeded
-    );
-    require!(
-        mandate.period_purchases < mandate.max_purchases_per_period,
-        RelicPayError::AgentPurchaseLimitReached
-    );
-
-    mandate.period_spent = period_spent;
-    mandate.period_purchases += 1;
-    mandate.total_purchases = mandate
-        .total_purchases
-        .checked_add(1)
-        .ok_or(RelicPayError::MathOverflow)?;
-    mandate.total_spent = mandate
-        .total_spent
-        .checked_add(total_price)
-        .ok_or(RelicPayError::MathOverflow)?;
 
     let config_info = ctx.accounts.protocol_config.to_account_info();
     let bump = ctx.bumps.agreement;
@@ -458,4 +516,124 @@ pub struct AgentCreateAgreement<'info> {
     /// `CreateAgreement::protocol_config` (see create_agreement.rs).
     #[account(mut, seeds = [SEED_PROTOCOL_CONFIG], bump)]
     pub protocol_config: UncheckedAccount<'info>,
+
+    /// CHECK: parity singleton at a constant-seed PDA; may be uninitialized (then ignored).
+    #[account(seeds = [SEED_PROTOCOL_CONFIG_EXT], bump)]
+    pub protocol_config_ext: UncheckedAccount<'info>,
+}
+
+// ───────────── agent_charge: the agent credit layer (testnet) ─────────────
+//
+// The agent pays a merchant or API (the x402 payTo wallet) by drawing on the owner's credit line.
+// Funds go straight from the credit pool to the payee; the agent never holds them. Every charge
+// carries a 32-byte `payment_ref` (for x402, the hash of the payment requirements); its PDA can be
+// created once per mandate, so the same 402 challenge can never be paid twice.
+// Base: RelicAgentDelegate.charge.
+
+pub fn agent_charge_handler(
+    ctx: Context<AgentChargeCredit>,
+    amount: u64,
+    payment_ref: [u8; 32],
+) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let payee = ctx.accounts.payee.key();
+    let owner_cosigned = ctx.accounts.owner.is_signer;
+    require!(
+        ctx.accounts.payee_usdc.key() != ctx.accounts.credit_vault.key(),
+        RelicPayError::InvalidPayee
+    );
+
+    authorize_spend(&mut ctx.accounts.mandate, &payee, amount, owner_cosigned, now)?;
+
+    let new_debt = crate::instructions::credit_line::book_draw(
+        &mut ctx.accounts.credit_line,
+        &mut ctx.accounts.credit_pool,
+        &ctx.accounts.ext,
+        amount,
+        now,
+    )?;
+    let bump = ctx.accounts.credit_pool.bump;
+    crate::instructions::credit_line::pay_from_vault(
+        &ctx.accounts.token_program,
+        &ctx.accounts.credit_vault,
+        ctx.accounts.payee_usdc.to_account_info(),
+        ctx.accounts.credit_pool.to_account_info(),
+        bump,
+        amount,
+    )?;
+
+    let r = &mut ctx.accounts.charge_ref;
+    r.mandate = ctx.accounts.mandate.key();
+    r.amount = amount;
+    r.created_at = now;
+
+    emit!(crate::events::CreditDrawn {
+        owner: ctx.accounts.owner.key(),
+        payee,
+        via_agent: true,
+        amount,
+        new_debt,
+    });
+    emit!(crate::events::AgentCharge {
+        mandate: ctx.accounts.mandate.key(),
+        payee,
+        amount,
+        payment_ref,
+        owner_cosigned,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+#[instruction(amount: u64, payment_ref: [u8; 32])]
+pub struct AgentChargeCredit<'info> {
+    #[account(
+        mut,
+        seeds = [SEED_AGENT_MANDATE, owner.key().as_ref(), agent.key().as_ref()],
+        bump = mandate.bump,
+        has_one = owner,
+        has_one = agent,
+    )]
+    pub mandate: Account<'info, AgentMandate>,
+
+    #[account(mut)]
+    pub agent: Signer<'info>,
+
+    /// CHECK: the mandate owner. Signs only to co-sign a charge above the approval threshold.
+    pub owner: UncheckedAccount<'info>,
+
+    #[account(
+        init,
+        payer = agent,
+        space = crate::state::ChargeRef::SIZE,
+        seeds = [SEED_CHARGE_REF, mandate.key().as_ref(), payment_ref.as_ref()],
+        bump
+    )]
+    pub charge_ref: Account<'info, crate::state::ChargeRef>,
+
+    /// CHECK: payee wallet; authorize_spend requires it to be on the mandate's allowlist.
+    pub payee: UncheckedAccount<'info>,
+
+    #[account(mut, token::mint = credit_vault.mint, token::authority = payee)]
+    pub payee_usdc: Account<'info, TokenAccount>,
+
+    #[account(seeds = [SEED_PROTOCOL_CONFIG_EXT], bump = ext.bump)]
+    pub ext: Account<'info, crate::state::ProtocolConfigExt>,
+
+    #[account(mut, seeds = [SEED_CREDIT_POOL], bump = credit_pool.bump)]
+    pub credit_pool: Account<'info, crate::state::CreditPool>,
+
+    #[account(mut, seeds = [SEED_CREDIT_VAULT], bump)]
+    pub credit_vault: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        seeds = [SEED_CREDIT_LINE, owner.key().as_ref()],
+        bump = credit_line.bump,
+        has_one = owner
+    )]
+    pub credit_line: Account<'info, crate::state::CreditLine>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }

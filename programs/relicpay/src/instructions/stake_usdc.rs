@@ -8,7 +8,7 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::Staked;
-use crate::math::{calculate_yield, compute_tier};
+use crate::math::{checkpoint_pool, compute_tier, settle_stake};
 use crate::state::{StakePool, UserStake};
 
 pub fn handler(ctx: Context<StakeUsdc>, amount: u64) -> Result<()> {
@@ -18,23 +18,13 @@ pub fn handler(ctx: Context<StakeUsdc>, amount: u64) -> Result<()> {
     let pool = &mut ctx.accounts.stake_pool;
     let clock = Clock::get()?;
 
-    if user_stake.staked_amount > 0 {
-        // Existing staker: accrue yield on prior balance before topping up.
-        let elapsed = (clock.unix_timestamp - user_stake.last_update) as u64;
-        let new_yield = calculate_yield(
-            user_stake.staked_amount,
-            pool.yield_rate_bps_annual,
-            elapsed,
-        )?;
-        user_stake.yield_accrued = user_stake
-            .yield_accrued
-            .checked_add(new_yield)
-            .ok_or(RelicPayError::MathOverflow)?;
-    } else {
-        // First stake: initialize PDA fields.
+    // Parity: index-based yield, so a rate change never applies to time already elapsed.
+    checkpoint_pool(pool, clock.unix_timestamp)?;
+    if user_stake.owner == Pubkey::default() {
         user_stake.owner = ctx.accounts.user.key();
         user_stake.bump = ctx.bumps.user_stake;
     }
+    settle_stake(user_stake, pool.yield_index)?;
 
     token::transfer(
         CpiContext::new(

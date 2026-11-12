@@ -3,6 +3,8 @@
 
 ---
 
+> **Status, stated plainly:** no audit; simulated yield; testnet only; the agent layer is not live. Parts 1 to 10 explain the Solana program. Parts 11 to 14 add Base and the new credit and agent mechanics. The one-to-one map of the two chains is [CHAIN_PARITY.md](CHAIN_PARITY.md).
+
 ## What Is This Document?
 
 This document traces exactly what happens — at the code level — when someone uses Relic Pay. If you have never touched a Solana smart contract before, this will teach you the core concepts using Relic Pay as the example. If you are a developer, this is a complete reference for the on-chain logic.
@@ -404,6 +406,48 @@ console.log({
 
 ---
 
-*This document reflects the v1 architecture as of May 2026. See WHITEPAPER.md for the full protocol vision.*
+## Part 11: The Same Protocol on Base
+
+The Base contracts live in `evm/contracts/base` and are tested with Foundry (`cd evm && forge test`).
+
+| Solana idea | Base equivalent |
+|---|---|
+| PDA `["agreement", buyer, product_id]` | `agreementId = keccak256(abi.encode("agreement", buyer, productId))` |
+| Escrow token account owned by the agreement PDA | The `RelicEscrow` balance, with `escrowDeposited` tracked per agreement. Only the recorded merchant or buyer can receive it. |
+| `Clock::get()?.unix_timestamp` | `block.timestamp` |
+| `require!(..., RelicPayError::X)` | `if (...) revert X();` |
+| The governance authority key | `governance`, which must be a TimelockController with a delay of at least 2 days (checked in the constructor) |
+| `ProtocolConfig.paused` | `RelicEscrow.paused`. The guardian can pause; only governance can unpause. |
+
+A walk-through on Base: the buyer approves USDC to `RelicEscrow`. `createAgreement(merchant, 300e6, 3, 30 days, "relic-1", "IBG Collection")` pulls $100. `payInstallment(id)` pulls each later $100 once it is due. After the third payment the agreement is `Completed`, and `merchantWithdraw(id)` pays the merchant $300.
+
+## Part 12: Defaults, Pause and the Yield Reserve (both chains)
+
+- **Default rule.** `trigger_default` / `triggerDefault` succeeds only when `now > max(due + 7 days, last_unpaused_at + 7 days)` and the protocol is not paused. Anyone can call it, and the escrow always goes to the recorded merchant.
+- **Yield reserve.** Simulated yield is paid from a separate reserve that anyone can fund (`fund_yield_reserve` / `fundYieldReserve`). `claim_yield_paid` / `claimYield` pays `min(owed, reserve)`, and the rest stays owed. On Solana, v1 `claim_yield` is kept unchanged for the frozen spec; it pays nothing.
+- **Stake pool index.** `yield_index += rate * dt * 1e12 / (10_000 * 31_536_000)` at every stake, unstake and rate change. A stake earns `staked * (index - snapshot) / 1e12`. Because the index is checkpointed before a rate change, the new rate never applies to time already elapsed.
+
+## Part 13: The Credit Line
+
+Accounts on Solana: `["credit_pool"]` holds the pool books, `["credit_vault"]` holds the USDC, `["credit_line", owner]` holds one line, and `["lender", supplier]` holds a lender's position. On Base everything sits in `RelicCreditLine`.
+
+```
+draw:       require debt + amount <= 80% x collateral   and   amount <= pool liquidity
+interest:   simple APR (default 8%, cap 30%) on principal
+repay:      interest first, then principal back into the pool
+liquidate:  if debt > 90% x collateral -> seize min(collateral, debt + 5%)
+            waterfall: interest -> principal -> penalty (half to the liquidator)
+trust:      +1 point per USDC of principal repaid on debt >= 1 day old, max 100 per 30 days, 0 after a liquidation
+```
+
+The feature flag is `ProtocolConfigExt.credit_enabled` on Solana and `creditEnabled` on Base. It is off at deploy. When it is off, deposits and draws stop, but repay, withdraw and liquidate keep working.
+
+## Part 14: Agents
+
+An `AgentMandate` (Solana) or a mandate in `RelicAgentDelegate` (Base) binds one owner to one agent key. Every agent spend runs the same checks in the same order: revoked, valid_from, expiry, daily window, allowlist, per-transaction cap, owner co-sign above the threshold, period roll-over, period cap, and transaction count. `agent_charge` / `charge` then draws on the owner's credit line straight to the payee and records a single-use payment reference (the hash of the x402 payment requirements). `agent_create_agreement` / `purchase` opens a BNPL plan with `buyer = owner`, within the owner's installment and interval bounds. See [AGENT_CREDIT_LAYER.md](AGENT_CREDIT_LAYER.md).
+
+---
+
+*This document reflects the Solana v2 program and the Base parity contracts as of November 2026 (testnet only, unaudited). See WHITEPAPER.md for the full protocol vision.*
 
 *github.com/walthova/relicpay-v2*

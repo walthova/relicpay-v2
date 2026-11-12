@@ -68,4 +68,27 @@ pub enum RelicPayError {
     OwnerApprovalRequired,
     #[msg("Mandate must be revoked before it can be closed")]
     MandateNotRevoked,
+    // ── Two-chain parity (feat/base-parity) ──
+    #[msg("Token mint is not the protocol's accepted USDC mint")]
+    MintNotAccepted,
+    #[msg("Mandate is not valid yet")]
+    MandateNotYetValid,
+    #[msg("Outside the mandate's daily time window")]
+    OutsideTimeWindow,
+    #[msg("Agent-chosen terms are outside the owner's bounds")]
+    TermsOutOfBounds,
+    #[msg("Yield reserve is empty")]
+    YieldReserveEmpty,
+    #[msg("Credit is disabled by governance")]
+    CreditDisabled,
+    #[msg("Draw or withdrawal would exceed the 80% max LTV")]
+    LtvExceeded,
+    #[msg("Not enough lender liquidity in the credit pool")]
+    InsufficientLiquidity,
+    #[msg("Credit line is not liquidatable")]
+    NotLiquidatable,
+    #[msg("Nothing to repay")]
+    NothingToRepay,
+    #[msg("Payee is invalid")]
+    InvalidPayee,
 }

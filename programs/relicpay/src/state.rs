@@ -60,6 +60,9 @@ pub struct StakePool {
     pub total_staked: u64,          // sum of all user stakes
     pub yield_rate_bps_annual: u16, // 300 = 3% APY (governance-tunable)
     pub bump: u8,                   // PDA bump
+    // ── parity: lives in the old reserved bytes (zero on pre-upgrade pools) ──
+    pub yield_index: u128,     // cumulative yield per staked unit, x YIELD_INDEX_SCALE
+    pub last_index_update: i64, // 0 = not yet migrated; first checkpoint starts the index
 }
 
 impl StakePool {
@@ -74,6 +77,8 @@ pub struct UserStake {
     pub last_update: i64,   // timestamp of last stake/unstake
     pub tier: u8,           // discount tier 0–4 (read by browser extension)
     pub bump: u8,           // PDA bump
+    // ── parity: lives in the old reserved bytes ──
+    pub index_snapshot: u128, // pool yield_index at this stake's last settlement
 }
 
 impl UserStake {
@@ -180,9 +185,15 @@ pub struct AgentMandate {
     pub period_purchases: u16,          // purchases this period
     pub total_purchases: u32,           // lifetime purchase count (trust history)
     pub total_spent: u64,               // lifetime total_price committed
-    pub allowed_merchants: Vec<Pubkey>, // empty = any merchant
+    pub allowed_merchants: Vec<Pubkey>, // non-empty allowlist (audit C-3)
     pub created_at: i64,
     pub bump: u8,
+    // ── parity: lives in the old reserved bytes (25 of 32) ──
+    pub valid_from: i64,           // 0 = immediately
+    pub window_start: u32,         // daily window, seconds after 00:00 UTC; start == end = any time
+    pub window_end: u32,
+    pub min_interval_seconds: i64, // shortest BNPL interval the agent may choose
+    pub max_installments: u8,      // most BNPL installments the agent may choose
 }
 
 impl AgentMandate {
@@ -195,4 +206,85 @@ impl AgentMandate {
         + 4 + 32 * crate::constants::MAX_MANDATE_MERCHANTS
         + 8 + 1                        // created_at, bump
         + 32; // reserved for future fields (agent identity / reputation)
+}
+
+/// Parity singleton (seeds = ["protocol_config_ext"]) holding the protocol settings that did not
+/// fit in ProtocolConfig's reserved bytes. Gated on the upgrade authority like ProtocolConfig.
+/// Every reader treats an uninitialized account as "not configured", which keeps the frozen v1
+/// characterization suite untouched.
+#[account]
+pub struct ProtocolConfigExt {
+    pub authority: Pubkey,      // governance (Squads multisig with a 2-day time lock on mainnet)
+    pub accepted_mint: Pubkey,  // canonical USDC; default() = not pinned yet (audit C-4)
+    pub last_unpaused_at: i64,  // defaults get a fresh 7-day window after every unpause (audit C-5)
+    pub credit_enabled: bool,   // feature flag for the credit line
+    pub credit_rate_bps: u16,   // simple APR on credit line principal
+    pub bump: u8,
+}
+
+impl ProtocolConfigExt {
+    pub const SIZE: usize = 8 + 32 + 32 + 8 + 1 + 2 + 1 + 64; // +64 reserved
+}
+
+/// Lender pool for credit lines (seeds = ["credit_pool"]). USDC sits in the ["credit_vault"]
+/// token account, whose authority is this PDA.
+#[account]
+pub struct CreditPool {
+    pub available_liquidity: u64,
+    pub total_principal_out: u64,
+    pub total_collateral: u64,
+    pub protocol_revenue: u64,
+    pub bad_debt: u64,
+    pub bump: u8,
+}
+
+impl CreditPool {
+    pub const SIZE: usize = 8 + 8 * 5 + 1 + 32;
+}
+
+/// What one lender has supplied (seeds = ["lender", supplier]).
+#[account]
+pub struct LenderPosition {
+    pub supplier: Pubkey,
+    pub supplied: u64,
+    pub bump: u8,
+}
+
+impl LenderPosition {
+    pub const SIZE: usize = 8 + 32 + 8 + 1 + 16;
+}
+
+/// One owner's collateralized credit line (seeds = ["credit_line", owner]).
+#[account]
+pub struct CreditLine {
+    pub owner: Pubkey,
+    pub collateral: u64,
+    pub principal: u64,
+    pub interest: u64,
+    pub total_repaid: u64,
+    pub last_accrual: i64,
+    pub last_draw_at: i64,
+    pub trust_score: u64,
+    pub epoch_start: i64,
+    pub epoch_points: u64,
+    pub liquidations: u32,
+    pub agent_identity: Pubkey, // optional agent registry entry (Solana side of ERC-8004), default = none
+    pub bump: u8,
+}
+
+impl CreditLine {
+    pub const SIZE: usize = 8 + 32 + 8 * 9 + 4 + 32 + 1 + 32;
+}
+
+/// Single-use payment reference (seeds = ["charge_ref", mandate, ref]). Creating it twice fails,
+/// so the same x402 challenge can never be paid twice.
+#[account]
+pub struct ChargeRef {
+    pub mandate: Pubkey,
+    pub amount: u64,
+    pub created_at: i64,
+}
+
+impl ChargeRef {
+    pub const SIZE: usize = 8 + 32 + 8 + 8;
 }

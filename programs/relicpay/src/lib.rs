@@ -293,4 +293,74 @@ pub mod relicpay {
             merchant_name,
         )
     }
+
+    // ── Two-chain parity (feat/base-parity). Base equivalents in docs/CHAIN_PARITY.md ──
+
+    pub fn init_protocol_config_ext(ctx: Context<InitProtocolConfigExt>) -> Result<()> {
+        instructions::protocol_config_ext::init_ext_handler(ctx)
+    }
+
+    pub fn set_accepted_mint(ctx: Context<UpdateProtocolConfigExt>, mint: Pubkey) -> Result<()> {
+        instructions::protocol_config_ext::set_accepted_mint_handler(ctx, mint)
+    }
+
+    pub fn set_credit_params(
+        ctx: Context<UpdateProtocolConfigExt>,
+        enabled: bool,
+        rate_bps: u16,
+    ) -> Result<()> {
+        instructions::protocol_config_ext::set_credit_params_handler(ctx, enabled, rate_bps)
+    }
+
+    pub fn init_yield_reserve(ctx: Context<InitYieldReserve>) -> Result<()> {
+        instructions::yield_reserve::init_reserve_handler(ctx)
+    }
+
+    pub fn fund_yield_reserve(ctx: Context<FundYieldReserve>, amount: u64) -> Result<()> {
+        instructions::yield_reserve::fund_handler(ctx, amount)
+    }
+
+    pub fn claim_yield_paid(ctx: Context<ClaimYieldPaid>) -> Result<()> {
+        instructions::yield_reserve::claim_paid_handler(ctx)
+    }
+
+    pub fn init_credit_pool(ctx: Context<InitCreditPool>) -> Result<()> {
+        instructions::credit_line::init_pool_handler(ctx)
+    }
+
+    pub fn supply_liquidity(ctx: Context<SupplyLiquidity>, amount: u64) -> Result<()> {
+        instructions::credit_line::supply_handler(ctx, amount)
+    }
+
+    pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, amount: u64) -> Result<()> {
+        instructions::credit_line::withdraw_liquidity_handler(ctx, amount)
+    }
+
+    pub fn deposit_collateral(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
+        instructions::credit_line::deposit_collateral_handler(ctx, amount)
+    }
+
+    pub fn withdraw_collateral(ctx: Context<WithdrawCollateral>, amount: u64) -> Result<()> {
+        instructions::credit_line::withdraw_collateral_handler(ctx, amount)
+    }
+
+    pub fn draw_credit(ctx: Context<DrawCredit>, amount: u64) -> Result<()> {
+        instructions::credit_line::draw_handler(ctx, amount)
+    }
+
+    pub fn repay_credit(ctx: Context<RepayCredit>, amount: u64) -> Result<()> {
+        instructions::credit_line::repay_handler(ctx, amount)
+    }
+
+    pub fn liquidate_credit(ctx: Context<LiquidateCredit>) -> Result<()> {
+        instructions::credit_line::liquidate_handler(ctx)
+    }
+
+    pub fn agent_charge(
+        ctx: Context<AgentChargeCredit>,
+        amount: u64,
+        payment_ref: [u8; 32],
+    ) -> Result<()> {
+        instructions::agent_mandate::agent_charge_handler(ctx, amount, payment_ref)
+    }
 }

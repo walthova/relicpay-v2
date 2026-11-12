@@ -16,6 +16,8 @@ pub fn handler(ctx: Context<UpdatePoolRate>, new_rate_bps: u16) -> Result<()> {
     );
 
     let pool = &mut ctx.accounts.stake_pool;
+    // Parity: checkpoint the index at the old rate first, so the new rate is never retroactive.
+    crate::math::checkpoint_pool(pool, Clock::get()?.unix_timestamp)?;
     let old_rate = pool.yield_rate_bps_annual;
     pool.yield_rate_bps_annual = new_rate_bps;
 

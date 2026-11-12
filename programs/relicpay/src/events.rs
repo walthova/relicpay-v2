@@ -190,3 +190,71 @@ pub struct AgentPurchase {
     pub owner_cosigned: bool,
     pub period_spent: u64,
 }
+
+// ── Two-chain parity (feat/base-parity) ──
+
+#[event]
+pub struct ProtocolConfigExtUpdated {
+    pub accepted_mint: Pubkey,
+    pub credit_enabled: bool,
+    pub credit_rate_bps: u16,
+}
+
+#[event]
+pub struct YieldReserveFunded {
+    pub from: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct EscrowYieldPaid {
+    pub agreement: Pubkey,
+    pub buyer: Pubkey,
+    pub amount: u64,
+    pub still_owed: u64,
+}
+
+#[event]
+pub struct CreditDrawn {
+    pub owner: Pubkey,
+    pub payee: Pubkey,
+    pub via_agent: bool,
+    pub amount: u64,
+    pub new_debt: u64,
+}
+
+#[event]
+pub struct CreditRepaid {
+    pub owner: Pubkey,
+    pub payer: Pubkey,
+    pub interest_paid: u64,
+    pub principal_paid: u64,
+    pub trust_points: u64,
+}
+
+#[event]
+pub struct CreditLiquidated {
+    pub owner: Pubkey,
+    pub liquidator: Pubkey,
+    pub debt: u64,
+    pub seized: u64,
+    pub liquidator_reward: u64,
+    pub bad_debt: u64,
+}
+
+#[event]
+pub struct CollateralMoved {
+    pub owner: Pubkey,
+    pub deposit: bool,
+    pub amount: u64,
+    pub new_collateral: u64,
+}
+
+#[event]
+pub struct AgentCharge {
+    pub mandate: Pubkey,
+    pub payee: Pubkey,
+    pub amount: u64,
+    pub payment_ref: [u8; 32],
+    pub owner_cosigned: bool,
+}

@@ -65,6 +65,11 @@ pub struct InitProtocolConfig<'info> {
 }
 
 pub fn set_paused_handler(ctx: Context<SetProtocolPaused>, paused: bool) -> Result<()> {
+    if !paused && ctx.accounts.config.paused {
+        // Parity (audit C-5): every buyer gets a fresh 7-day grace window after an unpause.
+        let ext_info = ctx.accounts.protocol_config_ext.to_account_info();
+        crate::instructions::protocol_config_ext::record_unpause(&ext_info, ctx.program_id, Clock::get()?.unix_timestamp)?;
+    }
     let config = &mut ctx.accounts.config;
     config.paused = paused;
 
@@ -87,6 +92,10 @@ pub struct SetProtocolPaused<'info> {
     pub config: Account<'info, ProtocolConfig>,
 
     pub authority: Signer<'info>,
+
+    /// CHECK: parity singleton at a constant-seed PDA; may be uninitialized (then ignored).
+    #[account(mut, seeds = [SEED_PROTOCOL_CONFIG_EXT], bump)]
+    pub protocol_config_ext: UncheckedAccount<'info>,
 }
 
 pub fn update_risk_limits_handler(

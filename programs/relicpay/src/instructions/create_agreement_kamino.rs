@@ -38,6 +38,12 @@ pub fn handler(
     product_id: String,
     merchant_name: String,
 ) -> Result<()> {
+    // Parity (audit C-4): only the pinned USDC mint, once governance has pinned one.
+    crate::instructions::protocol_config_ext::check_accepted_mint(
+        &ctx.accounts.protocol_config_ext.to_account_info(),
+        ctx.program_id,
+        &ctx.accounts.usdc_mint.key(),
+    )?;
     let config_info = ctx.accounts.protocol_config.to_account_info();
     let first_installment = init_agreement(
         &mut ctx.accounts.agreement,
@@ -189,6 +195,10 @@ pub struct CreateAgreementKamino<'info> {
     /// CHECK: see create_agreement.rs (constant-seed PDA, may be uninitialized).
     #[account(mut, seeds = [SEED_PROTOCOL_CONFIG], bump)]
     pub protocol_config: UncheckedAccount<'info>,
+
+    /// CHECK: parity singleton at a constant-seed PDA; may be uninitialized (then ignored).
+    #[account(seeds = [SEED_PROTOCOL_CONFIG_EXT], bump)]
+    pub protocol_config_ext: UncheckedAccount<'info>,
 
     #[account(
         seeds = [SEED_KAMINO_CONFIG],
