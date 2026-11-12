@@ -3,6 +3,7 @@
 #
 # Token setup (one-time, by Walter): create ~/relicpay/.telegram.env containing
 #   TELEGRAM_BOT_TOKEN=123456:ABC-your-bot-token
+#   TELEGRAM_CHAT_ID=<your numeric chat id>
 # (same token the Telegram bridge bot uses, from @BotFather). File is gitignored.
 # Until the token exists, the digest falls back to a macOS notification and the
 # report file below, so nothing is silently lost.
@@ -13,8 +14,8 @@ mkdir -p docs/reports .runtime
 
 TODAY=$(date +%Y-%m-%d)
 REPORT="docs/reports/$TODAY.md"
-CHAT_ID="1427434233"
 [ -f .telegram.env ] && source .telegram.env
+CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 # Assemble the digest with a short headless claude run.
 claude -p "Write Walter's RelicPay evening digest for $TODAY as plain text (no markdown headers), max 400 words. Read docs/progress/$TODAY.md if it exists (say 'No swarm activity today' if not), plus 'git log --oneline --since=yesterday'. Structure: 1) SHIPPED — concrete results with test counts. 2) RESULTS DELTA — what moved toward money/users/deploys. 3) DECISIONS NEEDED — every open NEEDS-WALTER item across the three most recent progress notes, numbered, one line each, so Walter can reply 'do 2' in Telegram. Write ONLY the digest text to stdout, nothing else." \
@@ -27,7 +28,7 @@ if [ ! -s "$REPORT" ]; then
   exit 1
 fi
 
-if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
   # Direct Bot API sendMessage — does not conflict with the bridge's polling.
   curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     --data-urlencode "chat_id=${CHAT_ID}" \

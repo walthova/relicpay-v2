@@ -24,3 +24,28 @@ test-ledger/
 
 # Swarm runtime logs
 .runtime/
+
+# Local agent config and transcripts (never commit)
+.claude/
+*.jsonl
+*session*.jsonl
+AGENTS.local.md
+
+# Keys and env files
+.env*
+!.env.example
+!app/.env.example
+*-keypair.json
+id.json
+*.pem
+*.key
+.telegram.env
+
+# Worktree helpers
+node_modules
+
+# Foundry (evm/)
+evm/out/
+evm/cache/
+evm/broadcast/
+evm/deployments/
