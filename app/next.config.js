@@ -9,6 +9,9 @@ const securityHeaders = [
 
 const nextConfig = {
   poweredByHeader: false,
+  // The merchant page imports ../packages/checkout, so trace files from the
+  // repo root. This also silences Next 15's multiple-lockfile warning.
+  outputFileTracingRoot: path.join(__dirname, ".."),
   experimental: { externalDir: true },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
