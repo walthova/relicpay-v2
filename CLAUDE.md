@@ -10,6 +10,7 @@ Read `RELICPAY_V2.md` first: it is the product source of truth (Agent Buy Now, P
 - Never commit `.env` files or keys.
 - `tests/characterization.ts` is the frozen v1 spec. Do not edit it. Any change that breaks it needs an explicit decision from Walter.
 - New behavior lands with new tests (`tests/v2-features.ts`, `tests/agent-mandate.ts`, or a new file).
+- Run `node scripts/test-guard.js` before every commit. It fails on edits to the frozen spec, deleted tests, removed assertions, `.skip`/`.only`/`#[ignore]`, silenced checkers, and unfinished code. Fix the code, not the tests. Overrides need Walter's agreement and a visible commit trailer (`Frozen-Change-Approved-By:` or `Test-Guard-Override:`). CI runs the same check.
 
 ## Build and test
 

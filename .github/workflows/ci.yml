@@ -9,6 +9,26 @@ permissions:
   contents: read
 
 jobs:
+  test-guard:
+    name: Test guard (no weakened tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/test-guard-test.js
+      - name: Check this push or PR for weakened tests
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="HEAD~1"
+          fi
+          node scripts/test-guard.js --base "$BASE"
+
   program:
     name: Program (fmt + unit tests)
     runs-on: ubuntu-latest

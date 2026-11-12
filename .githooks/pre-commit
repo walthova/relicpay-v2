@@ -1,0 +1,7 @@
+#!/bin/sh
+# Relic Pay pre-commit: block commits that weaken the test suite.
+# Opt-in. Enable once per clone with:  git config core.hooksPath .githooks
+# Disable with:                         git config --unset core.hooksPath
+# Approved exceptions: RELICPAY_FROZEN_APPROVED=1 (frozen spec edit) or
+# RELICPAY_TEST_GUARD_OVERRIDE="<reason>" (anything else). See scripts/test-guard.js.
+exec node "$(git rev-parse --show-toplevel)/scripts/test-guard.js" --quiet
