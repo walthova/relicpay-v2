@@ -1,0 +1,49 @@
+{
+  "name": "relicpay-v2",
+  "version": "2.0.0",
+  "description": "RelicPay v2: RWA BNPL protocol rebuilt from the v1 demo with a characterization test suite",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "compile": "node tools/compile.js legacy build/legacy && node tools/compile.js mocks build/mocks && node tools/compile.js contracts build/v2",
+    "test:legacy": "IMPL=legacy mocha",
+    "test:v2": "IMPL=v2 mocha",
+    "test": "npm run test:legacy && npm run test:v2",
+    "demo": "node tools/demo.js",
+    "gas": "node tools/gas-snapshot.js",
+    "gas:check": "node tools/gas-snapshot.js --check",
+    "abi:export": "node tools/export-abis.js",
+    "abi:check": "node tools/export-abis.js --check",
+    "abi:typecheck": "tsc -p dashboard/tsconfig.json",
+    "extension:manifest": "node tools/build-extension-manifest.js",
+    "extension:check": "node tools/build-extension-manifest.js --check",
+    "extension:bundle": "node tools/bundle-extension.js",
+    "extension:verify": "node tools/bundle-extension.js --check",
+    "invariant": "forge test --no-match-contract Finding",
+    "invariant:finding": "forge test --match-contract Finding",
+    "pilot:check": "node tools/pilot.js check",
+    "pilot:build": "node tools/pilot.js build",
+    "pilot:mint": "node tools/pilot.js mint",
+    "audit:pack": "node tools/audit-pack.js",
+    "audit:check": "node tools/audit-pack.js --check",
+    "monitor:catalog": "node tools/monitor.js catalog",
+    "monitor:check": "node tools/monitor.js check"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2",
+    "ethers": "^6.17.0",
+    "ganache": "^7.9.2",
+    "mocha": "^11.7.6",
+    "solc": "^0.8.26",
+    "viem": "^2.56.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.3"
+  }
+}

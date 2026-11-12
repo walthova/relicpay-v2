@@ -1,0 +1,393 @@
+{
+  "schema": 1,
+  "severities": [
+    "page",
+    "warn",
+    "info"
+  ],
+  "thresholds": {
+    "sellerWithdrawalWei": "50000000000000000000",
+    "priceDeviationBps": "2000"
+  },
+  "contracts": {
+    "RelicPay": [
+      {
+        "event": "AgreementCreated",
+        "signature": "AgreementCreated(bytes32,address,address,uint256,uint256,uint8,tuple)",
+        "severity": "info",
+        "why": "New agreement. Owner-only call, so volume here is the owner acting."
+      },
+      {
+        "event": "AgreementDefaulted",
+        "signature": "AgreementDefaulted(bytes32,address,address,uint256,uint256,uint256)",
+        "severity": "warn",
+        "why": "A seller declared a default. Collateral is being seized."
+      },
+      {
+        "event": "AutoPaymentEnabled",
+        "signature": "AutoPaymentEnabled(address,bool)",
+        "severity": "info",
+        "why": "Buyer toggled auto payment."
+      },
+      {
+        "event": "AutoPaymentTokensDeposited",
+        "signature": "AutoPaymentTokensDeposited(address,address,uint256,uint256)",
+        "severity": "info",
+        "why": "Buyer funded a token auto-payment balance."
+      },
+      {
+        "event": "AutoPaymentTokensWithdrawn",
+        "signature": "AutoPaymentTokensWithdrawn(address,address,uint256,uint256)",
+        "severity": "info",
+        "why": "Buyer withdrew a token auto-payment balance."
+      },
+      {
+        "event": "CollateralDeposited",
+        "signature": "CollateralDeposited(address,uint8,address,uint256,uint256)",
+        "severity": "info",
+        "why": "Collateral deposited."
+      },
+      {
+        "event": "CollateralSeized",
+        "signature": "CollateralSeized(address,address,address,uint256)",
+        "severity": "warn",
+        "why": "Buyer collateral moved to a seller balance by default seizure."
+      },
+      {
+        "event": "CollateralWithdrawn",
+        "signature": "CollateralWithdrawn(address,bytes32,address,uint256,uint256)",
+        "severity": "info",
+        "why": "Collateral withdrawn within the withdrawable floor."
+      },
+      {
+        "event": "CreditLineUpdated",
+        "signature": "CreditLineUpdated(address,uint256,uint256,uint256)",
+        "severity": "info",
+        "why": "Credit line recomputed."
+      },
+      {
+        "event": "GovernanceUpdated",
+        "signature": "GovernanceUpdated(uint256,uint256,uint256)",
+        "severity": "warn",
+        "why": "Credit limit ratio, default grace or minimum collateral changed."
+      },
+      {
+        "event": "GovernorUpdated",
+        "signature": "GovernorUpdated(address,address)",
+        "severity": "page",
+        "why": "The governor role moved. The governor can call every onlyGovernance setter."
+      },
+      {
+        "event": "MaxAgreementDurationUpdated",
+        "signature": "MaxAgreementDurationUpdated(uint256,uint256)",
+        "severity": "warn",
+        "why": "Maximum agreement duration changed. Applies to new agreements only."
+      },
+      {
+        "event": "OwnershipTransferred",
+        "signature": "OwnershipTransferred(address,address)",
+        "severity": "page",
+        "why": "Contract ownership moved. The owner controls the privileged setters."
+      },
+      {
+        "event": "OwnershipTransferred",
+        "signature": "OwnershipTransferred(bytes32,address,address,uint256)",
+        "severity": "info",
+        "why": "Relic ownership transferred to the buyer on final payment."
+      },
+      {
+        "event": "PaymentProcessed",
+        "signature": "PaymentProcessed(bytes32,uint256,uint256,uint8,bool)",
+        "severity": "info",
+        "why": "Installment paid."
+      },
+      {
+        "event": "PaymentScheduled",
+        "signature": "PaymentScheduled(bytes32,uint256,uint256,uint256)",
+        "severity": "info",
+        "why": "Installment scheduled."
+      },
+      {
+        "event": "PriceOracleUpdated",
+        "signature": "PriceOracleUpdated(address,address)",
+        "severity": "page",
+        "why": "The oracle that values collateral was swapped. A bad oracle misprices every ERC20 position."
+      },
+      {
+        "event": "SellerBalanceUpdated",
+        "signature": "SellerBalanceUpdated(address,uint256,uint256)",
+        "severity": "info",
+        "why": "Seller balance changed."
+      },
+      {
+        "event": "SellerWithdrawal",
+        "signature": "SellerWithdrawal(address,uint256,bool)",
+        "severity": "info",
+        "why": "Seller withdrew settlement funds. Large withdrawals are escalated by the size rule."
+      },
+      {
+        "event": "SettlementCredited",
+        "signature": "SettlementCredited(bytes32,address,address,uint256)",
+        "severity": "info",
+        "why": "A payment was credited to a seller in the settlement token."
+      },
+      {
+        "event": "SettlementPreferenceUpdated",
+        "signature": "SettlementPreferenceUpdated(address,address)",
+        "severity": "info",
+        "why": "A seller chose a settlement token."
+      },
+      {
+        "event": "SettlementTokenAuthorized",
+        "signature": "SettlementTokenAuthorized(address,bool)",
+        "severity": "warn",
+        "why": "A settlement stablecoin was authorized or revoked."
+      },
+      {
+        "event": "YieldAccrued",
+        "signature": "YieldAccrued(address,uint256,uint256)",
+        "severity": "info",
+        "why": "Simulated yield bookkeeping. Backed by no asset (ADR-010)."
+      }
+    ],
+    "RelicPayGovernance": [
+      {
+        "event": "ActionAllowanceUpdated",
+        "signature": "ActionAllowanceUpdated(address,bytes4,bool)",
+        "severity": "page",
+        "why": "The target and selector allowlist changed. It bounds what governance can call."
+      },
+      {
+        "event": "OwnershipTransferred",
+        "signature": "OwnershipTransferred(address,address)",
+        "severity": "page",
+        "why": "Contract ownership moved. The owner controls the privileged setters."
+      },
+      {
+        "event": "ParameterUpdated",
+        "signature": "ParameterUpdated(uint8,address,bytes)",
+        "severity": "warn",
+        "why": "A governed parameter took a new value."
+      },
+      {
+        "event": "ProposalCanceled",
+        "signature": "ProposalCanceled(uint256)",
+        "severity": "warn",
+        "why": "A proposal was canceled during or before the delay."
+      },
+      {
+        "event": "ProposalCreated",
+        "signature": "ProposalCreated(uint256,address,string,uint256,uint256)",
+        "severity": "info",
+        "why": "New governance proposal."
+      },
+      {
+        "event": "ProposalExecuted",
+        "signature": "ProposalExecuted(uint256)",
+        "severity": "page",
+        "why": "A governed parameter change was executed against a live target."
+      },
+      {
+        "event": "ProposalQueued",
+        "signature": "ProposalQueued(uint256,uint256,uint256)",
+        "severity": "warn",
+        "why": "A proposal entered the timelock. This is the window to cancel it."
+      },
+      {
+        "event": "TimelockParametersUpdated",
+        "signature": "TimelockParametersUpdated(uint256,uint256)",
+        "severity": "page",
+        "why": "Execution delay or grace period changed. Shortening the delay removes the cancel window."
+      },
+      {
+        "event": "VoteCast",
+        "signature": "VoteCast(address,uint256,bool,uint256)",
+        "severity": "info",
+        "why": "Vote cast."
+      }
+    ],
+    "Governable": [],
+    "RelicRegistry": [
+      {
+        "event": "Approval",
+        "signature": "Approval(address,address,uint256)",
+        "severity": "info",
+        "why": "Relic approval set."
+      },
+      {
+        "event": "ApprovalForAll",
+        "signature": "ApprovalForAll(address,address,bool)",
+        "severity": "info",
+        "why": "Operator approval set on the registry."
+      },
+      {
+        "event": "BatchMetadataUpdate",
+        "signature": "BatchMetadataUpdate(uint256,uint256)",
+        "severity": "warn",
+        "why": "A range of relic metadata URIs changed."
+      },
+      {
+        "event": "IssuerSet",
+        "signature": "IssuerSet(address,bool)",
+        "severity": "warn",
+        "why": "An issuer was added or removed. Issuers can mint relics."
+      },
+      {
+        "event": "MetadataUpdate",
+        "signature": "MetadataUpdate(uint256)",
+        "severity": "info",
+        "why": "Relic metadata URI set. Also emitted at mint, so it is not an alert on its own."
+      },
+      {
+        "event": "OwnershipTransferred",
+        "signature": "OwnershipTransferred(address,address)",
+        "severity": "page",
+        "why": "Contract ownership moved. The owner controls the privileged setters."
+      },
+      {
+        "event": "RelicMinted",
+        "signature": "RelicMinted(uint256,address,address,string,string)",
+        "severity": "info",
+        "why": "Relic minted."
+      },
+      {
+        "event": "Transfer",
+        "signature": "Transfer(address,address,uint256)",
+        "severity": "info",
+        "why": "Relic NFT moved (mint, custody into RelicPay, or transfer to a buyer)."
+      }
+    ],
+    "PriceOracle": [
+      {
+        "event": "AssetAdded",
+        "signature": "AssetAdded(address,string,uint8)",
+        "severity": "warn",
+        "why": "A priced asset was added."
+      },
+      {
+        "event": "AssetRemoved",
+        "signature": "AssetRemoved(address)",
+        "severity": "page",
+        "why": "A priced asset was removed. Positions in it can no longer be valued."
+      },
+      {
+        "event": "GovernorUpdated",
+        "signature": "GovernorUpdated(address,address)",
+        "severity": "page",
+        "why": "The governor role moved. The governor can call every onlyGovernance setter."
+      },
+      {
+        "event": "MaxPriceAgeUpdated",
+        "signature": "MaxPriceAgeUpdated(address,uint256)",
+        "severity": "warn",
+        "why": "Staleness window changed. A long window hides a dead keeper."
+      },
+      {
+        "event": "OracleAuthorized",
+        "signature": "OracleAuthorized(address)",
+        "severity": "page",
+        "why": "A new address may push prices."
+      },
+      {
+        "event": "OracleDeauthorized",
+        "signature": "OracleDeauthorized(address)",
+        "severity": "warn",
+        "why": "A price pusher was removed. If it was the keeper, prices will go stale."
+      },
+      {
+        "event": "OwnershipTransferred",
+        "signature": "OwnershipTransferred(address,address)",
+        "severity": "page",
+        "why": "Contract ownership moved. The owner controls the privileged setters."
+      },
+      {
+        "event": "PriceUpdated",
+        "signature": "PriceUpdated(address,uint256,uint256,uint256)",
+        "severity": "info",
+        "why": "Price pushed. Large moves are escalated by the deviation rule."
+      }
+    ],
+    "ChainlinkPriceAdapter": [
+      {
+        "event": "FeedRegistered",
+        "signature": "FeedRegistered(address,address,uint8,uint32,uint8)",
+        "severity": "page",
+        "why": "A Chainlink feed was pointed at an asset. A wrong feed misprices it."
+      },
+      {
+        "event": "FeedRemoved",
+        "signature": "FeedRemoved(address,address)",
+        "severity": "warn",
+        "why": "A feed was removed. That asset stops updating."
+      },
+      {
+        "event": "OwnershipTransferred",
+        "signature": "OwnershipTransferred(address,address)",
+        "severity": "page",
+        "why": "Contract ownership moved. The owner controls the privileged setters."
+      },
+      {
+        "event": "PricePushed",
+        "signature": "PricePushed(address,uint256,uint256,uint80)",
+        "severity": "info",
+        "why": "Keeper pushed a feed price."
+      },
+      {
+        "event": "PushSkipped",
+        "signature": "PushSkipped(address,string)",
+        "severity": "warn",
+        "why": "The adapter refused to push (stale, bad round or out of range). Repeats mean the feed is unhealthy."
+      },
+      {
+        "event": "SequencerFeedSet",
+        "signature": "SequencerFeedSet(address,uint32)",
+        "severity": "page",
+        "why": "The L2 sequencer uptime feed or grace period changed. Disabling it removes the protection against stale post-restart prices."
+      }
+    ],
+    "DeFiIntegration": [
+      {
+        "event": "GovernorUpdated",
+        "signature": "GovernorUpdated(address,address)",
+        "severity": "page",
+        "why": "The governor role moved. The governor can call every onlyGovernance setter."
+      },
+      {
+        "event": "OwnershipTransferred",
+        "signature": "OwnershipTransferred(address,address)",
+        "severity": "page",
+        "why": "Contract ownership moved. The owner controls the privileged setters."
+      },
+      {
+        "event": "ProtocolAuthorized",
+        "signature": "ProtocolAuthorized(address,uint256)",
+        "severity": "warn",
+        "why": "An external protocol was authorized or its APY changed."
+      },
+      {
+        "event": "ProtocolDeauthorized",
+        "signature": "ProtocolDeauthorized(address)",
+        "severity": "warn",
+        "why": "An external protocol was removed."
+      },
+      {
+        "event": "YieldClaimed",
+        "signature": "YieldClaimed(address,uint256)",
+        "severity": "info",
+        "why": "Yield claimed."
+      },
+      {
+        "event": "YieldPositionClosed",
+        "signature": "YieldPositionClosed(address,address,uint256,uint256)",
+        "severity": "info",
+        "why": "Yield position closed."
+      },
+      {
+        "event": "YieldPositionCreated",
+        "signature": "YieldPositionCreated(address,address,address,uint256,uint256)",
+        "severity": "info",
+        "why": "Yield position opened."
+      }
+    ]
+  }
+}

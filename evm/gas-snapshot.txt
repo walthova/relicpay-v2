@@ -1,0 +1,93 @@
+# RelicPay v2 Gas Snapshot
+Generated: 2026-10-25T16:18:23.340Z
+Compiler: solc 0.8.26 (paris evm target), optimizer runs=200, viaIR=true
+Harness: ganache (shanghai hardfork), deterministic accounts, block gas limit 30,000,000
+
+## Deployment
+RelicRegistry                                            1,387,958
+Bnpl                                                     1,125,570
+EnhancedBnpl                                             2,102,960
+RelicPay                                                 5,398,470
+DeFiIntegration                                          1,509,577
+PriceOracle                                              2,249,117
+RelicPayGovernance                                       2,184,390
+ChainlinkPriceAdapter                                    1,811,651
+
+## RelicRegistry
+setIssuer                                                   47,776
+mintRelic                                                  172,752
+
+## Bnpl
+createAgreement                                            163,760
+depositCollateral                                           56,758
+payInstallment (1st)                                        60,798
+approveDiscount                                             49,919
+earlyPayoff                                                 48,386
+withdrawFunds                                               35,924
+withdrawCollateral                                          38,180
+createAgreement (for default)                              163,760
+triggerDefault                                              38,484
+
+## EnhancedBnpl
+depositETHCollateral (new position)                        217,069
+createAgreementWithCredit                                  236,046
+payInstallment (1st, manual)                                83,806
+payInstallment (final, manual)                              79,725
+withdrawSellerBalance                                       32,994
+withdrawCollateral                                          70,442
+
+## RelicPay
+depositETHCollateral (new position)                        263,289
+authorizeNFT                                                47,482
+createAgreementWithRWA                                     623,232
+processPayment (1st, manual)                               155,596
+processPayment (2nd, manual)                               121,396
+processPayment (final, manual + NFT transfer)              205,706
+withdrawSellerBalance                                       33,896
+createAgreementWithRWA (for default)                       529,942
+triggerDefault                                             223,931
+authorizeSettlementToken                                    48,645
+setSettlementPreference                                     47,848
+createAgreementWithRWA (stablecoin settled)                706,735
+processPayment (1st, stablecoin)                           196,422
+processPayment (2nd, stablecoin)                           145,122
+withdrawSellerTokenBalance                                  55,863
+authorizeToken (stablecoin as collateral)                   47,020
+depositAutoPaymentTokens                                    88,785
+depositERC20Collateral (stablecoin)                        214,536
+createAgreementWithRWA (stablecoin, auto+collateral)       702,822
+processPayment (stablecoin, auto pool)                     163,528
+processPayment (stablecoin, collateral draw)               187,885
+withdrawAutoPaymentTokens                                   43,116
+createAgreementWithRWA (stablecoin, for default)           550,404
+triggerDefault (stablecoin settled)                        240,642
+
+## RelicPayGovernance
+propose                                                    197,175
+vote                                                       105,356
+queue                                                       66,372
+execute                                                     46,275
+setParameterAllowed                                         48,596
+execute (1 parameter update)                                72,908
+
+## DeFiIntegration
+stakeWithLido                                              141,803
+closeYieldPosition                                          63,578
+setProtocolAuthorized (authorize)                           70,041
+updateProtocolAPY                                           33,155
+
+## PriceOracle
+updatePrice                                                 46,215
+batchUpdatePrices (2 assets)                                65,862
+setOracleAuthorized (authorize)                             47,741
+updateMaxPriceAge                                           32,491
+authorizeOracle (adapter)                                   47,163
+
+## ChainlinkPriceAdapter
+setFeed (first)                                             85,972
+setFeed (second)                                            88,784
+pushPrice                                                   65,974
+pushPrices (2 assets, strict)                              104,737
+pushAll (2 assets)                                         109,896
+removeFeed                                                  35,988
+

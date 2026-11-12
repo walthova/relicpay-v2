@@ -1,0 +1,33 @@
+{
+  "name": "RelicPay",
+  "version": "2.0.0",
+  "sellerOrigins": [
+    "https://position.gallery"
+  ],
+  "rpcOrigins": [
+    "https://ethereum-sepolia-rpc.publicnode.com"
+  ],
+  "operatorOrigins": [
+    "https://operator.position.gallery"
+  ],
+  "walletOrigins": [
+    "https://relay.walletconnect.org"
+  ],
+  "deployment": {
+    "chainId": 11155111,
+    "relicPay": "0x0000000000000000000000000000000000000000",
+    "operatorEndpoint": "https://operator.position.gallery/requests",
+    "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+    "unit": {
+      "symbol": "RPC",
+      "decimals": 18
+    },
+    "terms": {
+      "installmentCount": 3,
+      "dueIntervalSeconds": 2592000,
+      "gracePeriodSeconds": 259200
+    },
+    "requestTtlSeconds": 900,
+    "rates": {}
+  }
+}

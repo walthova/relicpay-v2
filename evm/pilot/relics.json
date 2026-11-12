@@ -1,0 +1,28 @@
+{
+  "collection": "IBG Optic Relics",
+  "issuerNote": "Pilot draft. Names, ids and media are placeholders until IBG confirms the first three pieces.",
+  "baseURI": "",
+  "relics": [
+    {
+      "physicalId": "IBG-OPTIC-0001",
+      "name": "Optic Relic 0001, Triangle",
+      "description": "First pilot piece of the IBG Optic Relics collection. Physical garment-and-lens relic, tokenized with issuer attestation.",
+      "motif": "triangle",
+      "image": "media/0001.jpg"
+    },
+    {
+      "physicalId": "IBG-OPTIC-0002",
+      "name": "Optic Relic 0002, Circle",
+      "description": "Second pilot piece of the IBG Optic Relics collection. Physical garment-and-lens relic, tokenized with issuer attestation.",
+      "motif": "circle",
+      "image": "media/0002.jpg"
+    },
+    {
+      "physicalId": "IBG-OPTIC-0003",
+      "name": "Optic Relic 0003, Square",
+      "description": "Third pilot piece of the IBG Optic Relics collection. Physical garment-and-lens relic, tokenized with issuer attestation.",
+      "motif": "square",
+      "image": "media/0003.jpg"
+    }
+  ]
+}

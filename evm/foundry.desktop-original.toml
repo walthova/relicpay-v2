@@ -1,0 +1,44 @@
+# RelicPay v2 - Foundry configuration for Sepolia and Base Sepolia deploy scripts.
+# The mocha/solc-js/ganache suite (npm test) is the source of truth for contract
+# correctness and runs fully offline. Foundry here is only for `forge script`
+# deploys against Sepolia, run locally where a wallet and RPC key are available.
+
+[profile.default]
+src = "contracts"        # v2 contracts (legacy/ is the frozen spec, never deployed)
+out = "out"
+libs = ["lib", "node_modules"]
+solc = "0.8.20"
+# Deploy scripts write deployments/<network>.txt (and DeployChainlinkAdapter appends to it).
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+verbosity = 2
+
+remappings = [
+    "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+
+# One-time setup before running any script:
+#   forge install foundry-rs/forge-std --no-commit
+#   npm install   (provides @openzeppelin/contracts for the remapping above)
+
+[rpc_endpoints]
+sepolia = "https://sepolia.infura.io/v3/${INFURA_API_KEY}"
+alchemy_sepolia = "https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+base_sepolia = "https://sepolia.base.org"                      # public, rate limited; use a provider URL for the pilot
+alchemy_base_sepolia = "https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+
+[etherscan]
+sepolia = { key = "${ETHERSCAN_API_KEY}" }
+# Unverified offline: confirm the verifier URL and whether Basescan accepts its own key or the
+# Etherscan v2 key before the first --verify run (ADR-011 gate list).
+base-sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532, url = "https://api-sepolia.basescan.org/api" }
+
+# Invariant suite (test/foundry). `npm run invariant` -> forge test. Mocha stays the source of truth
+# for scenarios; this profile fuzzes sequences. Tests live outside `src` and `test` is forge's default.
+[invariant]
+runs = 64
+depth = 40
+fail_on_revert = false

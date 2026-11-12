@@ -1,0 +1,145 @@
+:root {
+  --bg: #0d0d10;
+  --panel: #16161b;
+  --line: #2a2a33;
+  --text: #e8e8ec;
+  --muted: #8b8b98;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --accent: #c8b273;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+main { max-width: 1040px; margin: 0 auto; padding: 24px 20px 80px; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code, .address, .amount { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.top {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+}
+.top-left, .top-right { display: flex; align-items: center; gap: 12px; }
+.brand { font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.top nav { display: flex; gap: 10px; align-items: center; }
+.role-current { text-transform: capitalize; color: var(--muted); }
+.as-of { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 13px; }
+
+.button {
+  display: inline-block; padding: 7px 14px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); cursor: pointer; font: inherit;
+}
+.button:hover { border-color: var(--accent); }
+.button:disabled { opacity: 0.5; cursor: default; }
+.link-button {
+  background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font: inherit;
+}
+
+.wallet { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wallet-address { color: var(--muted); }
+.wallet-error { color: var(--danger); font-size: 13px; }
+
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.card-header { display: flex; justify-content: space-between; align-items: baseline; }
+.card h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 0; }
+.stat dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat dd { margin: 2px 0 0; font-size: 17px; }
+.stat .hint { margin: 4px 0 0; font-size: 12px; color: var(--warn); }
+
+dl.inline { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 12px 0; }
+dl.inline dt { color: var(--muted); }
+dl.inline dd { margin: 0; }
+
+.unit { color: var(--muted); font-size: 0.85em; }
+.amount-unknown { color: var(--warn); }
+.muted { color: var(--muted); }
+.totals { list-style: none; padding: 0; margin: 0 0 12px; }
+
+.section { margin: 32px 0 12px; font-size: 16px; }
+
+.agreement {
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--line);
+  border-radius: 10px; padding: 16px; margin-bottom: 14px;
+}
+.agreement-ok { border-left-color: var(--ok); }
+.agreement-warn { border-left-color: var(--warn); }
+.agreement-danger { border-left-color: var(--danger); }
+.agreement header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.agreement h3 { margin: 0; font-size: 16px; }
+.agreement header p { margin: 2px 0 0; font-size: 13px; }
+
+.tone { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.tone-ok { color: var(--ok); }
+.tone-warn { color: var(--warn); }
+.tone-danger { color: var(--danger); }
+.tone-neutral { color: var(--muted); }
+
+.warn-line { color: var(--warn); }
+.danger-line { color: var(--danger); }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+tr.row-overdue td { background: rgba(251, 191, 36, 0.06); }
+
+.settlement { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.settlement h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+
+.notice { border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 20px 0; background: var(--panel); }
+.notice h2 { margin: 0 0 8px; font-size: 15px; }
+.notice-warn { border-color: var(--warn); }
+.notice-danger { border-color: var(--danger); }
+
+.home { max-width: 640px; }
+.home h1 { letter-spacing: 0.04em; }
+.lede { color: var(--muted); }
+.home-actions { display: flex; gap: 12px; margin: 24px 0; }
+.home-form { display: flex; flex-direction: column; gap: 8px; margin-top: 32px; max-width: 420px; }
+.home-form label { color: var(--muted); font-size: 13px; }
+.home-form input {
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-family: ui-monospace, monospace;
+}
+
+/* Write controls (part c2). Disabled is styled to stay readable rather than to disappear: the
+   reason next to a dead button is usually the information the person actually needed. */
+.actions { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.action + .action { margin-top: 14px; }
+
+.fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input[type="text"], .field select {
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-family: ui-monospace, monospace; font-size: 13px;
+}
+.field-boolean { flex-direction: row; align-items: center; gap: 6px; }
+.field-unit { font-size: 11px; color: var(--muted); }
+
+.control-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.control-reason { font-size: 13px; color: var(--warn); }
+.control-disabled .button { opacity: 0.55; cursor: not-allowed; }
+
+.notes { margin: 6px 0 0; padding-left: 18px; font-size: 12px; }
+
+.steps { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.step-index { font-family: ui-monospace, monospace; color: var(--muted); margin-right: 6px; }
+.step-active { color: var(--text); }
+.step-done .step-label { text-decoration: line-through; color: var(--muted); }
+
+.ok-line { color: var(--ok); }
+.pinned-note { font-size: 12px; color: var(--warn); margin: 4px 0 0; }

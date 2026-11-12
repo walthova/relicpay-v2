@@ -1,0 +1,25 @@
+{
+  "name": "relicpay-dashboard",
+  "version": "2.0.0",
+  "private": true,
+  "description": "RelicPay v2 buyer and seller dashboard. Server-rendered reads through ../lib, wagmi for wallet identity only (docs/ADR-001-dashboard-reads.md).",
+  "comment": "Deliberately a separate manifest from the repo root. The root install is what the solc + ganache characterization suite runs on; it stays small and offline-installable. next, react and wagmi are several hundred packages the test toolchain has no use for.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
+    "viem": "^2.56.5",
+    "wagmi": "^2.14.0"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}

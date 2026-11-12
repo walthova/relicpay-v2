@@ -1,0 +1,17 @@
+{
+  "//": "Type-check config for the dashboard data layer. Part b's Next.js app will extend this rather than replace it, so the app and the lib cannot end up on different strictness settings.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": false,
+    "types": []
+  },
+  "include": ["lib/**/*.ts"]
+}

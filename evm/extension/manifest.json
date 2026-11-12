@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "RelicPay",
+  "version": "2.0.0",
+  "description": "Quote and request installment financing for tokenized relics on a seller storefront.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://position.gallery/*",
+    "https://ethereum-sepolia-rpc.publicnode.com/*",
+    "https://operator.position.gallery/*",
+    "https://relay.walletconnect.org/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://position.gallery/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "RelicPay"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
