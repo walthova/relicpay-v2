@@ -5,7 +5,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
-import { createMint, createAccount, mintTo, getAccount } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, createMint, createAccount, mintTo, getAccount, getOrCreateAssociatedTokenAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { assert } from "chai";
 import * as fs from "fs";
 import * as path from "path";
@@ -23,6 +23,8 @@ import {
   toDashboardView,
   AGREEMENT_MERCHANT_OFFSET,
   buildCheckout,
+  buildMerchantWithdraw,
+  buildTriggerDefault,
   buildCreateAgreementKamino,
   kaminoConfigAddress,
   protocolConfigAddress,
@@ -287,6 +289,129 @@ describe("@relicpay/checkout SDK", () => {
       assert.equal(d.rows.length, 0);
       assert.equal(filters[0].memcmp.offset, 40);
       assert.equal(filters[0].memcmp.bytes, m.toBase58());
+    });
+  });
+
+  describe("merchant action builders", () => {
+    const pk = () => Keypair.generate().publicKey;
+    const fake = (acct: any) => {
+      const calls: any = {};
+      const chain = (name: string) => () => ({
+        accounts: (a: any) => { calls.name = name; calls.accounts = a; return { instruction: async () => ({ name }) }; },
+      });
+      return {
+        calls,
+        programId: pk(),
+        account: { bnplAgreement: { fetchNullable: async () => acct } },
+        methods: { merchantWithdraw: chain("merchantWithdraw"), triggerDefault: chain("triggerDefault") },
+      };
+    };
+    const acct = (over: any = {}) => ({
+      state: { active: {} }, paidInstallments: 1, installmentCount: 3, intervalSeconds: 100, startTime: 1000,
+      totalPrice: 90, installmentAmount: 30, yieldSource: 0, yieldAccrued: 0, merchantWithdrawn: false,
+      merchant: pk(), buyer: pk(), usdcMint: pk(), ...over,
+    });
+    const G = GRACE_PERIOD_SECONDS;
+
+    it("builds merchant_withdraw against the recorded merchant and its associated USDC account", async () => {
+      const a = acct({ state: { completed: {} }, paidInstallments: 3 });
+      const prog = fake(a);
+      const agreement = pk();
+      const built = await buildMerchantWithdraw({ program: prog, agreement, nowUnix: 5000 });
+      assert.equal(prog.calls.name, "merchantWithdraw");
+      assert.isTrue(prog.calls.accounts.merchant.equals(a.merchant));
+      assert.isTrue(prog.calls.accounts.escrowUsdc.equals(escrowAddress(prog.programId, agreement)));
+      assert.isTrue(prog.calls.accounts.merchantUsdc.equals(getAssociatedTokenAddressSync(a.usdcMint, a.merchant)));
+      assert.isTrue(prog.calls.accounts.protocolConfig.equals(protocolConfigAddress(prog.programId)));
+      assert.isTrue(built.merchantUsdc.equals(prog.calls.accounts.merchantUsdc));
+      const custom = pk();
+      await buildMerchantWithdraw({ program: prog, agreement, merchantUsdc: custom });
+      assert.isTrue(prog.calls.accounts.merchantUsdc.equals(custom));
+    });
+
+    it("refuses to build withdraw when nothing is payable, already withdrawn, missing, or kamino-sourced", async () => {
+      const cases: [any, RegExp][] = [
+        [acct(), /nothing to withdraw/],
+        [acct({ state: { completed: {} }, paidInstallments: 3, merchantWithdrawn: true }), /nothing to withdraw/],
+        [acct({ state: { completed: {} }, paidInstallments: 3, yieldSource: 1 }), /kamino/],
+        [null, /not found/],
+      ];
+      for (const [a, re] of cases) {
+        const prog = fake(a);
+        let err: any;
+        try { await buildMerchantWithdraw({ program: prog, agreement: pk() }); } catch (e) { err = e; }
+        assert.match(String(err), re);
+        assert.isUndefined(prog.calls.name);
+      }
+    });
+
+    it("builds trigger_default only after the grace window, paying the recorded merchant", async () => {
+      const a = acct(); // next due = 1000 + 2*100 = 1200
+      const prog = fake(a);
+      const agreement = pk();
+      const caller = pk();
+      let err: any;
+      try { await buildTriggerDefault({ program: prog, agreement, caller, nowUnix: 1200 + G }); } catch (e) { err = e; }
+      assert.match(String(err), /not defaultable/);
+      assert.isUndefined(prog.calls.name);
+      await buildTriggerDefault({ program: prog, agreement, caller, nowUnix: 1200 + G + 1 });
+      assert.equal(prog.calls.name, "triggerDefault");
+      assert.isTrue(prog.calls.accounts.caller.equals(caller));
+      assert.isTrue(prog.calls.accounts.merchantUsdc.equals(getAssociatedTokenAddressSync(a.usdcMint, a.merchant)));
+      err = undefined;
+      try { await buildTriggerDefault({ program: fake(acct({ state: { defaulted: {} } })), agreement, caller, nowUnix: 1e9 }); } catch (e) { err = e; }
+      assert.match(String(err), /not defaultable/);
+    });
+
+    it("withdraws a completed agreement on localnet with the SDK-built instruction", async () => {
+      const provider = anchor.AnchorProvider.env();
+      anchor.setProvider(provider);
+      const program = anchor.workspace.Relicpay as Program<any>;
+      const conf = { commitment: "confirmed" as const, preflightCommitment: "confirmed" as const };
+      const buyer = Keypair.generate();
+      const merchant = Keypair.generate();
+      for (const k of [buyer, merchant]) {
+        const latest = await provider.connection.getLatestBlockhash();
+        const sig = await provider.connection.requestAirdrop(k.publicKey, 5 * LAMPORTS_PER_SOL);
+        await provider.connection.confirmTransaction({ signature: sig, ...latest }, "confirmed");
+      }
+      const mint = await createMint(provider.connection, buyer, buyer.publicKey, null, 6, undefined, conf);
+      const buyerUsdc = await createAccount(provider.connection, buyer, mint, buyer.publicKey, undefined, conf);
+      await mintTo(provider.connection, buyer, mint, buyerUsdc, buyer, 500_000_000, [], conf);
+      const merchantAta = (await getOrCreateAssociatedTokenAccount(provider.connection, buyer, mint, merchant.publicKey, false, "confirmed", conf)).address;
+
+      const r = { totalPrice: 100_000_000n, installmentCount: 2, intervalSeconds: 1, productId: "sdk-withdraw-1", merchantName: "IBG Collection" };
+      const built = await buildCreateAgreement({ program, request: r, buyer: buyer.publicKey, merchant: merchant.publicKey, usdcMint: mint, buyerUsdc });
+      await provider.sendAndConfirm(new Transaction().add(built.instruction), [buyer], conf);
+
+      // Not completed yet: builder refuses.
+      let err: any;
+      try { await buildMerchantWithdraw({ program, agreement: built.agreement }); } catch (e) { err = e; }
+      assert.match(String(err), /nothing to withdraw/);
+
+      // Installment 2 is due at start + 2s; the local clock lags wall time, so retry on PaymentNotDue.
+      await new Promise((res) => setTimeout(res, 5000));
+      let paid = false;
+      for (let i = 0; i < 6 && !paid; i++) {
+        try {
+          await program.methods.payInstallment().accounts({ agreement: built.agreement, buyer: buyer.publicKey, buyerUsdc, escrowUsdc: built.escrow, tokenProgram: TOKEN_PROGRAM_ID }).signers([buyer]).rpc(conf);
+          paid = true;
+        } catch (e: any) {
+          if (!String(e.message).includes("PaymentNotDue")) throw e;
+          await new Promise((res) => setTimeout(res, 2000));
+        }
+      }
+      assert.isTrue(paid, "pay_installment never became due");
+
+      const w = await buildMerchantWithdraw({ program, agreement: built.agreement });
+      assert.isTrue(w.merchantUsdc.equals(merchantAta));
+      await provider.sendAndConfirm(new Transaction().add(w.instruction), [merchant], conf);
+      assert.equal((await getAccount(provider.connection, merchantAta)).amount, r.totalPrice);
+
+      // Now withdrawn: the builder refuses a second time.
+      err = undefined;
+      try { await buildMerchantWithdraw({ program, agreement: built.agreement }); } catch (e) { err = e; }
+      assert.match(String(err), /nothing to withdraw/);
     });
   });
 

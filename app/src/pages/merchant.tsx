@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { clusterApiUrl } from "@solana/web3.js";
 import {
   getMerchantDashboard,
+  buildMerchantWithdraw,
+  buildTriggerDefault,
   toDashboardView,
   MerchantDashboardView,
 } from "../../../packages/checkout/src";
@@ -51,6 +53,8 @@ function MerchantDashboard() {
   const [view, setView] = useState<MerchantDashboardView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!wallet.publicKey) return;
@@ -72,6 +76,32 @@ function MerchantDashboard() {
     load();
   }, [load]);
 
+  const runAction = useCallback(
+    async (address: string, action: "withdraw" | "default") => {
+      if (!wallet.publicKey) return;
+      setBusy(address);
+      setError(null);
+      setNotice(null);
+      try {
+        const provider = new AnchorProvider(connection, wallet as any, { commitment: "confirmed" });
+        const program = new Program(idl as any, provider);
+        const agreement = new PublicKey(address);
+        const built =
+          action === "withdraw"
+            ? await buildMerchantWithdraw({ program, agreement })
+            : await buildTriggerDefault({ program, agreement, caller: wallet.publicKey });
+        const sig = await provider.sendAndConfirm(new Transaction().add(built.instruction), [], { commitment: "confirmed" });
+        setNotice(`${ACTION_COPY[action]} confirmed: ${sig.slice(0, 8)}...`);
+        await load();
+      } catch (e: any) {
+        setError(e?.message ?? "Transaction failed");
+      } finally {
+        setBusy(null);
+      }
+    },
+    [connection, wallet, load]
+  );
+
   return (
     <main style={{ maxWidth: 960, margin: "0 auto", padding: "2rem 1rem", fontFamily: "system-ui, sans-serif" }}>
       <p style={{ textTransform: "uppercase", letterSpacing: 1, fontSize: 12, opacity: 0.7 }}>Relic Pay / Merchant</p>
@@ -81,6 +111,7 @@ function MerchantDashboard() {
 
       {!wallet.publicKey && <p style={{ marginTop: 24 }}>Wallet not connected.</p>}
       {loading && <p style={{ marginTop: 24 }}>Loading agreements...</p>}
+      {notice && <p role="status" style={{ marginTop: 24, color: "#16a34a" }}>{notice}</p>}
       {error && <p role="alert" style={{ marginTop: 24, color: "#dc2626" }}>{error}</p>}
 
       {view && (
@@ -118,7 +149,16 @@ function MerchantDashboard() {
                     <td>{r.progress}</td>
                     <td>{r.owed}</td>
                     <td>{r.nextDueAt ? new Date(r.nextDueAt * 1000).toLocaleDateString() : "none"}</td>
-                    <td>{r.action !== "none" ? <em title="Transaction actions land in the next increment">{ACTION_COPY[r.action]} (soon)</em> : null}</td>
+                    <td>
+                      {r.action !== "none" ? (
+                        <button
+                          disabled={busy !== null}
+                          onClick={() => runAction(r.address, r.action as "withdraw" | "default")}
+                        >
+                          {busy === r.address ? "Sending..." : ACTION_COPY[r.action]}
+                        </button>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

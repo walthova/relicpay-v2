@@ -6,7 +6,7 @@
 // programs/relicpay/src/constants.rs (a test pins them).
 
 import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, TransactionInstruction } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 export const MIN_INSTALLMENTS = 2;
 export const MAX_INSTALLMENTS = 12;
@@ -295,6 +295,75 @@ export async function getMerchantDashboard(
   ]);
   const rows = toMerchantRows(accounts, nowUnix);
   return { rows, summary: summarizeMerchant(rows) };
+}
+
+// ---------------------------------------------------------------------------
+// Merchant action builders (v2.2): unsigned instructions for the dashboard
+// ---------------------------------------------------------------------------
+
+export interface BuildMerchantActionParams {
+  /** An Anchor Program loaded with the Relic Pay IDL. */
+  program: any;
+  agreement: PublicKey;
+  /** Merchant token account for the payout. Defaults to the merchant's associated USDC account. */
+  merchantUsdc?: PublicKey;
+  nowUnix?: number;
+}
+
+export interface BuiltMerchantAction {
+  instruction: TransactionInstruction;
+  agreement: PublicKey;
+  merchantUsdc: PublicKey;
+}
+
+async function loadForMerchantAction(p: BuildMerchantActionParams) {
+  const acct = await p.program.account.bnplAgreement.fetchNullable(p.agreement);
+  if (!acct) throw new Error("agreement not found");
+  const status = deriveStatus(acct, p.nowUnix ?? Math.floor(Date.now() / 1000));
+  if (status.yieldSource === "kamino") {
+    // Kamino agreements may hold collateral outside the escrow; the plain instructions would under-pay. Use the reconciled instructions.
+    throw new Error("kamino-sourced agreement: use the reconciled instruction (not yet in the SDK)");
+  }
+  const merchant = acct.merchant as PublicKey;
+  const merchantUsdc = p.merchantUsdc ?? getAssociatedTokenAddressSync(acct.usdcMint as PublicKey, merchant);
+  const escrow = escrowAddress(p.program.programId, p.agreement);
+  return { acct, status, merchant, merchantUsdc, escrow };
+}
+
+/** Unsigned merchant_withdraw. The merchant wallet signs. Throws unless the agreement is completed and unwithdrawn. */
+export async function buildMerchantWithdraw(p: BuildMerchantActionParams): Promise<BuiltMerchantAction> {
+  const { status, merchant, merchantUsdc, escrow } = await loadForMerchantAction(p);
+  if (!status.merchantPayoutPending) throw new Error("nothing to withdraw: agreement is not completed or already withdrawn");
+  const instruction: TransactionInstruction = await p.program.methods
+    .merchantWithdraw()
+    .accounts({
+      agreement: p.agreement,
+      merchant,
+      escrowUsdc: escrow,
+      merchantUsdc,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      protocolConfig: protocolConfigAddress(p.program.programId),
+    })
+    .instruction();
+  return { instruction, agreement: p.agreement, merchantUsdc };
+}
+
+/** Unsigned trigger_default (permissionless; `caller` pays the fee). Throws before the grace period has expired. */
+export async function buildTriggerDefault(p: BuildMerchantActionParams & { caller: PublicKey }): Promise<BuiltMerchantAction> {
+  const { status, merchantUsdc, escrow } = await loadForMerchantAction(p);
+  if (!status.defaultable) throw new Error("not defaultable: agreement is not active or the grace period has not expired");
+  const instruction: TransactionInstruction = await p.program.methods
+    .triggerDefault()
+    .accounts({
+      agreement: p.agreement,
+      caller: p.caller,
+      escrowUsdc: escrow,
+      merchantUsdc,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      protocolConfig: protocolConfigAddress(p.program.programId),
+    })
+    .instruction();
+  return { instruction, agreement: p.agreement, merchantUsdc };
 }
 
 // ---------------------------------------------------------------------------
