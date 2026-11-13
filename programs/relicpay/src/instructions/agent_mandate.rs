@@ -51,6 +51,9 @@ fn validate(limits: &MandateLimits, now: i64) -> Result<()> {
             && limits.period_seconds > 0
             && limits.max_purchases_per_period > 0
             && limits.delegated_allowance > 0
+            // Fail closed: an empty list used to mean "any merchant", which let a
+            // hijacked agent name itself as merchant (audit C-3).
+            && !limits.allowed_merchants.is_empty()
             && limits.allowed_merchants.len() <= MAX_MANDATE_MERCHANTS
             && (limits.expires_at == 0 || limits.expires_at > now),
         RelicPayError::InvalidMandate
@@ -289,7 +292,7 @@ pub fn agent_purchase_handler(
         RelicPayError::MandateExpired
     );
     require!(
-        mandate.allowed_merchants.is_empty() || mandate.allowed_merchants.contains(&merchant),
+        mandate.allowed_merchants.contains(&merchant),
         RelicPayError::MerchantNotApproved
     );
     require!(

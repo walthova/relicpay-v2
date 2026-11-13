@@ -159,6 +159,25 @@ describe("agent BNPL: agent mandates", () => {
     );
   });
 
+  it("rejects a mandate with an empty merchant list (fail closed)", async () => {
+    await expectError(
+      () =>
+        program.methods
+          .createAgentMandate(limits({ allowedMerchants: [] }))
+          .accounts({
+            mandate: mandate(),
+            owner: owner.publicKey,
+            agent: agent.publicKey,
+            ownerUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([owner])
+          .rpc(),
+      "InvalidMandate"
+    );
+  });
+
   it("creates a mandate and delegates a bounded allowance to its PDA", async () => {
     await program.methods
       .createAgentMandate(limits())

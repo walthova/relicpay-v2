@@ -180,7 +180,7 @@ pub struct AgentMandate {
     pub period_purchases: u16,          // purchases this period
     pub total_purchases: u32,           // lifetime purchase count (trust history)
     pub total_spent: u64,               // lifetime total_price committed
-    pub allowed_merchants: Vec<Pubkey>, // empty = any merchant
+    pub allowed_merchants: Vec<Pubkey>, // must be non-empty; purchases only to listed merchants
     pub created_at: i64,
     pub bump: u8,
 }
