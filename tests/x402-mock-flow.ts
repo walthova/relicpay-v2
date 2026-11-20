@@ -1,14 +1,37 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Keypair } from "@solana/web3.js";
+import { AddressLookupTableAccount, Keypair, SystemProgram, TransactionInstruction, TransactionMessage } from "@solana/web3.js";
 import { assert } from "chai";
 import { resolve } from "node:path";
 import { rejects } from "node:assert/strict";
 import { TOKEN_PROGRAM_ID, unpackAccount } from "@solana/spl-token";
-import { runFlow, INITIAL_TOKENS, PRICE, RelicpayProgram } from "../scripts/x402-mock/flow";
+import { getTransactionKeys, runFlow, INITIAL_TOKENS, PRICE, RelicpayProgram } from "../scripts/x402-mock/flow";
 import { safeKeypairDir } from "../scripts/x402-mock/keys";
 import { assertCluster, GENESIS } from "../scripts/x402-mock/cluster";
 
 describe("mock x402 BNPL credit flow", () => {
+  it("resolves v0 lookup accounts without losing static signer indexes", () => {
+    const signer = Keypair.generate().publicKey;
+    const lookedUp = Keypair.generate().publicKey;
+    const table = new AddressLookupTableAccount({ key: Keypair.generate().publicKey, state: {
+      deactivationSlot: BigInt("18446744073709551615"), lastExtendedSlot: 0,
+      lastExtendedSlotStartIndex: 0, addresses: [lookedUp],
+    } });
+    const builder = new TransactionMessage({ payerKey: signer, recentBlockhash: Keypair.generate().publicKey.toBase58(),
+      instructions: [new TransactionInstruction({ programId: SystemProgram.programId,
+        keys: [{ pubkey: lookedUp, isSigner: false, isWritable: true }], data: Buffer.alloc(0) })] });
+    const message = builder.compileToV0Message([table]);
+    const keys = getTransactionKeys(message, { writable: [lookedUp], readonly: [] });
+    assert.isTrue(keys[0].equals(signer));
+    assert.isTrue(keys[message.compiledInstructions[0].accountKeyIndexes[0]].equals(lookedUp));
+    assert.isTrue(keys[message.compiledInstructions[0].programIdIndex].equals(SystemProgram.programId));
+    assert.isAbove(keys.length, message.staticAccountKeys.length);
+    assert.throws(() => getTransactionKeys(message), "Failed to get account keys");
+    const legacy = builder.compileToLegacyMessage();
+    assert.equal(getTransactionKeys(legacy).length, legacy.accountKeys.length);
+    assert.equal(getTransactionKeys(new TransactionMessage({ payerKey: signer,
+      recentBlockhash: Keypair.generate().publicKey.toBase58(), instructions: [] }).compileToV0Message()).length, 1);
+  });
+
   it("accepts the full devnet genesis and rejects public-cluster mismatches", () => {
     assert.doesNotThrow(() => assertCluster("devnet", GENESIS.devnet));
     assert.doesNotThrow(() => assertCluster("localnet", "fresh-local-validator"));

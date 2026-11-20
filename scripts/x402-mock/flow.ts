@@ -8,6 +8,7 @@ import { join } from "node:path";
 import {
   Connection, Keypair, PublicKey, SystemProgram, Transaction,
   TransactionInstruction, sendAndConfirmTransaction, LAMPORTS_PER_SOL,
+  VersionedMessage, LoadedAddresses,
 } from "@solana/web3.js";
 import {
   ACCOUNT_SIZE, MINT_SIZE, TOKEN_PROGRAM_ID, createInitializeAccountInstruction,
@@ -51,6 +52,13 @@ export function assertAgreement(account: any, req: Requirements): void {
 
 export type RelicpayProgram = anchor.Program<Relicpay>;
 
+export function getTransactionKeys(message: VersionedMessage, loadedAddresses?: LoadedAddresses) {
+  const resolved = message.version === 0
+    ? message.getAccountKeys({ accountKeysFromLookups: loadedAddresses })
+    : message.getAccountKeys();
+  return Array.from({ length: resolved.length }, (_, index) => resolved.get(index)!);
+}
+
 export async function verifyPayment(program: RelicpayProgram, req: Requirements, proof: PaymentProof) {
   if (proof.nonce !== req.nonce) throw new Error("Unknown nonce");
   const agreement = new PublicKey(proof.agreement);
@@ -62,7 +70,7 @@ export async function verifyPayment(program: RelicpayProgram, req: Requirements,
   });
   if (!tx || !tx.meta || tx.meta.err) throw new Error("Payment transaction not confirmed successfully");
   const message = tx.transaction.message;
-  const keys = message.getAccountKeys().staticAccountKeys;
+  const keys = getTransactionKeys(message, tx.meta.loadedAddresses);
   const agentSigned = keys.slice(0, message.header.numRequiredSignatures)
     .some((key) => key.toBase58() === req.agent);
   const purchase = program.idl.instructions.find((ix) => ix.name.replace(/_/g, "").toLowerCase() === "agentcreateagreement");
