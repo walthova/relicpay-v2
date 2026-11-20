@@ -88,6 +88,16 @@ describe("@relicpay/checkout SDK", () => {
     assert.throws(() => quote({ ...req, installmentCount: 1 }), /invalid checkout request/);
   });
 
+  it("accepts a total price equal to the u64 maximum", () => {
+    assert.isEmpty(validateCheckout({ ...req, totalPrice: (1n << 64n) - 1n }));
+  });
+
+  it("rejects a total price above the u64 maximum before quoting", () => {
+    const request = { ...req, totalPrice: 1n << 64n };
+    assert.deepEqual(validateCheckout(request), ["totalPrice exceeds the u64 maximum"]);
+    assert.throws(() => quote(request), /invalid checkout request: totalPrice exceeds the u64 maximum/);
+  });
+
   it("builds an instruction that executes on-chain and matches the quote", async () => {
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
