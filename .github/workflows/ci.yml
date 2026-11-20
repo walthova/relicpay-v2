@@ -79,7 +79,8 @@ jobs:
           # Run one additional reproducible seed per tested commit.
           seed=$((16#${GITHUB_SHA:0:8}))
           export RELICPAY_FUZZ_SEED=$((seed == 0 ? 1 : seed))
-          anchor test --provider.cluster localnet --provider.wallet "$wallet" -- --locked
+          anchor test --provider.cluster localnet --provider.wallet "$wallet"
+          git diff --exit-code -- Cargo.lock
 
   app:
     name: Demo app (build)
