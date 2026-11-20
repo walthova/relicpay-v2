@@ -4,8 +4,21 @@ import { assert } from "chai";
 import { resolve } from "node:path";
 import { runFlow, INITIAL_TOKENS, PRICE, RelicpayProgram } from "../scripts/x402-mock/flow";
 import { safeKeypairDir } from "../scripts/x402-mock/keys";
+import { assertCluster, GENESIS } from "../scripts/x402-mock/cluster";
 
 describe("mock x402 BNPL credit flow", () => {
+  it("accepts the full devnet genesis and rejects public-cluster mismatches", () => {
+    assert.doesNotThrow(() => assertCluster("devnet", GENESIS.devnet));
+    assert.doesNotThrow(() => assertCluster("localnet", "fresh-local-validator"));
+    assert.throws(() => assertCluster("localnet", GENESIS.devnet), "does not match");
+    assert.throws(() => assertCluster("devnet", "fresh-local-validator"), "does not match");
+    assert.throws(() => assertCluster("devnet", ""), "does not match");
+    for (const cluster of ["localnet", "devnet"] as const) {
+      assert.throws(() => assertCluster(cluster, GENESIS.mainnet), "not supported");
+      assert.throws(() => assertCluster(cluster, GENESIS.testnet), "not supported");
+    }
+  });
+
   it("requests 402, funds escrow via mandate, unlocks once, rejects mismatches and settles", async function () {
     this.timeout(120_000);
     const provider = anchor.AnchorProvider.env();
