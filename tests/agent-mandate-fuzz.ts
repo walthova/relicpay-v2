@@ -3,6 +3,7 @@ import BN from "bn.js";
 import { assert } from "chai";
 import { createAccount, createMint, getAccount, mintTo, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import type { Relicpay } from "../target/types/relicpay";
 
 const MAX_PRICE = 200_000;
 const BALANCE = BigInt(100_000_000);
@@ -27,7 +28,7 @@ function rng(seed: number) {
 describe("agent mandate fuzz (localnet)", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-  const program = anchor.workspace.Relicpay as anchor.Program<any>;
+  const program = anchor.workspace.Relicpay as anchor.Program<Relicpay>;
   const { connection } = provider;
   const commitment = "confirmed";
   const pda = (prefix: string, ...seeds: Buffer[]) =>
@@ -48,6 +49,7 @@ describe("agent mandate fuzz (localnet)", () => {
         const random = rng(seed);
         const purchase = () => ({ price: random(10_000, MAX_PRICE), installments: random(2, 5) });
         const accepted = Array.from({ length: random(3, 5) }, purchase);
+        accepted[0].price = MAX_PRICE;
         const totalPrice = accepted.reduce((sum, p) => sum + p.price, 0);
         const totalEscrow = accepted.reduce((sum, p) => sum + Math.floor(p.price / p.installments), 0);
         const periodCap = limit === "period spend" ? totalPrice : 10 * MAX_PRICE;
@@ -80,7 +82,7 @@ describe("agent mandate fuzz (localnet)", () => {
           expiresAt: new BN(0),
           delegatedAllowance: new BN(allowance),
           allowedMerchants: [merchant],
-        }).accounts({
+        }).accountsPartial({
           mandate, owner: owner.publicKey, agent: agent.publicKey, ownerUsdc: ownerToken,
         }).signers([owner]).rpc();
 
@@ -97,14 +99,17 @@ describe("agent mandate fuzz (localnet)", () => {
           const agreement = pda("agreement", owner.publicKey.toBuffer(), Buffer.from(product));
           const escrow = pda("escrow", agreement.toBuffer());
           const ix = await program.methods.agentCreateAgreement(new BN(price), installments, new BN(86_400), product, "Test merchant")
-            .accounts({ mandate, agent: agent.publicKey, owner: owner.publicKey,
+            .accountsPartial({ mandate, agent: agent.publicKey, owner: owner.publicKey,
               agreement, merchant: shop, usdcMint: mint, ownerUsdc: ownerToken, escrowUsdc: escrow,
             }).instruction();
           const block = await connection.getLatestBlockhash(commitment);
           const tx = new Transaction({ ...block, feePayer: agent.publicKey }).add(ix);
           tx.sign(agent);
           // Land rejected transactions on the validator to check runtime rollback, not just simulation.
-          const signature = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+          const signature = await connection.sendRawTransaction(tx.serialize(), {
+            skipPreflight: true,
+            preflightCommitment: commitment,
+          });
           const { value } = await connection.confirmTransaction({ ...block, signature }, commitment);
           const context = `seed ${seed}, ${limit}, step ${step}, price ${price}, installments ${installments}`;
 
