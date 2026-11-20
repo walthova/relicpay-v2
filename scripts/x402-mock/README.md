@@ -46,6 +46,8 @@ symlinks resolving there. Mint/account keys are fresh per run; the payer control
 the mock 6-decimal mint. Never use real USDC. Each run uses a fresh product nonce,
 mint and token accounts, so repeated runs do not reuse closed agreements. Mock
 mint and ordinary owner/merchant token accounts remain on chain for inspection.
+Each transaction includes a run/step memo so immediate reruns cannot duplicate
+an earlier transaction signature while the validator still uses the same blockhash.
 If a failed run leaves a mandate for the same owner/agent pair, the next run
 revokes it on every owner token account still delegating to that PDA, then closes
 it before creating fresh limits. This also clears old allowances before the PDA

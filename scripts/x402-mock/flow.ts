@@ -159,7 +159,9 @@ export async function runFlow(options: FlowOptions) {
   }
   async function send(step: string, instructions: TransactionInstruction[], signers: Keypair[] = []) {
     const unique = [payer, ...signers].filter((key, index, all) => all.findIndex((other) => other.publicKey.equals(key.publicKey)) === index);
-    const signature = await sendAndConfirmTransaction(connection, new Transaction().add(...instructions), unique, { commitment: "confirmed" });
+    const memo = new TransactionInstruction({ programId: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+      keys: [], data: Buffer.from(`${nonce}:${step}`) });
+    const signature = await sendAndConfirmTransaction(connection, new Transaction().add(memo, ...instructions), unique, { commitment: "confirmed" });
     await record(step, signature);
     return signature;
   }
