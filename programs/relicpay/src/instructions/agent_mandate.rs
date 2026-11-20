@@ -242,7 +242,9 @@ pub struct RevokeAgentMandate<'info> {
     #[account(
         mut,
         token::authority = owner,
-        address = mandate.owner_usdc @ RelicPayError::MandateTokenAccountMismatch,
+        constraint = mandate.owner_usdc == Pubkey::default()
+            || owner_usdc.key() == mandate.owner_usdc
+            @ RelicPayError::MandateTokenAccountMismatch,
     )]
     pub owner_usdc: Account<'info, TokenAccount>,
 
