@@ -25,7 +25,7 @@ pub struct BnplAgreement {
     pub yield_accrued: u64,         // total yield earned by buyer (USDC lamports)
     pub escrow_deposited: u64,      // USDC currently held in escrow PDA
     pub yield_rate_bps_annual: u16, // 300 = 3% APY
-    pub product_id: String,         // merchant item reference (PDA seed, ≤64)
+    pub product_id: String,         // merchant item reference (PDA seed, ≤32 bytes)
     pub merchant_name: String,      // display name, e.g. "IBG Collection" (≤64)
     pub bump: u8,                   // PDA bump seed
     // ── v2 fields ──
@@ -42,7 +42,7 @@ impl BnplAgreement {
         + 8 + 1 + 8 + 8            // price fields
         + 1 + 8 + 8 + 1            // paid, start_time, last_yield_update, state
         + 8 + 8 + 2                // yield fields
-        + 4 + 64                   // product_id
+        + 4 + 64                   // product_id (retains the original allocation)
         + 4 + 64                   // merchant_name
         + 1                        // bump
         + 1 + 1                    // merchant_withdrawn, version

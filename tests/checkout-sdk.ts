@@ -4,9 +4,10 @@
 
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { Keypair, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { createMint, createAccount, mintTo, getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { assert } from "chai";
+import { rejects } from "node:assert/strict";
 import * as fs from "fs";
 import * as path from "path";
 import {
@@ -91,9 +92,45 @@ describe("@relicpay/checkout SDK", () => {
     assert.isNotEmpty(validateCheckout({ ...req, merchantName: "x".repeat(65) }));
     assert.isNotEmpty(validateCheckout(req, 50_000_000n)); // per-agreement cap
     assert.isEmpty(validateCheckout(req));
-    assert.isEmpty(validateCheckout({ ...req, productId: "x".repeat(64) }));
+    assert.isEmpty(validateCheckout({ ...req, productId: "x".repeat(32) }));
     assert.throws(() => quote({ ...req, installmentCount: 1 }), /invalid checkout request/);
   });
+
+  it("preserves raw agreement seeds at the 32-byte limit", () => {
+    const programId = Keypair.generate().publicKey;
+    const buyer = Keypair.generate().publicKey;
+    for (const productId of ["x".repeat(32), "é".repeat(16)]) {
+      assert.isEmpty(validateCheckout({ ...req, productId }));
+      const [expected] = PublicKey.findProgramAddressSync(
+        [Buffer.from("agreement"), buyer.toBuffer(), Buffer.from(productId)],
+        programId,
+      );
+      assert.isTrue(agreementAddress(programId, buyer, productId).equals(expected));
+    }
+  });
+
+  for (const [label, productId] of [
+    ["33 ASCII bytes", "x".repeat(33)],
+    ["33 UTF-8 bytes", "é".repeat(16) + "x"],
+    ["64 ASCII bytes", "x".repeat(64)],
+  ]) {
+    it(`rejects a product ID of ${label} before PDA derivation`, async () => {
+      const key = Keypair.generate().publicKey;
+      const request = { ...req, productId };
+      const message = "productId exceeds 32 bytes";
+      const program = { get programId() { throw new Error("program should not be accessed"); } };
+      const params = { program, request, buyer: key, merchant: key, usdcMint: key, buyerUsdc: key };
+      assert.deepEqual(validateCheckout(request), [message]);
+      assert.throws(() => agreementAddress(key, key, productId), message);
+      await rejects(() => buildCreateAgreement(params), { message: `invalid checkout request: ${message}` });
+      await rejects(() => buildCheckout(params), { message: `invalid checkout request: ${message}` });
+      const kaminoConfig = {
+        enabled: true, kaminoProgram: key, lendingMarket: key, lendingMarketAuthority: key,
+        reserve: key, reserveLiquiditySupply: key, reserveCollateralMint: key,
+      };
+      await rejects(() => buildCreateAgreementKamino({ ...params, kaminoConfig }), { message: `invalid checkout request: ${message}` });
+    });
+  }
 
   it("builds an instruction that executes on-chain and matches the quote", async () => {
     const provider = anchor.AnchorProvider.env();
@@ -109,16 +146,32 @@ describe("@relicpay/checkout SDK", () => {
     const buyerUsdc = await createAccount(provider.connection, buyer, mint, buyer.publicKey, undefined, conf);
     await mintTo(provider.connection, buyer, mint, buyerUsdc, buyer, 500_000_000, [], conf);
 
+    const request = { ...req, productId: "é".repeat(16) };
     const built = await buildCreateAgreement({
       program,
-      request: req,
+      request,
       buyer: buyer.publicKey,
       merchant: merchant.publicKey,
       usdcMint: mint,
       buyerUsdc,
     });
-    assert.isTrue(built.agreement.equals(agreementAddress(program.programId, buyer.publicKey, req.productId)));
+    assert.isTrue(built.agreement.equals(agreementAddress(program.programId, buyer.publicKey, request.productId)));
     assert.isTrue(built.escrow.equals(escrowAddress(program.programId, built.agreement)));
+
+    // Bypass the SDK and client-side PDA resolution to exercise program-side validation.
+    const { name, data } = program.coder.instruction.decode(built.instruction.data)!;
+    const oversized = new TransactionInstruction({
+      ...built.instruction,
+      data: program.coder.instruction.encode(name, { ...data, productId: request.productId + "x" }),
+    });
+    await rejects(
+      () => provider.simulate(new Transaction({ feePayer: buyer.publicKey }).add(oversized), undefined, "confirmed"),
+      (err: any) => {
+        const logs = err.simulationResponse?.logs ?? [];
+        assert.equal(anchor.AnchorError.parse(logs)?.error.errorCode.code, "InvalidProductId", logs.join("\n") || String(err));
+        return true;
+      },
+    );
 
     // Use a confirmed blockhash and confirmed preflight; the default "processed" lookup can lag the validator after long suites.
     const createSig = await provider.sendAndConfirm(new Transaction().add(built.instruction), [buyer], { commitment: "confirmed", preflightCommitment: "confirmed" });
@@ -137,7 +190,7 @@ describe("@relicpay/checkout SDK", () => {
     const evs = decodeEvents(program, tx!.meta!.logMessages!);
     const created = evs.find((e) => e.name.toLowerCase() === "agreementcreated");
     assert.exists(created);
-    assert.equal(created!.data.productId, req.productId);
+    assert.equal(created!.data.productId, request.productId);
     assert.isEmpty(decodeEvents(program, ["Program 11111111111111111111111111111111 invoke [1]", "Program 11111111111111111111111111111111 success"]));
 
     // Merchant dashboard: the memcmp offset must hit the real merchant field on a live account.
