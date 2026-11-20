@@ -2,6 +2,8 @@ import * as anchor from "@coral-xyz/anchor";
 import { Keypair } from "@solana/web3.js";
 import { assert } from "chai";
 import { resolve } from "node:path";
+import { rejects } from "node:assert/strict";
+import { TOKEN_PROGRAM_ID, unpackAccount } from "@solana/spl-token";
 import { runFlow, INITIAL_TOKENS, PRICE, RelicpayProgram } from "../scripts/x402-mock/flow";
 import { safeKeypairDir } from "../scripts/x402-mock/keys";
 import { assertCluster, GENESIS } from "../scripts/x402-mock/cluster";
@@ -46,5 +48,23 @@ describe("mock x402 BNPL credit flow", () => {
     } catch (error) {
       assert.include(String(error), "Refusing ~/.config/solana");
     }
+  });
+
+  it("recovers a mandate left by a failed run and clears its old token delegate", async function () {
+    this.timeout(120_000);
+    const provider = anchor.AnchorProvider.env();
+    const options = { program: anchor.workspace.Relicpay as RelicpayProgram,
+      payer: (provider.wallet as anchor.Wallet).payer,
+      owner: Keypair.generate(), agent: Keypair.generate(), merchant: Keypair.generate(), cluster: "localnet" as const,
+      outputDir: resolve(__dirname, "../scripts/x402-mock/out/tests") };
+    await rejects(runFlow({ ...options, log: (line) => {
+      if (line.startsWith("request_credit_create_mandate:")) throw new Error("Injected failure after mandate creation");
+    } }), /Injected failure after mandate creation/);
+    const recovered = await runFlow({ ...options, log: () => {} });
+    assert.equal(recovered.status, "passed");
+    assert.isTrue(recovered.recoveredMandate);
+    assert.includeMembers(recovered.transactions.map((tx: any) => tx.step), ["recover_revoke_mandate_1", "recover_close_mandate"]);
+    const tokens = await provider.connection.getTokenAccountsByOwner(options.owner.publicKey, { programId: TOKEN_PROGRAM_ID }, "confirmed");
+    for (const { pubkey, account } of tokens.value) assert.isNull(unpackAccount(pubkey, account).delegate);
   });
 });

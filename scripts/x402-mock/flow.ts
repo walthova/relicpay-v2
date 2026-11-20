@@ -11,7 +11,7 @@ import {
 } from "@solana/web3.js";
 import {
   ACCOUNT_SIZE, MINT_SIZE, TOKEN_PROGRAM_ID, createInitializeAccountInstruction,
-  createInitializeMintInstruction, createMintToInstruction, getAccount,
+  createInitializeMintInstruction, createMintToInstruction, getAccount, unpackAccount,
 } from "@solana/spl-token";
 
 export const PROGRAM_ID = new PublicKey("5GPVYpyzdosbzWcdttcCdziJVqUCCARf98J857C3T6Gi");
@@ -221,6 +221,22 @@ export async function runFlow(options: FlowOptions) {
       ], [key]);
     }
     await send("mint_mock_usdc", [createMintToInstruction(mint.publicKey, ownerToken.publicKey, payer.publicKey, INITIAL_TOKENS)]);
+    const previousMandate = await program.account.agentMandate.fetchNullable(mandate);
+    report.recoveredMandate = previousMandate !== null;
+    if (previousMandate) {
+      const accounts = await connection.getTokenAccountsByOwner(owner.publicKey, { programId: TOKEN_PROGRAM_ID }, "confirmed");
+      const delegated = accounts.value.filter(({ pubkey, account }) =>
+        unpackAccount(pubkey, account).delegate?.equals(mandate));
+      const sources = delegated.length ? delegated.map(({ pubkey }) => pubkey) : [ownerToken.publicKey];
+      for (const [index, source] of sources.entries()) {
+        await send(`recover_revoke_mandate_${index + 1}`, [await program.methods.revokeAgentMandate().accountsPartial({
+          mandate, owner: owner.publicKey, ownerUsdc: source,
+        }).instruction()], [owner]);
+      }
+      await send("recover_close_mandate", [await program.methods.closeAgentMandate().accountsPartial({
+        mandate, owner: owner.publicKey,
+      }).instruction()], [owner]);
+    }
     await send("request_credit_create_mandate", [await program.methods.createAgentMandate({
       perPurchaseCap: new BN(PRICE), periodCap: new BN(PRICE * 2), periodSeconds: new BN(3600),
       maxPurchasesPerPeriod: 2, approvalThreshold: new BN(PRICE), expiresAt: new BN(0),

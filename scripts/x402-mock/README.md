@@ -42,6 +42,11 @@ symlinks resolving there. Mint/account keys are fresh per run; the payer control
 the mock 6-decimal mint. Never use real USDC. Each run uses a fresh product nonce,
 mint and token accounts, so repeated runs do not reuse closed agreements. Mock
 mint and ordinary owner/merchant token accounts remain on chain for inspection.
+If a failed run leaves a mandate for the same owner/agent pair, the next run
+revokes it on every owner token account still delegating to that PDA, then closes
+it before creating fresh limits. This also clears old allowances before the PDA
+is reused. Recovery does not settle agreements left by an interrupted purchase;
+those remain the owner's responsibility using the normal program instructions.
 
 The payer requests 2 SOL if below 0.5 SOL. If devnet airdrops fail/rate-limit,
 the error prints the throwaway address to fund manually; rerun after funding.
