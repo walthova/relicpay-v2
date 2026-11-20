@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
@@ -22,7 +23,7 @@ jobs:
       - run: node scripts/test-guard-test.js
       - name: Check this push or PR for weakened tests
         env:
-          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
         run: |
           if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             BASE="HEAD~1"
@@ -39,7 +40,46 @@ jobs:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
-      - run: cargo test --manifest-path programs/relicpay/Cargo.toml
+      - run: cargo test --locked --manifest-path programs/relicpay/Cargo.toml
+
+  anchor:
+    name: Anchor (integration + fuzz)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: "false"
+      - name: Install pinned Agave and Anchor releases
+        env:
+          AGAVE_VERSION: "3.0.11"
+          ANCHOR_VERSION: "0.32.1"
+        run: |
+          bin="$RUNNER_TEMP/bin"
+          mkdir -p "$bin"
+          cd "$RUNNER_TEMP"
+          curl -fsSL --retry 3 -o agave.tar.bz2 "https://github.com/anza-xyz/agave/releases/download/v$AGAVE_VERSION/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          echo '4244f2328885ae4e4698cac25ee6d8ce7bab7790e2d891d81ead839c09ee9c2e  agave.tar.bz2' | sha256sum -c -
+          tar -xjf agave.tar.bz2
+          curl -fsSL --retry 3 -o "$bin/anchor" "https://github.com/coral-xyz/anchor/releases/download/v$ANCHOR_VERSION/anchor-$ANCHOR_VERSION-x86_64-unknown-linux-gnu"
+          echo '5f25b850ce80278507a98947833fcd48423391f6d145046ffb0c5fd130dec436  bin/anchor' | sha256sum -c -
+          chmod +x "$bin/anchor"
+          printf '%s\n' "$RUNNER_TEMP/solana-release/bin" "$bin" >> "$GITHUB_PATH"
+      - run: npm ci
+      - name: Test on a fresh local validator
+        run: |
+          wallet="$RUNNER_TEMP/anchor-test-wallet.json"
+          solana-keygen new --silent --no-bip39-passphrase --outfile "$wallet"
+          # Run one additional reproducible seed per tested commit.
+          seed=$((16#${GITHUB_SHA:0:8}))
+          export RELICPAY_FUZZ_SEED=$((seed == 0 ? 1 : seed))
+          anchor test --provider.cluster localnet --provider.wallet "$wallet" -- --locked
 
   app:
     name: Demo app (build)
@@ -79,3 +119,15 @@ jobs:
               node --check "$f"
             fi
           done
+
+  required:
+    name: RelicPay PR gate
+    runs-on: ubuntu-latest
+    needs: [test-guard, program, anchor, app, extension]
+    if: ${{ always() }}
+    steps:
+      - name: Require every CI job to succeed
+        env:
+          JOBS: ${{ toJSON(needs) }}
+        run: |
+          jq -e 'all(.[]; .result == "success")' <<< "$JOBS"
