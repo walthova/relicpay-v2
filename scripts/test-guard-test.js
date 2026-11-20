@@ -136,6 +136,23 @@ test("deleted test file fails", () => {
   assert.strictEqual(r.code, 1, r.out);
   assert.match(r.out, /test file deleted/);
 });
+for (const destination of ["docs/v2.md", "tests/v2.md", "app/lib/v2.ts", "node_modules/v2.ts", "scripts/test-guard.js"]) {
+  for (const mode of ["staged", "range"]) {
+    test(`test renamed to ${destination} fails (${mode})`, () => {
+      const change = (d) => {
+        fs.mkdirSync(path.dirname(path.join(d, destination)), { recursive: true });
+        sh(d, "git", ["mv", "tests/v2-features.ts", destination]);
+      };
+      const r = mode === "staged" ? staged(change) : committed(change, "move test");
+      assert.strictEqual(r.code, 1, r.out);
+      assert.match(r.out, /tests\/v2-features\.ts: test file deleted/);
+    });
+  }
+}
+test("test renamed to another test file passes", () => {
+  const r = staged((d) => sh(d, "git", ["mv", "tests/v2-features.ts", "tests/renamed.ts"]));
+  assert.strictEqual(r.code, 0, r.out);
+});
 
 // 3. Assertions removed.
 test("assertion removed from a kept test fails", () => {
