@@ -14,6 +14,8 @@ Agave 3.0.11 and the repo's installed dependencies. From the repo root:
 ```sh
 anchor build
 node -r ts-node/register scripts/x402-mock/localnet.ts
+# Repeat on the same validator/ledger and with the same keys:
+node -r ts-node/register scripts/x402-mock/localnet.ts --runs 2
 ```
 
 The standalone helper starts a reset, upgradeable validator at port **18999**,
@@ -32,6 +34,8 @@ Against an already running validator/deployment:
 ```sh
 npm run x402:mock -- --cluster localnet --rpc-url http://127.0.0.1:18999
 npm run x402:mock -- --cluster devnet --rpc-url https://api.devnet.solana.com --keypair-dir scripts/x402-mock/keys
+# Or explicitly select the fresh devnet deployment:
+npm run x402:mock -- --cluster devnet --program-id <DEVNET_PROGRAM_ID>
 ```
 
 `--cluster` accepts only localnet/devnet and defaults to localnet; never point
@@ -53,6 +57,11 @@ the error prints the throwaway address to fund manually; rerun after funding.
 The CLI does **not** deploy. A missing program fails clearly. ProtocolConfig is
 initialized only if absent and payer is upgrade authority; existing risk config
 is never changed. A paused/restrictive deployment can reject the run.
+Cluster checks use the full public genesis hashes, rejecting mainnet/testnet
+and localnet/devnet mismatches. Devnet defaults to the pubkey in the throwaway
+directory's `program.json` (generated if absent); `--program-id` overrides it.
+The root IDL's instruction layout is reused with that devnet program address.
+Localnet retains the fixed source ID; devnet must use a different ID.
 
 The merchant issues a JSON 402 challenge at GET `/resource`; the agent parses
 it, opens an agreement, then sends base64 JSON `{agreement, signature, nonce}`
@@ -102,9 +111,23 @@ At the current ~1.08 MB binary size, retained deployment rent is approximately
 **5.51 SOL**, plus fees and potentially additional temporary buffer funding.
 The helper uses a throwaway payer/upgrade authority and exact-size allocation.
 
-**Fixed-ID blocker:** deploying this binary at its declared ID requires that
-ID's corresponding program keypair. A newly generated throwaway program keypair
-cannot match it. The helper therefore refuses a nonmatching `keys/program.json`
-rather than silently rewriting IDs or deploying a broken program. Resolving
-this requires a separately approved ID/key decision; do not copy real keys into
-the demo or read the standard Solana key directory. No devnet helper was run.
+The helper generates/reuses **devnet-only** `program.json` in the throwaway
+directory. It copies the Rust workspace into ignored `out/devnet-build-*/`,
+changes `declare_id!` and Anchor configuration **only in that copy**, builds a
+separate `.so` and IDL, and verifies the declaration/IDL/binary ID bytes against
+the program key. A `build.json` manifest includes the ID, paths and binary SHA256.
+Tracked `Anchor.toml`, program sources, and localnet build outputs stay unchanged.
+The throwaway payer is both payer and upgrade authority, allowing ProtocolConfig
+initialization when the flow first runs on devnet.
+
+To build and verify the devnet artifacts **without deployment or devnet
+transactions**, no approval flag is needed:
+
+```sh
+node -r ts-node/register scripts/x402-mock/deploy-devnet.ts --build-only
+```
+
+`--build-only` always exits before deployment even if the approval flag is also
+present. Deployment without `--build-only` still requires explicit approval and
+`--approved-by-walter`. Fund the printed throwaway payer before an approved deploy;
+the deployment helper does not attempt an airdrop. No real keys are needed.

@@ -3,10 +3,14 @@ import { mkdir, open } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Connection } from "@solana/web3.js";
 import { createServer } from "node:net";
+import { parseArgs } from "node:util";
 import { DEFAULT_KEYPAIR_DIR, loadThrowaway } from "./keys";
 import { PROGRAM_ID } from "./flow";
 
 async function main() {
+  const { values } = parseArgs({ options: { runs: { type: "string", default: "1" } } });
+  const runs = Number(values.runs);
+  if (!Number.isInteger(runs) || runs < 1 || runs > 10) throw new Error("--runs must be an integer from 1 to 10");
   const root = resolve(__dirname, "../..");
   const payer = await loadThrowaway(DEFAULT_KEYPAIR_DIR, "payer");
   const out = resolve(__dirname, "out");
@@ -44,9 +48,12 @@ async function main() {
       if (Date.now() >= deadline) throw new Error("Timed out starting validator");
       await new Promise((resolveWait) => setTimeout(resolveWait, 300));
     }
-    const run = spawn(process.execPath, ["-r", "ts-node/register", resolve(__dirname, "run.ts"), "--cluster", "localnet"], { cwd: root, stdio: "inherit" });
-    const code = await new Promise<number>((resolveExit, reject) => { run.once("error", reject); run.once("exit", (status) => resolveExit(status ?? 1)); });
-    if (code !== 0) throw new Error(`Flow exited ${code}`);
+    for (let index = 1; index <= runs; index++) {
+      console.log(`Standalone run ${index}/${runs} (same validator and throwaway keys)`);
+      const run = spawn(process.execPath, ["-r", "ts-node/register", resolve(__dirname, "run.ts"), "--cluster", "localnet"], { cwd: root, stdio: "inherit" });
+      const code = await new Promise<number>((resolveExit, reject) => { run.once("error", reject); run.once("exit", (status) => resolveExit(status ?? 1)); });
+      if (code !== 0) throw new Error(`Flow exited ${code}`);
+    }
   } finally {
     stop();
     if (validator.exitCode === null && !startupError) await exited;
