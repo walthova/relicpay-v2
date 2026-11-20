@@ -16,6 +16,7 @@ import {
   tierFor,
   Tier,
 } from "../lib/constants";
+import { parseUsdcAmount } from "../lib/usdc";
 
 export interface UserStakeView {
   pubkey: string;
@@ -58,7 +59,8 @@ export function useStakePool() {
       PROGRAM_ID,
     )[0];
 
-  const stakeUsdc = async (amountUsd: number) => {
+  const stakeUsdc = async (amountUsd: string) => {
+    const amountUnits = parseUsdcAmount(amountUsd);
     const provider = getProvider();
     const user = wallet.publicKey!;
     const pool = stakePoolPda();
@@ -70,10 +72,9 @@ export function useStakePool() {
     if (!idl) throw new Error("IDL not found — deploy program first");
 
     const program = new Program(idl, provider);
-    const amountUnits = Math.floor(amountUsd * 1_000_000);
 
     const tx = await (program.methods as any)
-      .stakeUsdc(new BN(amountUnits))
+      .stakeUsdc(new BN(amountUnits.toString()))
       .accounts({
         stakePool: pool,
         userStake: stake,
@@ -89,7 +90,8 @@ export function useStakePool() {
     return { tx, userStake: stake.toBase58() };
   };
 
-  const unstakeUsdc = async (amountUsd: number = 0) => {
+  const unstakeUsdc = async (amountUsd?: string) => {
+    const amountUnits = amountUsd === undefined ? 0n : parseUsdcAmount(amountUsd);
     const provider = getProvider();
     const user = wallet.publicKey!;
     const pool = stakePoolPda();
@@ -101,10 +103,9 @@ export function useStakePool() {
     if (!idl) throw new Error("IDL not found");
 
     const program = new Program(idl, provider);
-    const amountUnits = amountUsd > 0 ? Math.floor(amountUsd * 1_000_000) : 0;
 
     const tx = await (program.methods as any)
-      .unstakeUsdc(new BN(amountUnits))
+      .unstakeUsdc(new BN(amountUnits.toString()))
       .accounts({
         stakePool: pool,
         userStake: stake,

@@ -60,6 +60,8 @@ jobs:
       # @solana/web3.js from the root workspace's node_modules.
       - run: npm ci
         working-directory: .
+      - run: npm test -- tests/app-usdc.ts
+        working-directory: .
       - run: npm ci
       - run: npm run build
         env:

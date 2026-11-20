@@ -3,6 +3,7 @@ import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { PROGRAM_ID, USDC_MINT } from "../lib/constants";
+import { validateUsdcUnits } from "../lib/usdc";
 
 export function useRelicPay() {
   const { connection } = useConnection();
@@ -22,17 +23,18 @@ export function useRelicPay() {
     merchantWallet,
     productId,
     merchantName,
-    totalPriceUsdc,
+    totalPriceUnits,
     installmentCount,
     intervalDays,
   }: {
     merchantWallet: string;
     productId: string;
     merchantName: string;
-    totalPriceUsdc: number; // in USDC units (e.g. 300 for $300)
+    totalPriceUnits: number;
     installmentCount: number;
     intervalDays: number;
   }) => {
+    const totalPrice = new BN(validateUsdcUnits(totalPriceUnits));
     const provider = getProvider();
     const buyer = wallet.publicKey!;
     const merchant = new PublicKey(merchantWallet);
@@ -54,7 +56,6 @@ export function useRelicPay() {
 
     const buyerUsdc = await getAssociatedTokenAddress(USDC_MINT, buyer);
 
-    const totalPriceLamports = totalPriceUsdc * 1_000_000; // USDC has 6 decimals
     const intervalSeconds = intervalDays * 24 * 60 * 60;
 
     // Load IDL and call program
@@ -65,7 +66,7 @@ export function useRelicPay() {
 
     const tx = await (program.methods as any)
       .createAgreement(
-        new BN(totalPriceLamports),
+        totalPrice,
         installmentCount,
         new BN(intervalSeconds),
         productId,

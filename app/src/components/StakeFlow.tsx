@@ -34,16 +34,11 @@ export function StakeFlow({ stake, onAfterTx }: Props) {
 
   const handleStake = async () => {
     if (!connected) return;
-    const usd = parseFloat(amount);
-    if (!Number.isFinite(usd) || usd <= 0) {
-      setError("Enter a positive USDC amount");
-      return;
-    }
     setError(null);
     setBusy("stake");
     setTx(null);
     try {
-      const res = await stakeUsdc(usd);
+      const res = await stakeUsdc(amount);
       setTx(res.tx);
       onAfterTx();
     } catch (e: any) {
@@ -59,7 +54,7 @@ export function StakeFlow({ stake, onAfterTx }: Props) {
     setBusy("unstake");
     setTx(null);
     try {
-      const res = await unstakeUsdc(0); // 0 = unstake all
+      const res = await unstakeUsdc();
       setTx(res.tx);
       onAfterTx();
     } catch (e: any) {
@@ -125,9 +120,8 @@ export function StakeFlow({ stake, onAfterTx }: Props) {
               <span className="prefix">$</span>
               <input
                 id="stake-amount"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 disabled={busy !== null}
@@ -137,7 +131,7 @@ export function StakeFlow({ stake, onAfterTx }: Props) {
               {QUICK_AMOUNTS.map((q) => (
                 <button
                   key={q}
-                  className={`quick-btn ${parseFloat(amount) === q ? "active" : ""}`}
+                  className={`quick-btn ${amount === String(q) ? "active" : ""}`}
                   onClick={() => setAmount(String(q))}
                   disabled={busy !== null}
                 >
@@ -172,7 +166,7 @@ export function StakeFlow({ stake, onAfterTx }: Props) {
             and select Solana Devnet.
           </p>
 
-          {error && <p className="error-msg">{error}</p>}
+          {error && <p className="error-msg" role="alert">{error}</p>}
           {tx && (
             <a
               href={`https://solscan.io/tx/${tx}?cluster=devnet`}

@@ -35,7 +35,7 @@ export function BuyNowPayLater({ product }: { product: Product }) {
         merchantWallet: getMerchantWallet().toBase58(),
         productId: product.id,
         merchantName: IBG_MERCHANT.name,
-        totalPriceUsdc: priceUsd,
+        totalPriceUnits: product.price_usdc,
         installmentCount: selectedOption.count,
         intervalDays: selectedOption.interval_days,
       });
@@ -109,7 +109,7 @@ export function BuyNowPayLater({ product }: { product: Product }) {
         </div>
       </div>
 
-      {error && <p className="error-msg">{error}</p>}
+      {error && <p className="error-msg" role="alert">{error}</p>}
 
       {connected ? (
         <button
