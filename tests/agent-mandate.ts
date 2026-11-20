@@ -24,6 +24,7 @@ import {
   getAccount,
 } from "@solana/spl-token";
 import { assert } from "chai";
+import { rejects } from "node:assert/strict";
 
 const USDC = (n: number) => new BN(n * 1_000_000);
 
@@ -37,6 +38,7 @@ describe("agent BNPL: agent mandates", () => {
   const stranger = Keypair.generate();
   const merchant = Keypair.generate();
   const otherMerchant = Keypair.generate();
+  const boundaryProductId = "a".repeat(32);
 
   let usdcMint: PublicKey;
   let ownerUsdc: PublicKey;
@@ -185,14 +187,40 @@ describe("agent BNPL: agent mandates", () => {
     assert.equal(acct.delegatedAmount.toString(), USDC(500).toString());
   });
 
+  it("rejects oversized agent product IDs before deriving the agreement PDA", async () => {
+    const agreement = agreementPDA("unused-agent-order");
+    for (const productId of ["x".repeat(33), "é".repeat(16) + "x", "x".repeat(64)]) {
+      await rejects(
+        () => program.methods
+          .agentCreateAgreement(USDC(50), 2, new BN(1), productId, "IBG Collection")
+          .accounts({
+            mandate: mandate(), agent: agent.publicKey, owner: owner.publicKey,
+            agreement, merchant: merchant.publicKey, usdcMint, ownerUsdc,
+            escrowUsdc: escrowPDA(agreement), tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId, rent: SYSVAR_RENT_PUBKEY,
+          })
+          .signers([agent])
+          .rpc(),
+        (err: any) => {
+          assert.equal(err.error?.errorCode?.code, "InvalidProductId", String(err));
+          return true;
+        },
+      );
+    }
+    assert.isNull(await provider.connection.getAccountInfo(agreement));
+    const m: any = await program.account.agentMandate.fetch(mandate());
+    assert.equal(m.periodPurchases, 0);
+  });
+
   it("lets the agent buy within limits; the agreement belongs to the owner", async () => {
     const before = await getAccount(provider.connection, ownerUsdc);
-    const agreement = await agentBuy("agent-buy-1", USDC(50));
+    const agreement = await agentBuy(boundaryProductId, USDC(50));
 
     const a: any = await program.account.bnplAgreement.fetch(agreement);
     assert.ok(a.buyer.equals(owner.publicKey));
     assert.ok(a.merchant.equals(merchant.publicKey));
     assert.equal(a.paidInstallments, 1);
+    assert.equal(a.productId, boundaryProductId);
 
     const escrow = await getAccount(provider.connection, escrowPDA(agreement));
     assert.equal(escrow.amount.toString(), USDC(25).toString());
@@ -206,7 +234,7 @@ describe("agent BNPL: agent mandates", () => {
   });
 
   it("lets the owner repay an agent-opened agreement with the normal flow", async () => {
-    const agreement = agreementPDA("agent-buy-1");
+    const agreement = agreementPDA(boundaryProductId);
     // Wait on the validator's clock, not the wall clock: a lagging local
     // validator made a fixed sleep flaky (PaymentNotDue).
     const ag: any = await program.account.bnplAgreement.fetch(agreement);

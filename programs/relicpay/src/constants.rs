@@ -16,8 +16,8 @@ pub const SEED_AGENT_MANDATE: &[u8] = b"agent_mandate";
 pub const MIN_INSTALLMENTS: u8 = 2;
 pub const MAX_INSTALLMENTS: u8 = 12;
 
-/// String field limits (product_id is a PDA seed — must stay short)
-pub const MAX_PRODUCT_ID_LEN: usize = 64;
+/// Solana's maximum byte length for a single PDA seed.
+pub const MAX_PRODUCT_ID_LEN: usize = 32;
 pub const MAX_MERCHANT_NAME_LEN: usize = 64;
 
 /// Buyer cancellation fee paid to the merchant: 10%

@@ -28,7 +28,9 @@ use anchor_spl::token::{self, Approve, Revoke, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::{AgentMandateRevoked, AgentMandateSet, AgentPurchase};
-use crate::instructions::create_agreement::{finish_agreement, init_agreement, AgreementParams};
+use crate::instructions::create_agreement::{
+    finish_agreement, init_agreement, AgreementParams, ProductIdSeed,
+};
 use crate::state::{AgentMandate, BnplAgreement};
 
 /// Owner-chosen limits, shared by create and update.
@@ -422,7 +424,7 @@ pub struct AgentCreateAgreement<'info> {
         init,
         payer = agent,
         space = BnplAgreement::SIZE,
-        seeds = [SEED_AGREEMENT, owner.key().as_ref(), product_id.as_bytes()],
+        seeds = [SEED_AGREEMENT, owner.key().as_ref(), product_id.checked_seed()?.as_bytes()],
         bump
     )]
     pub agreement: Account<'info, BnplAgreement>,
