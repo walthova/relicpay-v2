@@ -5,7 +5,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
-import { createMint, createAccount, mintTo, getAccount } from "@solana/spl-token";
+import { createMint, createAccount, mintTo, getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { assert } from "chai";
 import * as fs from "fs";
 import * as path from "path";
@@ -65,7 +65,14 @@ describe("@relicpay/checkout SDK", () => {
     assert.equal(q.installments.reduce((s, i) => s + i.amount, 0n), req.totalPrice);
     assert.equal(q.upfront, 33_333_333n);
     assert.deepEqual(q.installments.map((i) => i.dueOffsetSeconds), [0, 172_800, 259_200]);
-    assert.equal(q.cancelFeeIfCancelledNow, 10_000_000n);
+    assert.equal(q.cancelFeeIfCancelledNow, 3_333_333n);
+  });
+
+  it("quotes the cancel fee on the escrowed upfront installment, as cancel_agreement charges it", () => {
+    // $100 pay-in-4: escrow holds the $25 upfront at checkout, so the fee is $2.50, not $10.
+    const q = quote({ ...req, installmentCount: 4 });
+    assert.equal(q.upfront, 25_000_000n);
+    assert.equal(q.cancelFeeIfCancelledNow, 2_500_000n);
   });
 
   it("estimates simple-interest yield from escrow balance over time", () => {
@@ -147,6 +154,15 @@ describe("@relicpay/checkout SDK", () => {
     assert.equal(acct.totalPrice.toString(), req.totalPrice.toString());
     const escrow = await getAccount(provider.connection, built.escrow);
     assert.equal(escrow.amount, built.quote.upfront);
+
+    // Cancelling right away charges exactly the quoted fee.
+    const merchantUsdc = await createAccount(provider.connection, buyer, mint, merchant.publicKey, undefined, conf);
+    await program.methods
+      .cancelAgreement()
+      .accounts({ agreement: built.agreement, buyer: buyer.publicKey, buyerUsdc, escrowUsdc: built.escrow, merchantUsdc, tokenProgram: TOKEN_PROGRAM_ID })
+      .signers([buyer])
+      .rpc({ commitment: "confirmed", preflightCommitment: "confirmed" });
+    assert.equal((await getAccount(provider.connection, merchantUsdc, "confirmed")).amount, built.quote.cancelFeeIfCancelledNow);
   });
 
   it("refuses to build for an invalid request without touching the program", async () => {
