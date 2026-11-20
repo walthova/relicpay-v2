@@ -23,7 +23,9 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::constants::*;
 use crate::events::{KaminoDepositProbeFallback, KaminoDepositProbeSucceeded};
-use crate::instructions::create_agreement::{finish_agreement, init_agreement, AgreementParams};
+use crate::instructions::create_agreement::{
+    finish_agreement, init_agreement, AgreementParams, ProductIdSeed,
+};
 use crate::instructions::kamino_cpi::{
     mock_reserve_looks_paused, try_kamino_deposit, KaminoDepositAccounts,
 };
@@ -156,7 +158,7 @@ pub struct CreateAgreementKamino<'info> {
         init,
         payer = buyer,
         space = BnplAgreement::SIZE,
-        seeds = [SEED_AGREEMENT, buyer.key().as_ref(), product_id.as_bytes()],
+        seeds = [SEED_AGREEMENT, buyer.key().as_ref(), product_id.checked_seed()?.as_bytes()],
         bump
     )]
     pub agreement: Box<Account<'info, BnplAgreement>>,

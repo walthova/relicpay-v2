@@ -17,6 +17,20 @@ use crate::events::AgreementCreated;
 use crate::instructions::protocol_config::{apply_tvl_increase, check_not_paused, read_config};
 use crate::state::{AgreementState, BnplAgreement};
 
+pub(super) trait ProductIdSeed {
+    fn checked_seed(&self) -> Result<&str>;
+}
+
+impl ProductIdSeed for str {
+    fn checked_seed(&self) -> Result<&str> {
+        require!(
+            self.len() <= MAX_PRODUCT_ID_LEN,
+            RelicPayError::InvalidProductId
+        );
+        Ok(self)
+    }
+}
+
 pub fn handler(
     ctx: Context<CreateAgreement>,
     total_price: u64,
@@ -109,10 +123,7 @@ pub(crate) fn init_agreement(
         RelicPayError::InvalidInstallments
     );
     require!(interval_seconds > 0, RelicPayError::InvalidInterval);
-    require!(
-        product_id.len() <= MAX_PRODUCT_ID_LEN,
-        RelicPayError::InvalidProductId
-    );
+    product_id.checked_seed()?;
     require!(
         merchant_name.len() <= MAX_MERCHANT_NAME_LEN,
         RelicPayError::InvalidMerchantName
@@ -173,6 +184,29 @@ pub(crate) fn init_agreement(
     Ok(first_installment)
 }
 
+#[cfg(test)]
+mod product_id_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_exactly_32_utf8_bytes_without_changing_the_seed() {
+        assert_eq!(MAX_PRODUCT_ID_LEN, 32);
+        for product_id in ["x".repeat(32), "é".repeat(16)] {
+            assert_eq!(product_id.checked_seed().unwrap(), product_id);
+        }
+    }
+
+    #[test]
+    fn rejects_oversized_utf8_seeds_with_the_product_id_error() {
+        for product_id in ["x".repeat(33), "é".repeat(16) + "x", "x".repeat(64)] {
+            assert_eq!(
+                product_id.checked_seed().unwrap_err(),
+                error!(RelicPayError::InvalidProductId)
+            );
+        }
+    }
+}
+
 /// Post-transfer bookkeeping + the `AgreementCreated` event. Call BEFORE any
 /// Kamino deposit so the event reports the simulated source consistently
 /// with plain `create_agreement`.
@@ -200,11 +234,13 @@ pub(crate) fn finish_agreement(
 #[derive(Accounts)]
 #[instruction(total_price: u64, installment_count: u8, interval_seconds: i64, product_id: String)]
 pub struct CreateAgreement<'info> {
+    // Anchor derives init PDAs before the handler runs. Check the seed here,
+    // keeping product_id as the method receiver for IDL seed resolution.
     #[account(
         init,
         payer = buyer,
         space = BnplAgreement::SIZE,
-        seeds = [SEED_AGREEMENT, buyer.key().as_ref(), product_id.as_bytes()],
+        seeds = [SEED_AGREEMENT, buyer.key().as_ref(), product_id.checked_seed()?.as_bytes()],
         bump
     )]
     pub agreement: Account<'info, BnplAgreement>,
