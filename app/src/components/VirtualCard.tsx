@@ -25,7 +25,7 @@ function formatUsdc(units: number, decimals = 2): string {
 
 export function VirtualCard({ stake, loading }: Props) {
   const { publicKey } = useWallet();
-  const [tickYield, setTickYield] = useState(0);
+  const [, setTickYield] = useState(0);
 
   // Force a re-render every second so the live yield ticks visibly
   useEffect(() => {
@@ -36,7 +36,6 @@ export function VirtualCard({ stake, loading }: Props) {
 
   const tier = stake?.tier;
   const stakedUsd = stake?.stakedUsd ?? 0;
-  const totalYieldUsd = (stake?.totalYieldUnits ?? 0) / 1_000_000;
 
   // Recompute live yield each tick
   let liveYield = stake?.totalYieldUnits ?? 0;
