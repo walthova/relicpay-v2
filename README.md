@@ -100,12 +100,24 @@ older Node cannot `require()` the ESM modules in the web3 dependency chain. The 
 ```bash
 npm install
 anchor build                                   # compile the program
-cargo test --manifest-path programs/relicpay/Cargo.toml   # unit tests
+cargo test --locked --manifest-path programs/relicpay/Cargo.toml   # unit tests
 anchor test                                    # integration suite on localnet
 cd app && npm install && npm run build         # demo app build
 ```
 
 Program ID (localnet/devnet): `5GPVYpyzdosbzWcdttcCdziJVqUCCARf98J857C3T6Gi`
+
+### PR checks and fuzz replay
+
+CI runs Rust unit tests and the Anchor suite on every PR. The Anchor suite
+includes seeded agent-mandate tests for current BNPL purchases (not borrowing,
+which is not implemented here). Replay or extend the seeds printed by CI with
+`RELICPAY_FUZZ_SEED=<seed> anchor test` against a fresh local validator.
+
+In [GitHub Rulesets](https://github.com/walthova/relicpay-v2/settings/rules), keep
+`main` behind an active rule that requires a pull request and the **RelicPay PR gate**
+status check from GitHub Actions, with no bypass actors. Enable the required
+check after its first run is visible; the workflow alone does not prevent merges.
 
 ## Funding Room
 
