@@ -160,9 +160,10 @@ impl KaminoConfig {
 ///
 /// PDA seeds: ["agent_mandate", owner, agent]. The owner keeps custody: USDC
 /// stays in the owner's own token account, which delegates a bounded SPL
-/// allowance to this PDA. Agreements the agent opens are recorded with
-/// `buyer = owner`, so repayment, cancellation and default work exactly as
-/// for any other agreement.
+/// allowance to this PDA. The mandate is permanently bound to that token
+/// account. Agreements the agent opens are recorded with `buyer = owner`, so
+/// repayment, cancellation and default work exactly as for any other
+/// agreement.
 #[account]
 pub struct AgentMandate {
     pub owner: Pubkey,                  // wallet whose credit the agent spends
@@ -183,6 +184,7 @@ pub struct AgentMandate {
     pub allowed_merchants: Vec<Pubkey>, // empty = any merchant
     pub created_at: i64,
     pub bump: u8,
+    pub owner_usdc: Pubkey, // token account bound to this mandate
 }
 
 impl AgentMandate {
@@ -193,6 +195,6 @@ impl AgentMandate {
         + 8 + 8 + 2                    // current period
         + 4 + 8                        // lifetime counters
         + 4 + 32 * crate::constants::MAX_MANDATE_MERCHANTS
-        + 8 + 1                        // created_at, bump
+        + 8 + 1 + 32                   // created_at, bump, owner_usdc
         + 32; // reserved for future fields (agent identity / reputation)
 }

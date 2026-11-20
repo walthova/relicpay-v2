@@ -17,8 +17,8 @@
 //!   committing to, not just the first installment), purchases per period,
 //!   approved merchants, expiry, and an owner co-sign above a threshold.
 //!
-//! An SPL token account has a single delegate, so one owner USDC account
-//! backs one live mandate at a time. A second mandate on the same account
+//! Each mandate is permanently bound to one owner USDC account. An SPL token
+//! account has a single delegate, so a second mandate on the same account
 //! replaces the first one's allowance.
 
 use anchor_lang::prelude::*;
@@ -121,6 +121,7 @@ pub fn create_handler(ctx: Context<CreateAgentMandate>, limits: MandateLimits) -
     mandate.total_spent = 0;
     mandate.created_at = now;
     mandate.bump = ctx.bumps.mandate;
+    mandate.owner_usdc = ctx.accounts.owner_usdc.key();
 
     approve_and_emit(
         &ctx.accounts.mandate,
@@ -186,7 +187,11 @@ pub struct UpdateAgentMandate<'info> {
 
     pub owner: Signer<'info>,
 
-    #[account(mut, token::authority = owner)]
+    #[account(
+        mut,
+        token::authority = owner,
+        address = mandate.owner_usdc @ RelicPayError::MandateTokenAccountMismatch,
+    )]
     pub owner_usdc: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
@@ -234,7 +239,11 @@ pub struct RevokeAgentMandate<'info> {
 
     pub owner: Signer<'info>,
 
-    #[account(mut, token::authority = owner)]
+    #[account(
+        mut,
+        token::authority = owner,
+        address = mandate.owner_usdc @ RelicPayError::MandateTokenAccountMismatch,
+    )]
     pub owner_usdc: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
@@ -439,6 +448,7 @@ pub struct AgentCreateAgreement<'info> {
         mut,
         token::mint = usdc_mint,
         token::authority = owner,
+        address = mandate.owner_usdc @ RelicPayError::MandateTokenAccountMismatch,
     )]
     pub owner_usdc: Account<'info, TokenAccount>,
 

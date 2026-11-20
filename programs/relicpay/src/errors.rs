@@ -68,4 +68,6 @@ pub enum RelicPayError {
     OwnerApprovalRequired,
     #[msg("Mandate must be revoked before it can be closed")]
     MandateNotRevoked,
+    #[msg("Token account does not match the mandate's bound owner USDC account")]
+    MandateTokenAccountMismatch,
 }

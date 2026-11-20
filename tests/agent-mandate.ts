@@ -338,4 +338,122 @@ describe("agent BNPL: agent mandates", () => {
       .rpc();
     assert.isNull(await provider.connection.getAccountInfo(mandate()));
   });
+
+  it("binds a mandate to its token account across revoke and recreation", async () => {
+    const otherOwnerUsdc = await createAccount(
+      provider.connection,
+      owner,
+      usdcMint,
+      owner.publicKey,
+      Keypair.generate(),
+    );
+    const attackProductId = "binding-attack";
+
+    await program.methods
+      .createAgentMandate(
+        limits({
+          perPurchaseCap: USDC(10),
+          periodCap: USDC(10),
+          maxPurchasesPerPeriod: 1,
+          approvalThreshold: USDC(10),
+          delegatedAllowance: USDC(5),
+        }),
+      )
+      .accounts({
+        mandate: mandate(),
+        owner: owner.publicKey,
+        agent: agent.publicKey,
+        ownerUsdc,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([owner])
+      .rpc();
+
+    let mismatchedRevokeRejected = false;
+    try {
+      await program.methods
+        .revokeAgentMandate()
+        .accounts({
+          mandate: mandate(),
+          owner: owner.publicKey,
+          ownerUsdc: otherOwnerUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([owner])
+        .rpc();
+    } catch (err: any) {
+      mismatchedRevokeRejected = true;
+      assert.include(`${err?.error?.errorCode?.code ?? ""} ${err}`, "MandateTokenAccountMismatch");
+    }
+
+    if (mismatchedRevokeRejected) {
+      await program.methods
+        .revokeAgentMandate()
+        .accounts({
+          mandate: mandate(),
+          owner: owner.publicKey,
+          ownerUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([owner])
+        .rpc();
+    }
+
+    await program.methods
+      .closeAgentMandate()
+      .accounts({ mandate: mandate(), owner: owner.publicKey })
+      .signers([owner])
+      .rpc();
+
+    await program.methods
+      .createAgentMandate(
+        limits({
+          perPurchaseCap: USDC(10),
+          periodCap: USDC(10),
+          maxPurchasesPerPeriod: 1,
+          approvalThreshold: USDC(10),
+          delegatedAllowance: USDC(1),
+        }),
+      )
+      .accounts({
+        mandate: mandate(),
+        owner: owner.publicKey,
+        agent: agent.publicKey,
+        ownerUsdc: otherOwnerUsdc,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([owner])
+      .rpc();
+
+    const before = await getAccount(provider.connection, ownerUsdc);
+    let attackFailed = false;
+    try {
+      await agentBuy(attackProductId, USDC(10));
+    } catch {
+      attackFailed = true;
+    }
+    const after = await getAccount(provider.connection, ownerUsdc);
+
+    assert.equal((before.amount - after.amount).toString(), "0");
+    assert.isTrue(attackFailed);
+    assert.isTrue(mismatchedRevokeRejected);
+
+    await program.methods
+      .revokeAgentMandate()
+      .accounts({
+        mandate: mandate(),
+        owner: owner.publicKey,
+        ownerUsdc: otherOwnerUsdc,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([owner])
+      .rpc();
+    await program.methods
+      .closeAgentMandate()
+      .accounts({ mandate: mandate(), owner: owner.publicKey })
+      .signers([owner])
+      .rpc();
+  });
 });
