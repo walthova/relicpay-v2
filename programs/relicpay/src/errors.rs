@@ -8,7 +8,7 @@ pub enum RelicPayError {
     InvalidInstallments,
     #[msg("Payment interval must be greater than zero")]
     InvalidInterval,
-    #[msg("Product ID must be 64 characters or fewer")]
+    #[msg("Product ID must be 32 UTF-8 bytes or fewer")]
     InvalidProductId,
     #[msg("Merchant name must be 64 characters or fewer")]
     InvalidMerchantName,

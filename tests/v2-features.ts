@@ -21,6 +21,7 @@ import {
   getAccount,
 } from "@solana/spl-token";
 import { assert } from "chai";
+import { rejects } from "node:assert/strict";
 
 describe("relicpay v2 features", () => {
   const provider = anchor.AnchorProvider.env();
@@ -1821,11 +1822,36 @@ describe("relicpay v2 features", () => {
         .then(() => ({ agreement, escrow }));
     };
 
+    it("rejects oversized Kamino product IDs before deriving the agreement PDA", async () => {
+      const agreement = agreementPDA("unused-kamino-order");
+      for (const productId of ["x".repeat(33), "é".repeat(16) + "x", "x".repeat(64)]) {
+        await rejects(
+          () => program.methods
+            .createAgreementKamino(new BN(40_000_000), 2, new BN(1), productId, MERCHANT_NAME)
+            .accounts({
+              agreement, buyer: buyer.publicKey, merchant: merchant.publicKey, usdcMint, buyerUsdc,
+              escrowUsdc: escrowPDA(agreement), ...approvedAccounts(),
+              escrowKaminoCollateral: escrowCollateralPDA(agreement),
+              systemProgram: SystemProgram.programId, rent: SYSVAR_RENT_PUBKEY,
+            })
+            .signers([buyer])
+            .rpc(),
+          (err: any) => {
+            assert.equal(err.error?.errorCode?.code, "InvalidProductId", String(err));
+            return true;
+          },
+        );
+      }
+      assert.isNull(await provider.connection.getAccountInfo(agreement));
+    });
+
     it("create_agreement_kamino creates the agreement and deposits the first installment into Kamino", async () => {
       const buyerBefore = await getAccount(provider.connection, buyerUsdc);
-      const { agreement, escrow } = await createKamino("v2-create-kamino-inline");
+      const productId = "k".repeat(32);
+      const { agreement, escrow } = await createKamino(productId);
 
       const acct = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(acct.productId, productId);
       assert.equal(acct.paidInstallments, 1);
       assert.deepEqual(acct.state, { active: {} });
       assert.equal(acct.installmentAmount.toString(), "20000000");

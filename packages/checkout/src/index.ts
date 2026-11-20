@@ -5,25 +5,26 @@
 // input BEFORE the buyer signs. Constants must stay in sync with
 // programs/relicpay/src/constants.rs (a test pins them).
 
-import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, TransactionInstruction } from "@solana/web3.js";
+import { MAX_SEED_LENGTH, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, TransactionInstruction } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export const MIN_INSTALLMENTS = 2;
 export const MAX_INSTALLMENTS = 12;
-export const MAX_PRODUCT_ID_LEN = 64;
+export const MAX_PRODUCT_ID_LEN = MAX_SEED_LENGTH;
 export const MAX_MERCHANT_NAME_LEN = 64;
 export const CANCEL_FEE_BPS = 1_000n;
 export const GRACE_PERIOD_SECONDS = 7 * 24 * 60 * 60;
 export const DEFAULT_YIELD_RATE_BPS = 300n;
 const BPS_DIVISOR = 10_000n;
 const SECONDS_PER_YEAR = 31_536_000n;
+const PRODUCT_ID_TOO_LONG = `productId exceeds ${MAX_PRODUCT_ID_LEN} bytes`;
 
 export interface CheckoutRequest {
   /** Total price in USDC base units (6 decimals). */
   totalPrice: bigint;
   installmentCount: number;
   intervalSeconds: number;
-  /** Merchant SKU or order id. Part of the agreement PDA seed. */
+  /** Merchant SKU or order ID, at most 32 UTF-8 bytes (used as a PDA seed). */
   productId: string;
   merchantName: string;
 }
@@ -56,7 +57,7 @@ export function validateCheckout(req: CheckoutRequest, maxAgreementDeposit: bigi
   if (!Number.isInteger(req.installmentCount) || req.installmentCount < MIN_INSTALLMENTS || req.installmentCount > MAX_INSTALLMENTS)
     errs.push(`installmentCount must be an integer between ${MIN_INSTALLMENTS} and ${MAX_INSTALLMENTS}`);
   if (!Number.isInteger(req.intervalSeconds) || req.intervalSeconds <= 0) errs.push("intervalSeconds must be a positive integer");
-  if (Buffer.byteLength(req.productId) > MAX_PRODUCT_ID_LEN) errs.push(`productId exceeds ${MAX_PRODUCT_ID_LEN} bytes`);
+  if (Buffer.byteLength(req.productId) > MAX_PRODUCT_ID_LEN) errs.push(PRODUCT_ID_TOO_LONG);
   if (Buffer.byteLength(req.merchantName) > MAX_MERCHANT_NAME_LEN) errs.push(`merchantName exceeds ${MAX_MERCHANT_NAME_LEN} bytes`);
   if (maxAgreementDeposit > 0n && req.totalPrice > maxAgreementDeposit) errs.push("totalPrice exceeds the protocol per-agreement cap");
   return errs;
@@ -90,7 +91,9 @@ export function quote(req: CheckoutRequest): Quote {
 }
 
 export function agreementAddress(programId: PublicKey, buyer: PublicKey, productId: string): PublicKey {
-  return PublicKey.findProgramAddressSync([Buffer.from("agreement"), buyer.toBuffer(), Buffer.from(productId)], programId)[0];
+  const productIdSeed = Buffer.from(productId);
+  if (productIdSeed.length > MAX_PRODUCT_ID_LEN) throw new Error(PRODUCT_ID_TOO_LONG);
+  return PublicKey.findProgramAddressSync([Buffer.from("agreement"), buyer.toBuffer(), productIdSeed], programId)[0];
 }
 
 export function escrowAddress(programId: PublicKey, agreement: PublicKey): PublicKey {
