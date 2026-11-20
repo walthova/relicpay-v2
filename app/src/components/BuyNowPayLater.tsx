@@ -15,7 +15,7 @@ interface Product {
 }
 
 export function BuyNowPayLater({ product }: { product: Product }) {
-  const { connected, publicKey } = useWallet();
+  const { connected } = useWallet();
   const { createAgreement } = useRelicPay();
   const [selectedOption, setSelectedOption] = useState(INSTALLMENT_OPTIONS[0]);
   const [loading, setLoading] = useState(false);
