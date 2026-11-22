@@ -4,7 +4,8 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "test": "node scripts/test.js"
+    "test": "node scripts/test.js",
+    "x402:mock": "ts-node scripts/x402-mock/run.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

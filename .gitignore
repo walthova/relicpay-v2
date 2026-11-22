@@ -24,3 +24,7 @@ test-ledger/
 
 # Swarm runtime logs
 .runtime/
+
+# Throwaway x402 mock keys, validator ledgers, and run evidence
+scripts/x402-mock/out/
+scripts/x402-mock/keys/
