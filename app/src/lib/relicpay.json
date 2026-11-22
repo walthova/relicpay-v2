@@ -1492,6 +1492,10 @@
           {
             "name": "version",
             "type": "u8"
+          },
+          {
+            "name": "yield_source",
+            "type": "u8"
           }
         ]
       }

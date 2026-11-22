@@ -10,6 +10,7 @@ import { assert } from "chai";
 import { rejects } from "node:assert/strict";
 import * as fs from "fs";
 import * as path from "path";
+import appIdl from "../app/src/lib/relicpay.json";
 import {
   quote,
   validateCheckout,
@@ -203,15 +204,18 @@ describe("@relicpay/checkout SDK", () => {
     assert.equal(created!.data.productId, request.productId);
     assert.isEmpty(decodeEvents(program, ["Program 11111111111111111111111111111111 invoke [1]", "Program 11111111111111111111111111111111 success"]));
 
-    // Merchant dashboard: the memcmp offset must hit the real merchant field on a live account.
-    const dash = await getMerchantDashboard(program, merchant.publicKey, Number(acct.startTime));
+    // Use the same bundled IDL as the merchant page to read the live agreement.
+    const appProgram = new Program(appIdl as anchor.Idl, provider);
+    const dash = await getMerchantDashboard(appProgram, merchant.publicKey, Number(acct.startTime));
     assert.equal(dash.rows.length, 1);
     assert.isTrue(dash.rows[0].address.equals(built.agreement));
     assert.isTrue(dash.rows[0].buyer.equals(buyer.publicKey));
+    assert.equal(dash.rows[0].productId, request.productId);
+    assert.equal(dash.rows[0].status.yieldSource, "simulated");
     assert.equal(dash.summary.counts.active, 1);
     assert.equal(dash.summary.outstandingReceivable, req.totalPrice - built.quote.upfront);
     assert.equal(dash.summary.nextDueAt, st0!.nextDueAt);
-    assert.equal((await getMerchantDashboard(program, Keypair.generate().publicKey)).rows.length, 0);
+    assert.equal((await getMerchantDashboard(appProgram, Keypair.generate().publicKey)).rows.length, 0);
 
     assert.equal(acct.installmentAmount.toString(), built.quote.upfront.toString());
     assert.equal(acct.totalPrice.toString(), req.totalPrice.toString());
