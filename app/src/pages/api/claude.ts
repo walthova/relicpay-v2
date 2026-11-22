@@ -30,7 +30,7 @@ const SYSTEM_PROMPT = `You are the Relic Pay assistant — an expert guide for a
 
 WHAT RELIC PAY IS:
 - A BNPL protocol where crypto holders use USDC as collateral to buy things in installments
-- The locked funds earn 3% APY yield while the buyer pays (the core differentiator)
+- Locked funds illustrate simulated yield; do not quote an annual rate or promise a return
 - No banks, no credit checks, no selling crypto
 - Built on Solana using Anchor (Rust smart contracts)
 

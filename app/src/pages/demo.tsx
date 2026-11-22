@@ -1,535 +1,316 @@
-import { useState, useEffect } from "react";
-import { ClaudeGuide } from "../components/ClaudeGuide";
+import Head from "next/head";
+import { useReducer, useRef, useState } from "react";
+import type { Dispatch, ReactNode } from "react";
+import {
+  AGENTS, CAP_OPTIONS, COLLATERAL, CREDIT_LIMIT, MERCHANT, PAYMENT_AMOUNT, PURCHASE_PRICE,
+  REPAYMENTS, getBalances, getCap, initialDemo, reduceDemo,
+} from "../lib/creditDemo";
+import type { Action, AgentId, Demo } from "../lib/creditDemo";
+import styles from "./demo.module.css";
 
-// Simulated purchase: $300 IBG Collection item, 3 installments, 30-day intervals
-// For demo purposes we compress time: each "month" advances on button click.
+const steps = ["Set up credit", "Authorize purchase", "Repay the draw", "Review the record"];
+const views = ["Owner workspace", "Merchant view", "Activity"] as const;
+const agentIds = Object.keys(AGENTS) as AgentId[];
+const yieldSnapshots = ["0.00", "0.12", "0.23", "0.31"];
 
-const TOTAL_PRICE = 300;
-const INSTALLMENT_COUNT = 3;
-const INSTALLMENT_AMOUNT = 100;
-const APY_BPS = 300; // 3%
-const INTERVAL_DAYS = 30;
+const icons = {
+  logo: "M12 2 22 7.5v9L12 22 2 16.5v-9L12 2Zm0 0v20M2 7.5l10 5.5 10-5.5",
+  arrow: "M4 12h15m-6-6 6 6-6 6",
+  down: "M12 4v15m-6-6 6 6 6-6",
+  check: "m5 12 4 4L19 6",
+  wallet: "M4 6h15a1 1 0 0 1 1 1v12H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h13m3 6h-5a2 2 0 0 0 0 4h5",
+  shield: "M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Zm-3-11 2 2 4-4",
+  bolt: "m13 2-9 12h7l-1 8 10-12h-7l1-8Z",
+  spark: "M12 2c0 6 4 10 10 10-6 0-10 4-10 10 0-6-4-10-10-10 6 0 10-4 10-10Z",
+  activity: "M3 12h4l3-7 4 14 3-7h4",
+  reset: "M4 11a8 8 0 1 1 2 6M4 5v6h6",
+  info: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-11v5m0-9h.01",
+} as const;
 
-type AgreementState = "idle" | "active" | "completed" | "cancelled" | "defaulted";
-
-interface Installment {
-  number: number;
-  amount: number;
-  status: "pending" | "paid" | "due";
-  dueDay: number;
-  paidAt?: number; // simulated "day"
-}
-
-function calcYield(principal: number, daysSinceDeposit: number): number {
-  // simple interest: principal × (bps/10000) × (days/365)
-  return principal * (APY_BPS / 10_000) * (daysSinceDeposit / 365);
-}
-
-function fmt(n: number) {
-  return n.toFixed(4);
-}
-
-export default function Demo() {
-  const [state, setState] = useState<AgreementState>("idle");
-  const [day, setDay] = useState(0); // simulated current day
-  const [escrow, setEscrow] = useState(0);
-  const [yieldAccrued, setYieldAccrued] = useState(0);
-  const [paidCount, setPaidCount] = useState(0);
-  const [merchantReceived, setMerchantReceived] = useState(0);
-  const [buyerYield, setBuyerYield] = useState(0);
-  const [log, setLog] = useState<string[]>([]);
-  const [installments, setInstallments] = useState<Installment[]>([]);
-
-  // Tick yield every second in demo (represents time passing)
-  useEffect(() => {
-    if (state !== "active") return;
-    const id = setInterval(() => {
-      // Each second = 1 simulated minute of yield accrual for visual effect
-      setYieldAccrued((prev) => {
-        const perSecond = escrow * (APY_BPS / 10_000) / (365 * 24 * 60 * 60);
-        return prev + perSecond * 60; // 1 second = 60 simulated minutes
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [state, escrow]);
-
-  const addLog = (msg: string) => setLog((prev) => [...prev, msg]);
-
-  const handleCreate = () => {
-    const installs: Installment[] = Array.from({ length: INSTALLMENT_COUNT }, (_, i) => ({
-      number: i + 1,
-      amount: INSTALLMENT_AMOUNT,
-      status: i === 0 ? "paid" : "pending",
-      dueDay: (i + 1) * INTERVAL_DAYS,
-    }));
-    installs[0].paidAt = 0;
-
-    setInstallments(installs);
-    setEscrow(INSTALLMENT_AMOUNT);
-    setPaidCount(1);
-    setDay(0);
-    setYieldAccrued(0);
-    setState("active");
-    addLog(`Day 0 — Agreement created. Installment 1 ($${INSTALLMENT_AMOUNT}) → escrow.`);
-  };
-
-  const handlePayNext = () => {
-    const nextNum = paidCount + 1;
-    if (nextNum > INSTALLMENT_COUNT) return;
-
-    const newDay = nextNum * INTERVAL_DAYS;
-
-    // Accrue yield for this window
-    const elapsedDays = newDay - day;
-    const windowYield = calcYield(escrow, elapsedDays);
-    const totalYield = yieldAccrued + windowYield;
-
-    const newEscrow = escrow + INSTALLMENT_AMOUNT;
-    const newPaid = nextNum;
-
-    setYieldAccrued(totalYield);
-    setEscrow(newEscrow);
-    setPaidCount(newPaid);
-    setDay(newDay);
-
-    setInstallments((prev) =>
-      prev.map((inst) =>
-        inst.number === nextNum ? { ...inst, status: "paid", paidAt: newDay } : inst
-      )
-    );
-
-    addLog(
-      `Day ${newDay} — Installment ${nextNum} ($${INSTALLMENT_AMOUNT}) paid. Yield accrued this window: $${fmt(windowYield)}. Total yield: $${fmt(totalYield)}.`
-    );
-
-    if (newPaid === INSTALLMENT_COUNT) {
-      setState("completed");
-      addLog(`Day ${newDay} — Agreement COMPLETED. Merchant can now withdraw $${TOTAL_PRICE}. Buyer can claim $${fmt(totalYield)} yield.`);
-    }
-  };
-
-  const handleMerchantWithdraw = () => {
-    setMerchantReceived(TOTAL_PRICE);
-    setEscrow((prev) => prev - TOTAL_PRICE);
-    addLog(`Merchant withdrew $${TOTAL_PRICE} USDC. Buyer yield ($${fmt(yieldAccrued)}) remains claimable.`);
-  };
-
-  const handleClaimYield = () => {
-    setBuyerYield(yieldAccrued);
-    setYieldAccrued(0);
-    addLog(`Buyer claimed $${fmt(buyerYield || yieldAccrued)} USDC yield from protocol reserve.`);
-  };
-
-  const handleCancel = () => {
-    const fee = escrow * 0.1;
-    const refund = escrow - fee;
-    setEscrow(0);
-    setState("cancelled");
-    addLog(`Agreement cancelled. Merchant received $${fmt(fee)} (10% fee). Buyer refunded $${fmt(refund)}.`);
-  };
-
-  const handleReset = () => {
-    setState("idle");
-    setDay(0);
-    setEscrow(0);
-    setYieldAccrued(0);
-    setPaidCount(0);
-    setMerchantReceived(0);
-    setBuyerYield(0);
-    setLog([]);
-    setInstallments([]);
-  };
-
-  const nextInstallmentDue = state === "active" && paidCount < INSTALLMENT_COUNT
-    ? installments[paidCount]?.dueDay
-    : null;
-
+function Icon({ name, size = 18 }: { name: keyof typeof icons; size?: number }) {
   return (
-    <div style={page}>
-      <nav style={nav}>
-        <a href="/" style={navLink}>Relic Pay</a>
-        <span style={{ color: "#64748b" }}>/ Demo</span>
-        <a href="/docs" style={{ ...navLink, marginLeft: "auto", fontSize: 13 }}>Docs</a>
-      </nav>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={icons[name]} />
+    </svg>
+  );
+}
 
-      <h1 style={h1}>Interactive Demo</h1>
-      <p style={subtitle}>
-        No wallet needed. This simulates a $300 IBG Collection purchase split into 3 monthly installments.
-        Watch yield accrue in real time. Ask Claude anything using the guide below.
-      </p>
+function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "paid" | "blocked" }) {
+  return <span className={`${styles.badge} ${styles[tone]}`}>{children}</span>;
+}
 
-      <div style={grid}>
-        {/* LEFT: Simulation */}
-        <div style={panel}>
-          <div style={panelHeader}>
-            <span>Agreement Simulator</span>
-            <span style={stateTag(state)}>{state.toUpperCase()}</span>
-          </div>
-
-          {/* Item card */}
-          <div style={itemCard}>
-            <div style={itemImage}>
-              <span style={{ fontSize: 32 }}>◼◯▲</span>
-            </div>
-            <div style={itemInfo}>
-              <div style={itemName}>IBG Collection — Optic Relic #001</div>
-              <div style={itemPrice}>${TOTAL_PRICE}.00</div>
-              <div style={itemSub}>3 × ${INSTALLMENT_AMOUNT}/month · 3% APY yield on escrow</div>
-            </div>
-          </div>
-
-          {/* Installment schedule */}
-          {installments.length > 0 && (
-            <div style={scheduleBox}>
-              <div style={scheduleTitle}>Payment Schedule</div>
-              {installments.map((inst) => (
-                <div key={inst.number} style={scheduleRow(inst.status)}>
-                  <span style={{ fontWeight: 600 }}>#{inst.number}</span>
-                  <span>${inst.amount}</span>
-                  <span>Day {inst.dueDay}</span>
-                  <span style={scheduleStatus(inst.status)}>
-                    {inst.status === "paid" ? `Paid day ${inst.paidAt}` : `Pending`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Stats */}
-          {state !== "idle" && (
-            <div style={statsGrid}>
-              <Stat label="Escrow Balance" value={`$${fmt(escrow)}`} color="#22d3ee" />
-              <Stat label="Yield Accrued" value={`$${fmt(yieldAccrued)}`} color="#a5b4fc" />
-              <Stat label="Simulated Day" value={`${day}`} color="#94a3b8" />
-              {merchantReceived > 0 && (
-                <Stat label="Merchant Received" value={`$${merchantReceived}`} color="#4ade80" />
-              )}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div style={actions}>
-            {state === "idle" && (
-              <Btn onClick={handleCreate} color="#6366f1">
-                Start Agreement — Pay Installment 1
-              </Btn>
-            )}
-
-            {state === "active" && paidCount < INSTALLMENT_COUNT && (
-              <>
-                <Btn onClick={handlePayNext} color="#6366f1">
-                  Advance to Day {nextInstallmentDue} — Pay Installment {paidCount + 1}
-                </Btn>
-                <Btn onClick={handleCancel} color="#ef4444" outline>
-                  Cancel Agreement (10% fee)
-                </Btn>
-              </>
-            )}
-
-            {state === "completed" && (
-              <>
-                {merchantReceived === 0 && (
-                  <Btn onClick={handleMerchantWithdraw} color="#4ade80">
-                    Merchant: Withdraw $300
-                  </Btn>
-                )}
-                {yieldAccrued > 0 && (
-                  <Btn onClick={handleClaimYield} color="#a5b4fc">
-                    Buyer: Claim ${fmt(yieldAccrued)} Yield
-                  </Btn>
-                )}
-                {merchantReceived > 0 && yieldAccrued === 0 && (
-                  <div style={{ color: "#4ade80", textAlign: "center", padding: 12, fontSize: 14 }}>
-                    All done. Merchant received ${merchantReceived}. Buyer earned ${fmt(buyerYield)} yield.
-                  </div>
-                )}
-              </>
-            )}
-
-            {(state === "cancelled" || state === "defaulted") && (
-              <Btn onClick={handleReset} color="#64748b">
-                Reset Demo
-              </Btn>
-            )}
-
-            {state === "completed" && merchantReceived > 0 && yieldAccrued === 0 && (
-              <Btn onClick={handleReset} color="#64748b" outline>
-                Run Again
-              </Btn>
-            )}
-          </div>
-
-          {/* Activity log */}
-          {log.length > 0 && (
-            <div style={logBox}>
-              <div style={logTitle}>Activity Log</div>
-              {log.map((entry, i) => (
-                <div key={i} style={logEntry}>{entry}</div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT: Claude Guide */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <ClaudeGuide />
-          <div style={linksBox}>
-            <a href="/docs/WHITEPAPER" style={docLink}>Read Whitepaper</a>
-            <a href="/docs/TECHNICAL_BREAKDOWN" style={docLink}>Technical Breakdown</a>
-            <a href="https://github.com/walthova/relicpay-v2" style={docLink} target="_blank" rel="noreferrer">GitHub</a>
-          </div>
-        </div>
+function Hero() {
+  return (
+    <section className={styles.hero} aria-labelledby="intro-title">
+      <div className={styles.heroCopy}>
+        <p className={styles.eyebrow}>RELIC PAY STUDIO</p>
+        <h1 id="intro-title">Agent credit.<br /><em>Owner control.</em></h1>
+        <p>Give your agents buying power without handing over your collateral. You set the rules, the merchant gets paid up front, and you repay on your schedule.</p>
+        <a className={styles.primary} href="#workspace">Try the demo <Icon name="down" size={16} /></a>
       </div>
-
-      <style jsx global>{`
-        body, html { margin: 0; padding: 0; background: #0f172a; color: #e2e8f0;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-        * { box-sizing: border-box; }
-        input { font-family: inherit; }
-        button { font-family: inherit; }
-      `}</style>
-    </div>
+      <div className={styles.heroArt} aria-hidden="true">
+        <svg viewBox="0 0 420 320" fill="none">
+          <defs>
+            <linearGradient id="edge" x1="38" y1="44" x2="388" y2="285" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#2a615a" />
+              <stop offset=".54" stopColor="#8ff4c5" />
+              <stop offset="1" stopColor="#254241" />
+            </linearGradient>
+            <radialGradient id="core">
+              <stop stopColor="#4aecb5" stopOpacity=".28" />
+              <stop offset="1" stopColor="#4aecb5" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <circle cx="214" cy="160" r="135" fill="url(#core)" />
+          <circle cx="214" cy="160" r="119" stroke="url(#edge)" strokeDasharray="2 7" />
+          <circle cx="214" cy="160" r="92" stroke="#396257" strokeOpacity=".55" />
+          <ellipse cx="214" cy="160" rx="177" ry="66" transform="rotate(-24 214 160)" stroke="url(#edge)" />
+          <ellipse cx="214" cy="160" rx="177" ry="66" transform="rotate(24 214 160)" stroke="url(#edge)" strokeOpacity=".6" />
+          <path d="M214 78 287 120v80l-73 42-73-42v-80l73-42Z" fill="#112925" stroke="url(#edge)" />
+          <path d="m214 95 57 32v66l-57 32-57-32v-66l57-32Z" fill="#173a33" stroke="#79c8a9" />
+          <path d="m214 117 38 22v42l-38 22-38-22v-42l38-22Z" stroke="#5b9d8b" />
+          <path d="M214 137 234 148v23l-20 12-20-12v-23l20-11Zm0 0v46m-20-35 20 12 20-12" stroke="#a6f5d1" strokeWidth="2" />
+          <circle cx="82" cy="232" r="5" fill="#9cf2ce" />
+          <circle cx="347" cy="92" r="5" fill="#9cf2ce" />
+          <circle cx="374" cy="198" r="3" fill="#9cf2ce" />
+          <circle cx="117" cy="79" r="3" fill="#9cf2ce" />
+        </svg>
+        <span className={styles.artTop}>01 / CREDIT LAB</span>
+        <span className={styles.artBottom}>OWNER → AGENT → MERCHANT</span>
+      </div>
+    </section>
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{label}</div>
-    </div>
-  );
-}
-
-function Btn({
-  onClick,
-  color,
-  outline,
-  children,
-}: {
-  onClick: () => void;
-  color: string;
-  outline?: boolean;
-  children: React.ReactNode;
+function Metric({ label, value, detail, icon }: {
+  label: string; value: number | null; detail: string; icon: keyof typeof icons;
 }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: outline ? "transparent" : color,
-        border: `1px solid ${color}`,
-        color: outline ? color : "white",
-        borderRadius: 10,
-        padding: "11px 20px",
-        fontSize: 13.5,
-        fontWeight: 600,
-        cursor: "pointer",
-        width: "100%",
-        transition: "all 0.15s",
-      }}
-    >
-      {children}
-    </button>
+    <div className={styles.metric}>
+      <span className={styles.metricLabel}><Icon name={icon} />{label}</span>
+      <p>{value === null ? "—" : <>{value} <span>USDC</span></>}</p>
+      <small>{detail}</small>
+    </div>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const page: React.CSSProperties = {
-  maxWidth: 1280,
-  margin: "0 auto",
-  padding: "24px 20px 80px",
-};
-
-const nav: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  marginBottom: 40,
-  paddingBottom: 16,
-  borderBottom: "1px solid rgba(148,163,184,0.12)",
-};
-
-const navLink: React.CSSProperties = {
-  color: "#a5b4fc",
-  textDecoration: "none",
-  fontWeight: 700,
-};
-
-const h1: React.CSSProperties = {
-  fontSize: "2rem",
-  fontWeight: 900,
-  letterSpacing: "-0.03em",
-  margin: "0 0 8px",
-  background: "linear-gradient(135deg, #a5b4fc, #22d3ee)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  backgroundClip: "text",
-};
-
-const subtitle: React.CSSProperties = {
-  color: "#94a3b8",
-  marginBottom: 40,
-  maxWidth: 680,
-  lineHeight: 1.6,
-};
-
-const grid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 480px",
-  gap: 32,
-  alignItems: "start",
-};
-
-const panel: React.CSSProperties = {
-  background: "rgba(15, 23, 42, 0.8)",
-  border: "1px solid rgba(148, 163, 184, 0.15)",
-  borderRadius: 16,
-  overflow: "hidden",
-};
-
-const panelHeader: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  padding: "14px 20px",
-  borderBottom: "1px solid rgba(148,163,184,0.12)",
-  fontWeight: 600,
-  fontSize: 14,
-  color: "#cbd5e1",
-};
-
-function stateTag(s: AgreementState): React.CSSProperties {
-  const colors: Record<AgreementState, string> = {
-    idle: "#64748b",
-    active: "#22d3ee",
-    completed: "#4ade80",
-    cancelled: "#f59e0b",
-    defaulted: "#ef4444",
-  };
-  return {
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    color: colors[s],
-    border: `1px solid ${colors[s]}`,
-    borderRadius: 20,
-    padding: "2px 10px",
-  };
+function AgentCard({ id, demo, dispatch }: { id: AgentId; demo: Demo; dispatch: Dispatch<Action> }) {
+  const agent = AGENTS[id];
+  const revoked = demo.revoked[id];
+  const expired = demo.day > agent.expiry;
+  const status = revoked ? "Revoked" : expired ? "Expired" : demo.opened ? "Authorized" : "Draft";
+  return (
+    <article className={styles.agent}>
+      <div className={styles.agentHeader}>
+        <span className={styles.avatar} data-agent={id}><Icon name={id === "atlas" ? "bolt" : "spark"} /></span>
+        <div><h3>{agent.name}</h3><p>{agent.role}</p></div>
+        <Badge tone={revoked || expired ? "blocked" : demo.opened ? "paid" : "neutral"}>{status}</Badge>
+      </div>
+      <dl>
+        <div>
+          <dt>{!demo.opened && id === "atlas" ? <label htmlFor="atlas-cap">Spend cap</label> : "Spend cap"}</dt>
+          <dd>{!demo.opened && id === "atlas" ? (
+            <select id="atlas-cap" value={demo.atlasCap} onChange={(event) => {
+              const cap = CAP_OPTIONS.find((option) => String(option) === event.target.value);
+              if (cap !== undefined) dispatch({ type: "set-cap", cap });
+            }}>
+              {CAP_OPTIONS.map((cap) => <option key={cap} value={cap}>{cap} USDC</option>)}
+            </select>
+          ) : `${getCap(demo, id)} USDC`}</dd>
+        </div>
+        <div><dt>Allowed merchant</dt><dd>{agent.merchant}</dd></div>
+        <div><dt>Spending window</dt><dd>Through day {agent.expiry}</dd></div>
+      </dl>
+      {demo.opened && !revoked && !expired && (
+        <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "revoke", agent: id })}>
+          Revoke {agent.name}
+        </button>
+      )}
+    </article>
+  );
 }
 
-const itemCard: React.CSSProperties = {
-  display: "flex",
-  gap: 16,
-  padding: 20,
-  borderBottom: "1px solid rgba(148,163,184,0.12)",
-};
+function PurchaseCard({ demo, dispatch, onReview }: { demo: Demo; dispatch: Dispatch<Action>; onReview: () => void }) {
+  const { paid, outstanding } = getBalances(demo);
+  const count = demo.draw?.installmentsPaid ?? 0;
+  const nextDay = (demo.draw?.openedDay ?? 0) + REPAYMENTS[count];
+  const complete = demo.draw && outstanding === 0;
+  const label = !demo.opened ? "Open demo credit line" : !demo.draw ? "Simulate Atlas purchase" :
+    complete ? "Review activity" : `Repay ${PAYMENT_AMOUNT} USDC · day ${nextDay}`;
+  const description = !demo.opened
+    ? `Lock ${COLLATERAL} demo USDC as collateral and authorize both agents under one ${CREDIT_LIMIT} USDC line.`
+    : !demo.draw
+      ? "Try as Nova to see a blocked request, then simulate an approved Atlas purchase."
+      : complete
+        ? "The line is restored. The merchant was paid at purchase, not at the end of the plan."
+        : "The lending pool already paid the merchant. Each repayment reduces what the owner owes.";
+  function takeNextStep() {
+    if (!demo.opened) dispatch({ type: "open" });
+    else if (!demo.draw) dispatch({ type: "attempt", agent: "atlas" });
+    else if (!complete) dispatch({ type: "repay" });
+    else onReview();
+  }
 
-const itemImage: React.CSSProperties = {
-  width: 80,
-  height: 80,
-  background: "linear-gradient(135deg, rgba(99,102,241,0.25), rgba(34,211,238,0.15))",
-  borderRadius: 12,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-};
-
-const itemInfo: React.CSSProperties = { flex: 1 };
-const itemName: React.CSSProperties = { fontWeight: 600, marginBottom: 4, fontSize: 15 };
-const itemPrice: React.CSSProperties = {
-  fontSize: 22,
-  fontWeight: 800,
-  color: "#22d3ee",
-  marginBottom: 4,
-};
-const itemSub: React.CSSProperties = { fontSize: 12, color: "#64748b" };
-
-const scheduleBox: React.CSSProperties = {
-  padding: "16px 20px",
-  borderBottom: "1px solid rgba(148,163,184,0.12)",
-};
-
-const scheduleTitle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#64748b",
-  letterSpacing: "0.08em",
-  marginBottom: 10,
-};
-
-function scheduleRow(status: string): React.CSSProperties {
-  return {
-    display: "grid",
-    gridTemplateColumns: "32px 60px 60px 1fr",
-    gap: 8,
-    padding: "6px 0",
-    fontSize: 13,
-    color: status === "paid" ? "#e2e8f0" : "#64748b",
-    borderBottom: "1px solid rgba(148,163,184,0.06)",
-  };
+  return (
+    <section className={styles.panel} aria-labelledby="purchase-title">
+      <div className={styles.panelHeading}>
+        <h2 id="purchase-title">Demo purchase</h2>
+        <Badge tone={demo.draw ? "paid" : "neutral"}>{complete ? "Repaid" : demo.draw ? "Merchant paid" : "Not purchased"}</Badge>
+      </div>
+      <div className={styles.product}>
+        <span className={styles.productArt}><Icon name="logo" size={26} /></span>
+        <div><strong>Optic Relic #001</strong><p>{MERCHANT} · Digital collectible</p></div>
+        <span className={styles.productPrice}>{PURCHASE_PRICE} <small>USDC</small></span>
+      </div>
+      <h3 className={styles.scheduleTitle}>Repayment schedule</h3>
+      <ol className={styles.schedule}>
+        {REPAYMENTS.map((day, i) => (
+          <li key={day}>
+            <span className={styles.scheduleIndex}>{i < count ? <Icon name="check" size={15} /> : `0${i + 1}`}</span>
+            <span>Day {(demo.draw?.openedDay ?? 0) + day}</span>
+            <span>{PAYMENT_AMOUNT} USDC</span>
+            <span className={i < count ? styles.goodText : styles.muted}>{i < count ? "Paid" : demo.draw && i === count ? "Next" : "Scheduled"}</span>
+          </li>
+        ))}
+      </ol>
+      {demo.draw && <progress className={styles.progress} aria-label="Repayment progress" value={paid} max={PURCHASE_PRICE} />}
+      <div className={styles.nextAction}>
+        <p>{description}</p>
+        <button type="button" className={styles.primary} onClick={takeNextStep}>{label} <Icon name="arrow" size={16} /></button>
+        {demo.opened && !demo.draw && <div className={styles.secondaryActions}>
+          <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })}>Try as Nova</button>
+          {demo.day <= AGENTS.atlas.expiry && <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "advance" })}>Skip past expiry</button>}
+        </div>}
+      </div>
+    </section>
+  );
 }
 
-function scheduleStatus(status: string): React.CSSProperties {
-  return {
-    color: status === "paid" ? "#4ade80" : "#64748b",
-    fontSize: 12,
-  };
+function MerchantView({ demo }: { demo: Demo }) {
+  const { merchantPaid } = getBalances(demo);
+  return (
+    <section className={`${styles.panel} ${styles.viewPanel}`} aria-labelledby="merchant-title">
+      <div className={styles.panelHeading}><h2 id="merchant-title">{MERCHANT}</h2><Badge>Simulated merchant</Badge></div>
+      <p>The merchant receives the full purchase amount from a separate lending pool when a draw is approved. Owner collateral stays locked; later repayments go back to that pool, not to the merchant.</p>
+      <div className={styles.receipt}>
+        <div><span className={styles.eyebrow}>OPTIC RELIC #001</span><h3>{merchantPaid} <small>USDC received</small></h3></div>
+        <Badge tone={merchantPaid ? "paid" : "neutral"}>{merchantPaid ? "Paid up front" : "Awaiting approved purchase"}</Badge>
+      </div>
+      {demo.draw && <dl className={styles.receiptDetails}>
+        <div><dt>Accountable party</dt><dd>Demo owner</dd></div>
+        <div><dt>Requested by</dt><dd>{AGENTS[demo.draw.agent].name}</dd></div>
+        <div><dt>Payment source</dt><dd>Lending pool</dd></div>
+        <div><dt>Paid on</dt><dd>Day {demo.draw.openedDay}</dd></div>
+      </dl>}
+    </section>
+  );
 }
 
-const statsGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
-  gap: 12,
-  padding: "16px 20px",
-  borderBottom: "1px solid rgba(148,163,184,0.12)",
-};
+function ActivityView({ demo }: { demo: Demo }) {
+  return (
+    <section className={`${styles.panel} ${styles.viewPanel}`} aria-labelledby="activity-title">
+      <div className={styles.panelHeading}><h2 id="activity-title">Activity record</h2><Badge>Session only</Badge></div>
+      {demo.events.length === 0 ? <p>No activity yet. Open the demo credit line to start recording actions.</p> : (
+        <ol className={styles.events}>
+          {demo.events.map((event, index) => (
+            <li key={index} className={styles.event}>
+              <span className={styles.eventIcon} data-tone={event.tone}><Icon name={event.tone === "paid" ? "check" : event.tone === "blocked" ? "shield" : "activity"} size={16} /></span>
+              <div><strong>{event.title}</strong><p>{event.detail}</p></div>
+              <span className={styles.eventDay}>Day {event.day}</span>
+            </li>
+          )).reverse()}
+        </ol>
+      )}
+    </section>
+  );
+}
 
-const actions: React.CSSProperties = {
-  padding: "16px 20px",
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
+export default function CreditDemoPage() {
+  const [demo, dispatch] = useReducer(reduceDemo, undefined, initialDemo);
+  const [view, setView] = useState<(typeof views)[number]>(views[0]);
+  const activityButton = useRef<HTMLButtonElement>(null);
+  const { available, collateral, outstanding, day } = getBalances(demo);
+  const step = !demo.opened ? 0 : !demo.draw ? 1 : outstanding > 0 ? 2 : 3;
+  const latest = demo.events.at(-1);
 
-const logBox: React.CSSProperties = {
-  padding: "16px 20px",
-  borderTop: "1px solid rgba(148,163,184,0.12)",
-  maxHeight: 200,
-  overflowY: "auto",
-};
-
-const logTitle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#64748b",
-  letterSpacing: "0.08em",
-  marginBottom: 10,
-};
-
-const logEntry: React.CSSProperties = {
-  fontSize: 12,
-  color: "#94a3b8",
-  paddingBottom: 6,
-  marginBottom: 6,
-  borderBottom: "1px solid rgba(148,163,184,0.06)",
-  lineHeight: 1.5,
-};
-
-const linksBox: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const docLink: React.CSSProperties = {
-  fontSize: 12,
-  color: "#64748b",
-  textDecoration: "none",
-  background: "rgba(30,27,75,0.5)",
-  border: "1px solid rgba(148,163,184,0.15)",
-  borderRadius: 8,
-  padding: "6px 12px",
-  transition: "all 0.15s",
-};
+  return (
+    <div className={styles.page}>
+      <Head>
+        <title>Relic Pay · Agent Credit Demo</title>
+        <meta name="description" content="Try owner-controlled credit for AI agents in a wallet-free Relic Pay simulation." />
+      </Head>
+      <header className={styles.topbar}>
+        <div className={styles.innerTopbar}>
+          <a href="/" className={styles.brand}><span><Icon name="logo" size={20} /></span>Relic Pay</a>
+          <span className={styles.mode}><i /> Local simulation</span>
+        </div>
+      </header>
+      <main className={styles.shell}>
+        <Hero />
+        <aside className={styles.disclaimer}>
+          <Icon name="info" />
+          <p><strong>Demo only.</strong> Balances, agent permissions, merchant payments, and collateral yield are simulated. No wallet, real funds, or on-chain transactions.</p>
+        </aside>
+        <section className={styles.workspace} id="workspace" aria-labelledby="workspace-title">
+          <div className={styles.workspaceHeader}>
+            <div><p className={styles.eyebrow}>INTERACTIVE WALKTHROUGH</p><h2 id="workspace-title">Credit workspace</h2></div>
+            <div className={styles.sessionControls}>
+              <Badge>Day {day}</Badge>
+              <button type="button" className={styles.subtle} disabled={!demo.opened && demo.atlasCap === AGENTS.atlas.cap}
+                onClick={() => { dispatch({ type: "reset" }); setView(views[0]); }}>
+                <Icon name="reset" size={16} /> Reset demo
+              </button>
+            </div>
+          </div>
+          <ol className={styles.steps} aria-label="Demo steps">
+            {steps.map((label, index) => (
+              <li key={label} aria-current={index === step ? "step" : undefined} data-done={index < step}>
+                <span>{index < step ? <Icon name="check" size={15} /> : `0${index + 1}`}</span>{label}
+              </li>
+            ))}
+          </ol>
+          <div className={styles.metrics}>
+            <Metric label="Available credit" value={demo.opened ? available : null} detail={`Shared line · ${CREDIT_LIMIT} USDC limit`} icon="bolt" />
+            <Metric label="Collateral locked" value={demo.opened ? collateral : null} detail="Stays separate from the lending pool" icon="shield" />
+            <Metric label="Owner owes" value={demo.opened ? outstanding : null} detail="Repaid to the lending pool" icon="wallet" />
+          </div>
+          <div className={styles.views} role="group" aria-label="Workspace view">
+            {views.map((item) => (
+              <button type="button" key={item} ref={item === "Activity" ? activityButton : undefined}
+                aria-pressed={view === item} onClick={() => setView(item)}>{item}</button>
+            ))}
+          </div>
+          <div className={styles.noticeSlot} role="status" aria-atomic="true">
+            {latest && <div className={styles.notice} data-tone={latest.tone}>
+              <Icon name={latest.tone === "blocked" ? "shield" : latest.tone === "paid" ? "check" : "info"} />
+              <p><strong>{latest.title}.</strong> {latest.detail}</p>
+            </div>}
+          </div>
+          {view === "Owner workspace" ? (
+            <div className={styles.workspaceGrid}>
+              <section className={styles.panel} aria-labelledby="agent-title">
+                <div className={styles.panelHeading}><h2 id="agent-title">Agent permissions</h2><Badge>One shared line</Badge></div>
+                <p className={styles.panelDescription}>The owner remains responsible for every draw. Each agent gets its own cap, merchant, and spending window.</p>
+                <div className={styles.agents}>{agentIds.map((id) => <AgentCard key={id} id={id} demo={demo} dispatch={dispatch} />)}</div>
+              </section>
+              <PurchaseCard demo={demo} dispatch={dispatch} onReview={() => {
+                setView("Activity");
+                activityButton.current?.focus();
+              }} />
+            </div>
+          ) : view === "Merchant view" ? <MerchantView demo={demo} /> : <ActivityView demo={demo} />}
+          <aside className={styles.yieldNote}>
+            <span><Icon name="spark" /></span>
+            <div><h3>Collateral yield · simulated</h3><p>Illustrative snapshots, not live returns. Yield is separate from credit and merchant payments.</p></div>
+            <strong>{demo.opened ? `${yieldSnapshots[demo.draw?.installmentsPaid ?? 0]} USDC` : "—"}</strong>
+          </aside>
+        </section>
+        <footer className={styles.footer}>
+          <span>Relic Pay <span aria-hidden="true">/</span> Agent Credit Demo</span>
+          <a href="https://github.com/walthova/relicpay-v2/blob/main/RELICPAY_V2.md">Product &amp; protocol notes <Icon name="arrow" size={14} /></a>
+        </footer>
+      </main>
+    </div>
+  );
+}

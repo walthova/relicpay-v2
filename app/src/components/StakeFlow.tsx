@@ -74,7 +74,7 @@ export function StakeFlow({ stake, onAfterTx }: Props) {
       <div className="stake-header">
         <h2>Stake to unlock Relic Pay discounts</h2>
         <p>
-          Your USDC sits in a yield-bearing escrow earning 3% APY. Your stake
+          This checkout models yield on locked USDC. Your stake
           tier unlocks discounts on every purchase across the web —
           automatically applied via the Relic Pay extension.
         </p>

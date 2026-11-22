@@ -107,6 +107,23 @@ cd app && npm install && npm run build         # demo app build
 
 Program ID (localnet/devnet): `5GPVYpyzdosbzWcdttcCdziJVqUCCARf98J857C3T6Gi`
 
+### Run the interactive demo
+
+Use Node.js 22:
+
+```sh
+npm ci
+npm --prefix app ci
+npm --prefix app run dev
+```
+
+Open [localhost:3000](http://localhost:3000). No wallet, API
+keys, or validator is needed. Open the shared credit line, try a blocked
+purchase as Nova, then buy as Atlas. The Merchant view shows the lending
+pool's up-front payment; the Activity view records permissions and repayments.
+The demo uses fictional balances and does not make transactions or show live
+returns. The existing devnet tools remain separate at `/checkout` and `/merchant`.
+
 ### PR checks and fuzz replay
 
 CI runs Rust unit tests and the Anchor suite on every PR. The Anchor suite

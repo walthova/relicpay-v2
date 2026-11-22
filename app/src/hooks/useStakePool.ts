@@ -11,8 +11,6 @@ import {
   STAKE_POOL_SEED,
   POOL_VAULT_SEED,
   USER_STAKE_SEED,
-  YIELD_RATE_BPS_ANNUAL,
-  SECONDS_PER_YEAR,
   tierFor,
   Tier,
 } from "../lib/constants";
@@ -23,9 +21,6 @@ export interface UserStakeView {
   stakedUnits: number;       // raw USDC units (6 decimals)
   stakedUsd: number;         // human dollars
   yieldAccruedUnits: number; // includes the persisted on-chain value
-  liveYieldUnits: number;    // estimated yield since last_update
-  totalYieldUnits: number;   // accrued + live
-  lastUpdate: number;        // unix seconds
   tier: Tier;
 }
 
@@ -131,14 +126,6 @@ export function useStakePool() {
       const account: any = await (program.account as any).userStake.fetch(stake);
       const stakedUnits = Number(account.stakedAmount?.toString() ?? "0");
       const yieldAccruedUnits = Number(account.yieldAccrued?.toString() ?? "0");
-      const lastUpdate = Number(account.lastUpdate?.toString() ?? "0");
-
-      // Live yield estimate (frontend simulates between transactions)
-      const elapsedSec = Math.max(0, Math.floor(Date.now() / 1000) - lastUpdate);
-      const liveYieldUnits = Math.floor(
-        (stakedUnits * YIELD_RATE_BPS_ANNUAL * elapsedSec) /
-          (10_000 * SECONDS_PER_YEAR),
-      );
 
       return {
         pubkey: stake.toBase58(),
@@ -146,9 +133,6 @@ export function useStakePool() {
         stakedUnits,
         stakedUsd: stakedUnits / 1_000_000,
         yieldAccruedUnits,
-        liveYieldUnits,
-        totalYieldUnits: yieldAccruedUnits + liveYieldUnits,
-        lastUpdate,
         tier: tierFor(stakedUnits),
       };
     } catch {
