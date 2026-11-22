@@ -34,6 +34,19 @@ pub fn compute_tier(staked_amount: u64) -> u8 {
     }
 }
 
+/// Installment `n` (1-based) is due `n - 1` intervals after `start_time`:
+/// installment 1 is the upfront charge taken at creation.
+pub fn installment_due_time(
+    start_time: i64,
+    interval_seconds: i64,
+    installment: u8,
+) -> Result<i64> {
+    (installment as i64 - 1)
+        .checked_mul(interval_seconds)
+        .and_then(|offset| start_time.checked_add(offset))
+        .ok_or_else(|| RelicPayError::MathOverflow.into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,5 +88,25 @@ mod tests {
         assert_eq!(compute_tier(499_999_999), 3);
         assert_eq!(compute_tier(500_000_000), 4);
         assert_eq!(compute_tier(u64::MAX), 4);
+    }
+
+    #[test]
+    fn installments_fall_due_one_interval_apart_after_the_upfront_charge() {
+        let thirty_days = 30 * 24 * 60 * 60;
+        assert_eq!(installment_due_time(1_000, thirty_days, 1).unwrap(), 1_000);
+        assert_eq!(
+            installment_due_time(1_000, thirty_days, 2).unwrap(),
+            1_000 + thirty_days
+        );
+        assert_eq!(
+            installment_due_time(1_000, thirty_days, 3).unwrap(),
+            1_000 + 2 * thirty_days
+        );
+    }
+
+    #[test]
+    fn installment_due_time_overflow_is_an_error() {
+        assert!(installment_due_time(i64::MAX, 1, 3).is_err());
+        assert!(installment_due_time(0, i64::MAX, 3).is_err());
     }
 }

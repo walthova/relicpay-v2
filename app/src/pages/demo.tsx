@@ -60,7 +60,7 @@ export default function Demo() {
       number: i + 1,
       amount: INSTALLMENT_AMOUNT,
       status: i === 0 ? "paid" : "pending",
-      dueDay: (i + 1) * INTERVAL_DAYS,
+      dueDay: i * INTERVAL_DAYS,
     }));
     installs[0].paidAt = 0;
 
@@ -77,7 +77,7 @@ export default function Demo() {
     const nextNum = paidCount + 1;
     if (nextNum > INSTALLMENT_COUNT) return;
 
-    const newDay = nextNum * INTERVAL_DAYS;
+    const newDay = (nextNum - 1) * INTERVAL_DAYS;
 
     // Accrue yield for this window
     const elapsedDays = newDay - day;

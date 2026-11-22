@@ -156,8 +156,8 @@ Each installment is due at a fixed time after the start:
 
 ```
 Installment 1: paid at create_agreement (t=0)
-Installment 2: due at start_time + (2 × interval_seconds) = t=30d
-Installment 3: due at start_time + (3 × interval_seconds) = t=60d
+Installment 2: due at start_time + (1 × interval_seconds) = t=30d
+Installment 3: due at start_time + (2 × interval_seconds) = t=60d
 ```
 
 The contract checks `clock.unix_timestamp >= due_time` and rejects early payments with `PaymentNotDue`.
