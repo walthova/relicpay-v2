@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ClaudeGuide } from "../components/ClaudeGuide";
+import styles from "./demo.module.css";
 
 // Simulated purchase: $300 IBG Collection item, 3 installments, 30-day intervals
 // For demo purposes we compress time: each "month" advances on button click.
@@ -145,10 +146,10 @@ export default function Demo() {
     : null;
 
   return (
-    <div style={page}>
+    <div className={styles.page} style={page}>
       <nav style={nav}>
         <a href="/" style={navLink}>Relic Pay</a>
-        <span style={{ color: "#64748b" }}>/ Demo</span>
+        <span style={{ color: "#94a3b8" }}>/ Demo</span>
         <a href="/docs" style={{ ...navLink, marginLeft: "auto", fontSize: 13 }}>Docs</a>
       </nav>
 
@@ -158,7 +159,7 @@ export default function Demo() {
         Watch yield accrue in real time. Ask Claude anything using the guide below.
       </p>
 
-      <div style={grid}>
+      <div className={styles.grid}>
         {/* LEFT: Simulation */}
         <div style={panel}>
           <div style={panelHeader}>
@@ -169,7 +170,7 @@ export default function Demo() {
           {/* Item card */}
           <div style={itemCard}>
             <div style={itemImage}>
-              <span style={{ fontSize: 32 }}>◼◯▲</span>
+              <span style={{ fontSize: 24 }}>◼◯▲</span>
             </div>
             <div style={itemInfo}>
               <div style={itemName}>IBG Collection — Optic Relic #001</div>
@@ -210,14 +211,14 @@ export default function Demo() {
           {/* Actions */}
           <div style={actions}>
             {state === "idle" && (
-              <Btn onClick={handleCreate} color="#6366f1">
+              <Btn onClick={handleCreate} color="#4f46e5">
                 Start Agreement — Pay Installment 1
               </Btn>
             )}
 
             {state === "active" && paidCount < INSTALLMENT_COUNT && (
               <>
-                <Btn onClick={handlePayNext} color="#6366f1">
+                <Btn onClick={handlePayNext} color="#4f46e5">
                   Advance to Day {nextInstallmentDue} — Pay Installment {paidCount + 1}
                 </Btn>
                 <Btn onClick={handleCancel} color="#ef4444" outline>
@@ -229,12 +230,12 @@ export default function Demo() {
             {state === "completed" && (
               <>
                 {merchantReceived === 0 && (
-                  <Btn onClick={handleMerchantWithdraw} color="#4ade80">
+                  <Btn onClick={handleMerchantWithdraw} color="#4ade80" textColor="#0f172a">
                     Merchant: Withdraw $300
                   </Btn>
                 )}
                 {yieldAccrued > 0 && (
-                  <Btn onClick={handleClaimYield} color="#a5b4fc">
+                  <Btn onClick={handleClaimYield} color="#a5b4fc" textColor="#0f172a">
                     Buyer: Claim ${fmt(yieldAccrued)} Yield
                   </Btn>
                 )}
@@ -253,7 +254,7 @@ export default function Demo() {
             )}
 
             {state === "completed" && merchantReceived > 0 && yieldAccrued === 0 && (
-              <Btn onClick={handleReset} color="#64748b" outline>
+              <Btn onClick={handleReset} color="#94a3b8" outline>
                 Run Again
               </Btn>
             )}
@@ -271,7 +272,7 @@ export default function Demo() {
         </div>
 
         {/* RIGHT: Claude Guide */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           <ClaudeGuide />
           <div style={linksBox}>
             <a href="/docs/WHITEPAPER" style={docLink}>Read Whitepaper</a>
@@ -295,8 +296,8 @@ export default function Demo() {
 function Stat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{label}</div>
+      <div className={styles.statValue} style={{ fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{label}</div>
     </div>
   );
 }
@@ -304,27 +305,31 @@ function Stat({ label, value, color }: { label: string; value: string; color: st
 function Btn({
   onClick,
   color,
+  textColor = "white",
   outline,
   children,
 }: {
   onClick: () => void;
   color: string;
+  textColor?: string;
   outline?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <button
+      className={styles.actionButton}
       onClick={onClick}
       style={{
         background: outline ? "transparent" : color,
         border: `1px solid ${color}`,
-        color: outline ? color : "white",
+        color: outline ? color : textColor,
         borderRadius: 10,
         padding: "11px 20px",
         fontSize: 13.5,
         fontWeight: 600,
         cursor: "pointer",
         width: "100%",
+        minHeight: 44,
         transition: "all 0.15s",
       }}
     >
@@ -374,14 +379,8 @@ const subtitle: React.CSSProperties = {
   lineHeight: 1.6,
 };
 
-const grid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 480px",
-  gap: 32,
-  alignItems: "start",
-};
-
 const panel: React.CSSProperties = {
+  minWidth: 0,
   background: "rgba(15, 23, 42, 0.8)",
   border: "1px solid rgba(148, 163, 184, 0.15)",
   borderRadius: 16,
@@ -401,7 +400,7 @@ const panelHeader: React.CSSProperties = {
 
 function stateTag(s: AgreementState): React.CSSProperties {
   const colors: Record<AgreementState, string> = {
-    idle: "#64748b",
+    idle: "#94a3b8",
     active: "#22d3ee",
     completed: "#4ade80",
     cancelled: "#f59e0b",
@@ -436,7 +435,7 @@ const itemImage: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const itemInfo: React.CSSProperties = { flex: 1 };
+const itemInfo: React.CSSProperties = { flex: 1, minWidth: 0 };
 const itemName: React.CSSProperties = { fontWeight: 600, marginBottom: 4, fontSize: 15 };
 const itemPrice: React.CSSProperties = {
   fontSize: 22,
@@ -444,7 +443,7 @@ const itemPrice: React.CSSProperties = {
   color: "#22d3ee",
   marginBottom: 4,
 };
-const itemSub: React.CSSProperties = { fontSize: 12, color: "#64748b" };
+const itemSub: React.CSSProperties = { fontSize: 12, color: "#94a3b8" };
 
 const scheduleBox: React.CSSProperties = {
   padding: "16px 20px",
@@ -454,7 +453,7 @@ const scheduleBox: React.CSSProperties = {
 const scheduleTitle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: "#64748b",
+  color: "#94a3b8",
   letterSpacing: "0.08em",
   marginBottom: 10,
 };
@@ -466,21 +465,21 @@ function scheduleRow(status: string): React.CSSProperties {
     gap: 8,
     padding: "6px 0",
     fontSize: 13,
-    color: status === "paid" ? "#e2e8f0" : "#64748b",
+    color: status === "paid" ? "#e2e8f0" : "#94a3b8",
     borderBottom: "1px solid rgba(148,163,184,0.06)",
   };
 }
 
 function scheduleStatus(status: string): React.CSSProperties {
   return {
-    color: status === "paid" ? "#4ade80" : "#64748b",
+    color: status === "paid" ? "#4ade80" : "#94a3b8",
     fontSize: 12,
   };
 }
 
 const statsGrid: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
   gap: 12,
   padding: "16px 20px",
   borderBottom: "1px solid rgba(148,163,184,0.12)",
@@ -503,7 +502,7 @@ const logBox: React.CSSProperties = {
 const logTitle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: "#64748b",
+  color: "#94a3b8",
   letterSpacing: "0.08em",
   marginBottom: 10,
 };
@@ -525,7 +524,7 @@ const linksBox: React.CSSProperties = {
 
 const docLink: React.CSSProperties = {
   fontSize: 12,
-  color: "#64748b",
+  color: "#94a3b8",
   textDecoration: "none",
   background: "rgba(30,27,75,0.5)",
   border: "1px solid rgba(148,163,184,0.15)",

@@ -1,0 +1,37 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 480px;
+  gap: 32px;
+  align-items: start;
+}
+
+.statValue {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.page a:focus-visible,
+.actionButton:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1023px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}
+
+@media (max-width: 639px) {
+  .statValue {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 359px) {
+  .statValue {
+    font-size: 14px;
+  }
+}

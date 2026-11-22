@@ -1,0 +1,29 @@
+.input {
+  font-size: 13px;
+}
+
+.input::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.guide button:focus-visible,
+.guide input:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+.guide button:disabled {
+  cursor: wait;
+}
+
+@media (max-width: 1023px) {
+  .guide input,
+  .guide button {
+    min-height: 44px;
+  }
+
+  .input {
+    font-size: 16px;
+  }
+}

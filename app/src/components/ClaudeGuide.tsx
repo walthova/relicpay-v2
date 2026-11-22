@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import classes from "./ClaudeGuide.module.css";
 
 interface Message {
   role: "user" | "assistant";
@@ -22,10 +23,11 @@ export function ClaudeGuide() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesRef.current;
+    container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
   const send = async (text: string) => {
@@ -53,13 +55,13 @@ export function ClaudeGuide() {
   };
 
   return (
-    <div style={styles.container}>
+    <div className={classes.guide} style={styles.container}>
       <div style={styles.header}>
         <span style={styles.dot} />
         <span style={styles.headerText}>Claude — Relic Pay Guide</span>
       </div>
 
-      <div style={styles.messages}>
+      <div ref={messagesRef} style={styles.messages} aria-live="polite">
         {messages.map((m, i) => (
           <div
             key={i}
@@ -76,12 +78,11 @@ export function ClaudeGuide() {
             Thinking...
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       <div style={styles.starters}>
         {STARTER_QUESTIONS.map((q) => (
-          <button key={q} style={styles.starterBtn} onClick={() => send(q)}>
+          <button key={q} style={styles.starterBtn} onClick={() => send(q)} disabled={loading}>
             {q}
           </button>
         ))}
@@ -89,6 +90,8 @@ export function ClaudeGuide() {
 
       <div style={styles.inputRow}>
         <input
+          className={classes.input}
+          aria-label="Ask the Relic Pay guide"
           style={styles.input}
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -117,10 +120,11 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 16,
     overflow: "hidden",
     width: "100%",
-    maxWidth: 480,
+    minWidth: 0,
     height: 520,
   },
   header: {
+    flexShrink: 0,
     display: "flex",
     alignItems: "center",
     gap: 8,
@@ -143,6 +147,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   messages: {
     flex: 1,
+    minHeight: 0,
     overflowY: "auto",
     padding: "16px",
     display: "flex",
@@ -150,6 +155,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
   },
   bubble: {
+    flexShrink: 0,
     padding: "10px 14px",
     borderRadius: 12,
     fontSize: 13.5,
@@ -170,6 +176,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignSelf: "flex-end",
   },
   starters: {
+    flexShrink: 0,
     display: "flex",
     flexWrap: "wrap",
     gap: 6,
@@ -177,6 +184,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderTop: "1px solid rgba(99, 102, 241, 0.15)",
   },
   starterBtn: {
+    maxWidth: "100%",
+    whiteSpace: "normal",
+    overflowWrap: "anywhere",
+    textAlign: "left",
     background: "rgba(99, 102, 241, 0.12)",
     border: "1px solid rgba(99, 102, 241, 0.25)",
     borderRadius: 20,
@@ -187,6 +198,7 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "all 0.15s",
   },
   inputRow: {
+    flexShrink: 0,
     display: "flex",
     gap: 8,
     padding: "12px 16px",
@@ -194,16 +206,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   input: {
     flex: 1,
+    minWidth: 0,
     background: "rgba(30, 27, 75, 0.6)",
     border: "1px solid rgba(99, 102, 241, 0.3)",
     borderRadius: 8,
     padding: "8px 12px",
     color: "#e2e8f0",
-    fontSize: 13,
     outline: "none",
   },
   sendBtn: {
-    background: "linear-gradient(135deg, #6366f1, #4f46e5)",
+    background: "linear-gradient(135deg, #4f46e5, #4338ca)",
     border: "none",
     borderRadius: 8,
     padding: "8px 16px",
