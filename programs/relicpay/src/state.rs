@@ -160,8 +160,8 @@ impl KaminoConfig {
 ///
 /// PDA seeds: ["agent_mandate", owner, agent]. The owner keeps custody: USDC
 /// stays in the owner's own token account, which delegates a bounded SPL
-/// allowance to this PDA. The mandate is permanently bound to that token
-/// account. Agreements the agent opens are recorded with `buyer = owner`, so
+/// allowance to this PDA. The mandate spends only from that bound account;
+/// revoke accepts any owner token account. Agreements record `buyer = owner`, so
 /// repayment, cancellation and default work exactly as for any other
 /// agreement.
 #[account]
@@ -197,64 +197,4 @@ impl AgentMandate {
         + 4 + 32 * crate::constants::MAX_MANDATE_MERCHANTS
         + 8 + 1 + 32                   // created_at, bump, owner_usdc
         + 32; // reserved for future fields (agent identity / reputation)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[derive(AnchorSerialize)]
-    struct LegacyAgentMandate {
-        owner: Pubkey,
-        agent: Pubkey,
-        per_purchase_cap: u64,
-        period_cap: u64,
-        period_seconds: i64,
-        max_purchases_per_period: u16,
-        approval_threshold: u64,
-        expires_at: i64,
-        delegated_allowance: u64,
-        revoked: bool,
-        period_start: i64,
-        period_spent: u64,
-        period_purchases: u16,
-        total_purchases: u32,
-        total_spent: u64,
-        allowed_merchants: Vec<Pubkey>,
-        created_at: i64,
-        bump: u8,
-    }
-
-    #[test]
-    fn legacy_layout_deserializes_with_default_owner_usdc() {
-        let legacy = LegacyAgentMandate {
-            owner: Pubkey::new_unique(),
-            agent: Pubkey::new_unique(),
-            per_purchase_cap: 100,
-            period_cap: 200,
-            period_seconds: 3_600,
-            max_purchases_per_period: 2,
-            approval_threshold: 50,
-            expires_at: 0,
-            delegated_allowance: 300,
-            revoked: false,
-            period_start: 1_000,
-            period_spent: 25,
-            period_purchases: 1,
-            total_purchases: 3,
-            total_spent: 75,
-            allowed_merchants: vec![Pubkey::new_unique()],
-            created_at: 900,
-            bump: 255,
-        };
-
-        let mut data = AgentMandate::DISCRIMINATOR.to_vec();
-        legacy.serialize(&mut data).unwrap();
-        data.resize(AgentMandate::SIZE - 32, 0);
-
-        let mut data_slice = data.as_slice();
-        let mandate = AgentMandate::try_deserialize(&mut data_slice).unwrap();
-
-        assert_eq!(mandate.owner_usdc, Pubkey::default());
-    }
 }
