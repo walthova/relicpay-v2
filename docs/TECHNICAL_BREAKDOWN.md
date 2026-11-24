@@ -231,7 +231,7 @@ The `new_with_signer` call is how a PDA signs a transaction. The seeds reconstru
 If the buyer misses payment for 7+ days past the due date, anyone can call `trigger_default`.
 
 ```
-Due date: start_time + (next_installment × interval_seconds)
+Due date: start_time + ((next_installment − 1) × interval_seconds)
 Grace expiry: due_date + 604_800 seconds (7 days)
 
 If clock.unix_timestamp > grace_expiry → default is legal
