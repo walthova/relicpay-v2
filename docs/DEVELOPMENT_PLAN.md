@@ -4,7 +4,7 @@
 
 ## Where v1 stood (the spec we rebuilt from)
 
-The v1 codebase (`~/relicpay-claude`) was a working hackathon-grade MVP: a single-file Anchor program with 9 instructions, 18 passing integration tests, a Next.js demo app, a browser extension prototype, and a whitepaper. Yield was simulated on-chain (3% APY simple interest, paid from a protocol reserve). It proved the mechanic; it was not production-grade.
+The v1 codebase (`~/relicpay-claude`) was a working hackathon-grade MVP: a single-file Anchor program with 9 instructions, 18 passing integration tests, a Next.js demo app, a browser extension prototype, and a whitepaper. It simulated yield with on-chain simple interest; it did not generate DeFi yield.
 
 ## v2.0 — The rebuild (DONE — this repo)
 
@@ -15,20 +15,21 @@ Behavior-identical to v1 for everything the characterization suite covers, plus:
 - `merchant_withdrawn` flag kills the double-withdraw class of bugs
 - **Security fix**: `trigger_default` now requires the recovery token account to belong to the recorded merchant (v1 allowed any account to be passed as the destination)
 - `close_agreement` — buyers reclaim rent from settled agreements
-- `update_pool_rate` — governance-tunable stake APY, capped at 20%
+- `update_pool_rate` — pool authority can set a capped simulated rate for demos
+- `unstake_usdc` — demo rewards are paid only from vault surplus; unfunded rewards stay accrued
 - Three test layers: Rust unit tests (math), v1 characterization suite (18 tests), v2 feature suite
 
 **Definition of done:** `anchor test` fully green. This is the new foundation every later phase builds on.
 
-## v2.1 — Real yield (Kamino CPI) — *the 10x unlock*
+## v2.1 — DeFi yield development
 
-The single biggest product claim ("your payment plan makes you money") currently runs on simulated yield. Make it real:
+The Kamino escrow adapter has been tested against a local mock. Real yield has not been verified on a live market; demo yield is simulated, with no fixed APY. Remaining work:
 
-1. Escrow USDC deposited into Kamino Lend via CPI on every `create_agreement` / `pay_installment`
-2. Escrow PDA holds kTokens; `merchant_withdraw` and `claim_yield` redeem via CPI
-3. Fallback path if Kamino deposit fails: hold raw USDC (never block a purchase on a DeFi dependency)
-4. Devnet integration tests against Kamino's devnet market; add a `yield_source` field so agreements record simulated vs. real
-5. Risk controls: per-agreement deposit cap, protocol-wide TVL cap, emergency `pause` flag on a new `ProtocolConfig` PDA
+1. Validate Kamino escrow deposits, reconciled exits and raw USDC fallback against a real test market.
+2. Define buyer settlement for per-agreement yield. The current simulated claim records an event; it does not transfer tokens.
+3. Build a separate stake pool adapter for staked collateral and account for realized rewards separately from principal.
+4. Develop the yield agent to compare approved DeFi markets and monitor risk within explicit allocation and exit limits.
+5. Preserve the existing `ProtocolConfig` risk controls: the pause switch, per-agreement deposit cap, and protocol-wide TVL cap.
 
 ## v2.2 — Merchant surface
 
@@ -41,7 +42,7 @@ The single biggest product claim ("your payment plan makes you money") currently
 
 - Payment-history-based credit tiers on-chain (`BuyerProfile` PDA: completed agreements, defaults, on-time ratio)
 - Collateral ratios by tier: new buyers prepay 1/N; proven buyers unlock lower upfront locks
-- Pay-from-yield: long agreements can route accrued yield toward the final installment
+- Pay-from-yield: explore applying realized yield toward the final installment
 - Multi-token collateral (SOL, jitoSOL, mSOL via liquid staking — instant liquidation path on default)
 
 ## v2.4 — Mainnet
