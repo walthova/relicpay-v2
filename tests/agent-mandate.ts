@@ -22,6 +22,7 @@ import {
   createAccount,
   mintTo,
   getAccount,
+  closeAccount,
 } from "@solana/spl-token";
 import { assert } from "chai";
 import { rejects } from "node:assert/strict";
@@ -331,6 +332,140 @@ describe("agent BNPL: agent mandates", () => {
       "MandateRevoked"
     );
 
+    await program.methods
+      .closeAgentMandate()
+      .accounts({ mandate: mandate(), owner: owner.publicKey })
+      .signers([owner])
+      .rpc();
+    assert.isNull(await provider.connection.getAccountInfo(mandate()));
+  });
+
+  it("binds a mandate to its token account across revoke and recreation", async () => {
+    const otherOwnerUsdc = await createAccount(
+      provider.connection,
+      owner,
+      usdcMint,
+      owner.publicKey,
+      Keypair.generate(),
+    );
+    const attackProductId = "binding-attack";
+
+    await program.methods
+      .createAgentMandate(
+        limits({
+          perPurchaseCap: USDC(10),
+          periodCap: USDC(10),
+          maxPurchasesPerPeriod: 1,
+          approvalThreshold: USDC(10),
+          delegatedAllowance: USDC(5),
+        }),
+      )
+      .accounts({
+        mandate: mandate(),
+        owner: owner.publicKey,
+        agent: agent.publicKey,
+        ownerUsdc,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([owner])
+      .rpc();
+
+    await program.methods
+      .revokeAgentMandate()
+      .accounts({
+        mandate: mandate(),
+        owner: owner.publicKey,
+        ownerUsdc: otherOwnerUsdc,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([owner])
+      .rpc();
+
+    await program.methods
+      .closeAgentMandate()
+      .accounts({ mandate: mandate(), owner: owner.publicKey })
+      .signers([owner])
+      .rpc();
+
+    await program.methods
+      .createAgentMandate(
+        limits({
+          perPurchaseCap: USDC(10),
+          periodCap: USDC(10),
+          maxPurchasesPerPeriod: 1,
+          approvalThreshold: USDC(10),
+          delegatedAllowance: USDC(1),
+        }),
+      )
+      .accounts({
+        mandate: mandate(),
+        owner: owner.publicKey,
+        agent: agent.publicKey,
+        ownerUsdc: otherOwnerUsdc,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([owner])
+      .rpc();
+
+    const before = await getAccount(provider.connection, ownerUsdc);
+    let attackError: any;
+    try {
+      await agentBuy(attackProductId, USDC(10));
+    } catch (err) {
+      attackError = err;
+    }
+    const after = await getAccount(provider.connection, ownerUsdc);
+
+    assert.equal((before.amount - after.amount).toString(), "0");
+    assert.include(
+      `${attackError?.logs?.join("\n") ?? ""} ${attackError}`,
+      "MandateTokenAccountMismatch",
+    );
+
+    await program.methods
+      .revokeAgentMandate()
+      .accounts({
+        mandate: mandate(),
+        owner: owner.publicKey,
+        ownerUsdc: otherOwnerUsdc,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([owner])
+      .rpc();
+    await program.methods
+      .closeAgentMandate()
+      .accounts({ mandate: mandate(), owner: owner.publicKey })
+      .signers([owner])
+      .rpc();
+  });
+
+  it("revokes and closes a mandate after its bound token account was closed", async () => {
+    const boundUsdc = await createAccount(
+      provider.connection, owner, usdcMint, owner.publicKey, Keypair.generate(),
+    );
+    await program.methods
+      .createAgentMandate(limits())
+      .accounts({
+        mandate: mandate(), owner: owner.publicKey, agent: agent.publicKey,
+        ownerUsdc: boundUsdc, tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([owner])
+      .rpc();
+    assert.equal((await getAccount(provider.connection, boundUsdc)).amount, BigInt(0));
+    await closeAccount(provider.connection, owner, boundUsdc, owner.publicKey, owner);
+    assert.isNull(await provider.connection.getAccountInfo(boundUsdc));
+    await program.methods
+      .revokeAgentMandate()
+      .accounts({
+        mandate: mandate(), owner: owner.publicKey, ownerUsdc,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([owner])
+      .rpc();
+    assert.isTrue((await program.account.agentMandate.fetch(mandate()) as any).revoked);
     await program.methods
       .closeAgentMandate()
       .accounts({ mandate: mandate(), owner: owner.publicKey })
