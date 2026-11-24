@@ -133,6 +133,8 @@ function AgentCard({ id, demo, dispatch }: { id: AgentId; demo: Demo; dispatch: 
 
 function PurchaseCard({ demo, dispatch, onReview }: { demo: Demo; dispatch: Dispatch<Action>; onReview: () => void }) {
   const { paid, outstanding } = getBalances(demo);
+  const latest = demo.events.at(-1);
+  const blocked = latest?.tone === "blocked" ? latest : null;
   const count = demo.draw?.installmentsPaid ?? 0;
   const nextDay = (demo.draw?.openedDay ?? 0) + REPAYMENTS[count];
   const complete = demo.draw && outstanding === 0;
@@ -176,10 +178,13 @@ function PurchaseCard({ demo, dispatch, onReview }: { demo: Demo; dispatch: Disp
       </ol>
       {demo.draw && <progress className={styles.progress} aria-label="Repayment progress" value={paid} max={PURCHASE_PRICE} />}
       <div className={styles.nextAction}>
-        <p>{description}</p>
-        <button type="button" className={styles.primary} onClick={takeNextStep}>{label} <Icon name="arrow" size={16} /></button>
+        {blocked ? <div id="purchase-feedback" className={`${styles.notice} ${styles.purchaseFeedback}`} data-tone="blocked">
+          <Icon name="shield" />
+          <p><strong>{blocked.title}.</strong> {blocked.detail}</p>
+        </div> : <p>{description}</p>}
+        <button type="button" className={styles.primary} onClick={takeNextStep} aria-describedby={blocked ? "purchase-feedback" : undefined}>{label} <Icon name="arrow" size={16} /></button>
         {demo.opened && !demo.draw && <div className={styles.secondaryActions}>
-          <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })}>Try as Nova</button>
+          <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })} aria-describedby={blocked ? "purchase-feedback" : undefined}>Try as Nova</button>
           {demo.day <= AGENTS.atlas.expiry && <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "advance" })}>Skip past expiry</button>}
         </div>}
       </div>
