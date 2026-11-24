@@ -92,6 +92,7 @@ pub struct Unstaked {
     pub yield_paid: u64,
     pub remaining_staked: u64,
     pub tier: u8,
+    pub yield_deferred: u64,
 }
 
 #[event]

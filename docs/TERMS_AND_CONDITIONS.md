@@ -19,7 +19,7 @@ By connecting a wallet to, interacting with, or using any component of the Relic
 
 **"Escrow"** means the Program Derived Address (PDA) token account that holds Buyer funds during an active Agreement.
 
-**"Yield"** means interest earned on Escrow funds through DeFi protocol integrations.
+**"Yield"** means returns from deploying funds into DeFi protocols. Simulated yield demonstrates reward accounting and is not a DeFi return.
 
 **"You" / "User"** means any individual or entity who accesses or interacts with the Protocol in any role (Buyer, Merchant, Staker, or otherwise).
 
@@ -47,7 +47,7 @@ Relic Pay is a **decentralized protocol**. This means:
 
 4.3. **Cancellation.** You may cancel an active Agreement at any time by calling `cancel_agreement`. A 10% cancellation fee is deducted from your escrowed balance and sent to the Merchant. You receive the remaining 90%.
 
-4.4. **Yield.** Any yield earned on your Escrow balance during v1 of the Protocol is credited on-chain but disbursed from the protocol reserve fund. Yield is not guaranteed and may be zero if the reserve is depleted. In v2, yield will come directly from integrated DeFi protocols and is subject to those protocols' performance and risks.
+4.4. **Yield.** Demo escrow yield is simulated. The simulated claim records an on-chain event but does not transfer USDC. Any future DeFi yield would depend on the integrated protocols' performance and risks.
 
 4.5. **Sufficient Funds.** You are responsible for maintaining sufficient USDC in your wallet to cover each installment when due. The Protocol will not send payment reminders. Missed payments result in default.
 
@@ -71,9 +71,9 @@ Relic Pay is a **decentralized protocol**. This means:
 
 ## 6. Staker Terms
 
-6.1. **Yield on Staked USDC.** Stakers deposit USDC into the Relic Pay Stake Pool and earn yield (3% APY in v1, variable in v2). Yield is paid from the protocol reserve in v1.
+6.1. **Simulated Staking Rewards.** The demo stake pool pays rewards only from USDC in the vault above total staked principal. A rewards top-up is a direct transfer to the vault, not a stake. The pool does not generate DeFi yield.
 
-6.2. **No Lockup.** Stakers may unstake at any time by calling `unstake_usdc`. There is no minimum lockup period. Yield is only distributed on full unstake in v1.
+6.2. **No Lockup.** Stakers may unstake at any time by calling `unstake_usdc`. There is no minimum lockup period. Simulated rewards are payable on full unstake when there is surplus. Unpaid rewards remain recorded and can be requested later with `unstake_usdc(0)`; funding is not guaranteed.
 
 6.3. **Discount Tiers.** Discount tiers are determined by on-chain `UserStake.tier` and applied by the browser extension. Tiers are calculated at the time of each stake or unstake transaction.
 
@@ -89,9 +89,9 @@ Relic Pay is a **decentralized protocol**. This means:
 - APY is variable and not guaranteed
 - Protocol insolvency or exploit may result in partial or total loss of yield, and in extreme cases, loss of principal
 
-7.2. The Relic Pay Yield Router (v3) will diversify across approved protocols subject to governance constraints. Diversification reduces but does not eliminate risk.
+7.2. The yield agent is in development, not live. It is intended to compare available yields and monitor the risks of staked collateral in approved DeFi protocols. Diversification does not eliminate risk.
 
-7.3. Relic Pay does not guarantee any minimum yield. Any APY figures referenced in documentation are estimates based on historical market conditions.
+7.3. Relic Pay does not offer a fixed APY or guarantee any minimum yield.
 
 ---
 

@@ -137,6 +137,8 @@ function PurchaseCard({ demo, dispatch, onReview, onReset }: {
   demo: Demo; dispatch: Dispatch<Action>; onReview: () => void; onReset: () => void;
 }) {
   const { paid, outstanding } = getBalances(demo);
+  const latest = demo.events.at(-1);
+  const blockedFeedback = latest?.tone === "blocked" ? latest : null;
   const count = demo.draw?.installmentsPaid ?? 0;
   const nextDay = (demo.draw?.openedDay ?? 0) + REPAYMENTS[count];
   const complete = demo.draw && outstanding === 0;
@@ -180,21 +182,33 @@ function PurchaseCard({ demo, dispatch, onReview, onReset }: {
         ))}
       </ol>
       {demo.draw && <progress className={styles.progress} aria-label="Repayment progress" value={paid} max={PURCHASE_PRICE} />}
-      {block ? <div className={styles.purchaseBlock}>
-        <div className={styles.purchaseBlockHeading}><Icon name="shield" size={17} /><h3>{block.title}</h3></div>
-        <p>{block.detail}</p>
-        <p>{demo.atlasCap < PURCHASE_PRICE
-          ? `Reset to choose a cap of at least ${PURCHASE_PRICE} USDC and reopen the credit line.`
-          : "Reset to return to day 0 and authorize Atlas again."} This clears the demo session.</p>
-        <button type="button" className={styles.primary} onClick={onReset}>Reset &amp; review permissions <Icon name="reset" size={16} /></button>
-      </div> : <div className={styles.nextAction}>
-        <p>{description}</p>
-        <button type="button" className={styles.primary} onClick={takeNextStep}>{label} <Icon name="arrow" size={16} /></button>
-      </div>}
-      {demo.opened && !demo.draw && <div className={styles.secondaryActions}>
-        <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })}>Try as Nova</button>
-        {demo.day <= AGENTS.atlas.expiry && <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "advance" })}>Skip past expiry</button>}
-      </div>}
+      <div className={styles.nextAction}>
+        {block && <div className={styles.purchaseBlock}>
+          <div className={styles.purchaseBlockHeading}><Icon name="shield" size={17} /><h3>{block.title}</h3></div>
+          <p>{block.detail}</p>
+          <p>{demo.atlasCap < PURCHASE_PRICE
+            ? `Reset to choose a cap of at least ${PURCHASE_PRICE} USDC and reopen the credit line.`
+            : "Reset to return to day 0 and authorize Atlas again."} This clears the demo session.</p>
+          <button type="button" className={styles.primary} onClick={onReset}>Reset &amp; review permissions <Icon name="reset" size={16} /></button>
+        </div>}
+        <div role="status" aria-atomic="true">
+          {blockedFeedback && <div id="purchase-feedback" className={`${styles.notice} ${styles.purchaseFeedback}`} data-tone="blocked">
+            <Icon name="shield" />
+            <div>
+              <span className={styles.noticeLabel}>Latest action · Day {blockedFeedback.day}</span>
+              <p><strong>{blockedFeedback.title}.</strong> {blockedFeedback.detail}</p>
+            </div>
+          </div>}
+        </div>
+        {!block && <>
+          {!blockedFeedback && <p>{description}</p>}
+          <button type="button" className={styles.primary} onClick={takeNextStep} aria-describedby={blockedFeedback ? "purchase-feedback" : undefined}>{label} <Icon name="arrow" size={16} /></button>
+        </>}
+        {demo.opened && !demo.draw && <div className={styles.secondaryActions}>
+          <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })} aria-describedby={blockedFeedback ? "purchase-feedback" : undefined}>Try as Nova</button>
+          {demo.day <= AGENTS.atlas.expiry && <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "advance" })}>Skip past expiry</button>}
+        </div>}
+      </div>
     </section>
   );
 }
@@ -295,7 +309,7 @@ export default function CreditDemoPage() {
             ))}
           </div>
           <div className={styles.noticeSlot} role="status" aria-atomic="true">
-            {latest && <div className={styles.notice} data-tone={latest.tone}>
+            {latest && !(view === "Owner workspace" && latest.tone === "blocked") && <div className={styles.notice} data-tone={latest.tone}>
               <Icon name={latest.tone === "blocked" ? "shield" : latest.tone === "paid" ? "check" : "info"} />
               <div>
                 <span className={styles.noticeLabel}>Latest action · Day {latest.day}</span>

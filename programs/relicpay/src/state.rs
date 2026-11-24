@@ -22,17 +22,17 @@ pub struct BnplAgreement {
     pub start_time: i64,            // unix timestamp of agreement creation
     pub last_yield_update: i64,     // last yield accrual timestamp (prevents double-count)
     pub state: AgreementState,      // Active | Completed | Defaulted | Cancelled
-    pub yield_accrued: u64,         // total yield earned by buyer (USDC lamports)
+    pub yield_accrued: u64,         // simulated agreement yield (USDC base units)
     pub escrow_deposited: u64,      // USDC currently held in escrow PDA
-    pub yield_rate_bps_annual: u16, // 300 = 3% APY
+    pub yield_rate_bps_annual: u16, // simulated agreement rate
     pub product_id: String,         // merchant item reference (PDA seed, ≤32 bytes)
     pub merchant_name: String,      // display name, e.g. "IBG Collection" (≤64)
     pub bump: u8,                   // PDA bump seed
     // ── v2 fields ──
     pub merchant_withdrawn: bool, // blocks double merchant_withdraw
     pub version: u8,              // schema version (2)
-    // ── v2.1 fields (DEVELOPMENT_PLAN.md v2.1 item 4) ──
-    pub yield_source: u8, // 0 = Simulated (on-chain interest math), 1 = KaminoLend (real CPI yield)
+    // ── v2.1 yield source ──
+    pub yield_source: u8, // 0 = Simulated, 1 = KaminoLend adapter
 }
 
 impl BnplAgreement {
@@ -58,7 +58,7 @@ pub struct StakePool {
     pub authority: Pubkey,          // protocol admin
     pub usdc_mint: Pubkey,          // USDC mint
     pub total_staked: u64,          // sum of all user stakes
-    pub yield_rate_bps_annual: u16, // 300 = 3% APY (governance-tunable)
+    pub yield_rate_bps_annual: u16, // authority-configurable simulated demo rate
     pub bump: u8,                   // PDA bump
 }
 
@@ -70,7 +70,7 @@ impl StakePool {
 pub struct UserStake {
     pub owner: Pubkey,      // staker wallet
     pub staked_amount: u64, // current USDC in pool
-    pub yield_accrued: u64, // pending yield (paid on full unstake)
+    pub yield_accrued: u64, // unpaid simulated rewards, payable only from surplus
     pub last_update: i64,   // timestamp of last stake/unstake
     pub tier: u8,           // discount tier 0–4 (read by browser extension)
     pub bump: u8,           // PDA bump

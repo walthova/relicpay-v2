@@ -1,11 +1,7 @@
-//! Buyer claims earned yield after the agreement completes.
+//! Record a buyer's simulated yield claim after the agreement completes.
 //!
-//! v2.0: yield is tracked on-chain; USDC disbursement comes from the protocol
-//! reserve off-chain. yield_accrued is zeroed first to block double-claims.
-//!
-//! V2_KAMINO: escrow will be deposited into Kamino Lend during the active
-//! period; this instruction will redeem kTokens (principal + real yield) via
-//! CPI instead.
+//! This instruction does not transfer USDC. It clears `yield_accrued` and
+//! emits a claim event. Per-agreement DeFi yield settlement is a follow-up.
 //!
 //! CALLER: the buyer's wallet only.
 

@@ -294,12 +294,13 @@
 .nextAction { margin-top: 13px; }
 .nextAction > p { margin-bottom: 10px; color: var(--muted); font-size: 13px; }
 .nextAction > .primary { width: 100%; }
-.purchaseBlock { margin-top: 13px; padding: 13px; border: 1px solid #5e482e; border-radius: 10px; background: #211e19; }
+.purchaseBlock { padding: 13px; border: 1px solid #5e482e; border-radius: 10px; background: #211e19; }
 .purchaseBlockHeading { display: flex; align-items: flex-start; gap: 8px; color: var(--amber); }
 .purchaseBlockHeading svg { margin-top: 2px; }
 .purchaseBlockHeading h3 { font-size: 14px; line-height: 1.5; }
 .purchaseBlock > p { margin-top: 8px; color: var(--muted); font-size: 13px; }
 .purchaseBlock > .primary { width: 100%; margin-top: 13px; }
+.purchaseFeedback { margin-block: 10px; }
 .secondaryActions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
 .receipt { margin-top: 16px; padding: 15px; }
 .page .receiptDetails { margin-top: 10px; max-width: 460px; }

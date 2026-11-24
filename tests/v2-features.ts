@@ -9,7 +9,9 @@ import BN from "bn.js";
 import {
   PublicKey,
   Keypair,
+  Connection,
   SystemProgram,
+  SYSVAR_CLOCK_PUBKEY,
   SYSVAR_RENT_PUBKEY,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
@@ -19,9 +21,15 @@ import {
   createAccount,
   mintTo,
   getAccount,
+  transfer,
 } from "@solana/spl-token";
 import { assert } from "chai";
 import { rejects } from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 describe("relicpay v2 features", () => {
   const provider = anchor.AnchorProvider.env();
@@ -2348,5 +2356,160 @@ describe("relicpay v2 features", () => {
         "agreement must remain Active when the grace check rejects"
       );
     });
+  });
+});
+
+describe("stake pool rewards", () => {
+  it("returns both principals before settling deferred staking rewards from top-ups", async () => {
+    // The frozen suite owns the singleton on the main test validator. Use a
+    // fresh ledger so this test can set its own simulated rate and mint.
+    const ledger = await mkdtemp(join(tmpdir(), "relicpay-stake-pool-"));
+    const idl: anchor.Idl = require("../target/idl/relicpay.json");
+    const programId = new PublicKey(idl.address);
+    const a = Keypair.generate();
+    const b = Keypair.generate();
+    const rpcPort = "28999";
+    const connection = new Connection(`http://127.0.0.1:${rpcPort}`, "confirmed");
+    const validator = spawn("solana-test-validator", [
+      "--ledger", ledger,
+      "--rpc-port", rpcPort,
+      "--faucet-port", "28901",
+      "--gossip-port", "28902",
+      "--dynamic-port-range", "29100-29150",
+      "--mint", a.publicKey.toBase58(),
+      "--bpf-program", programId.toBase58(), resolve(__dirname, "../target/deploy/relicpay.so"),
+      "--quiet",
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let diagnostics = "";
+    for (const stream of [validator.stdout, validator.stderr]) {
+      stream.setEncoding("utf8").on("data", (chunk) => {
+        diagnostics = (diagnostics + chunk).slice(-4000);
+      });
+    }
+    let stopped = false;
+    const closed = new Promise<void>((done) => validator.once("close", () => {
+      stopped = true;
+      done();
+    }));
+    validator.on("error", (error) => { diagnostics += error.message; });
+    try {
+      const readyBy = Date.now() + 20_000;
+      while (true) {
+        // Check the fresh payer as well as the program to rule out a stale validator.
+        const loaded = await connection.getMultipleAccountsInfo([a.publicKey, programId])
+          .catch(() => null);
+        if (loaded?.[0] && loaded[1]?.executable) break;
+        if (stopped || Date.now() > readyBy) {
+          throw new Error(`Stake pool validator did not start: ${diagnostics}`);
+        }
+        await delay(200);
+      }
+
+      const localProvider = new anchor.AnchorProvider(connection, new anchor.Wallet(a), {
+        commitment: "confirmed",
+        preflightCommitment: "confirmed",
+      });
+      const local = new Program<any>(idl, localProvider);
+      await localProvider.sendAndConfirm(new anchor.web3.Transaction().add(
+        SystemProgram.transfer({ fromPubkey: a.publicKey, toPubkey: b.publicKey, lamports: LAMPORTS_PER_SOL })
+      ));
+      const mint = await createMint(connection, a, a.publicKey, null, 6);
+      const aUsdc = await createAccount(connection, a, mint, a.publicKey);
+      const bUsdc = await createAccount(connection, a, mint, b.publicKey);
+      const rewardUsdc = await createAccount(connection, a, mint, a.publicKey, Keypair.generate());
+      const principal = 1_000_000_000n;
+      await mintTo(connection, a, mint, aUsdc, a, principal);
+      await mintTo(connection, a, mint, bUsdc, a, principal);
+      await mintTo(connection, a, mint, rewardUsdc, a, principal);
+
+      const pda = (...seeds: Buffer[]) => PublicKey.findProgramAddressSync(seeds, local.programId)[0];
+      const stakePool = pda(Buffer.from("stake_pool"));
+      const poolVault = pda(Buffer.from("pool_vault"), stakePool.toBuffer());
+      const accountsFor = (user: Keypair, userUsdc: PublicKey) => ({
+        stakePool, poolVault, user: user.publicKey, userUsdc, tokenProgram: TOKEN_PROGRAM_ID,
+        userStake: pda(Buffer.from("user_stake"), user.publicKey.toBuffer()),
+      });
+      const accountsA = accountsFor(a, aUsdc);
+      const accountsB = accountsFor(b, bUsdc);
+      await local.methods.initStakePool().accounts({
+        stakePool, poolVault, authority: a.publicKey, usdcMint: mint,
+        tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId, rent: SYSVAR_RENT_PUBKEY,
+      }).rpc();
+      const demoRate = 1_000;
+      await local.methods.updatePoolRate(demoRate).accounts({ stakePool, authority: a.publicKey }).rpc();
+      assert.equal((await local.account.stakePool.fetch(stakePool)).yieldRateBpsAnnual, demoRate);
+      for (const [user, accounts] of [[a, accountsA], [b, accountsB]] as const) {
+        await local.methods.stakeUsdc(new BN(principal.toString())).accounts({
+          ...accounts, systemProgram: SystemProgram.programId, rent: SYSVAR_RENT_PUBKEY,
+        }).signers(user === a ? [] : [user]).rpc();
+      }
+      const stakeA = await local.account.userStake.fetch(accountsA.userStake);
+      const waitBy = Date.now() + 10_000;
+      for (;;) {
+        const clock = await connection.getAccountInfo(SYSVAR_CLOCK_PUBKEY);
+        // The clock sysvar's unix timestamp is its fifth 64-bit field.
+        if (clock && clock.data.readBigInt64LE(32) > BigInt(stakeA.lastUpdate.toString())) break;
+        if (Date.now() > waitBy) throw new Error("Validator clock did not advance");
+        await delay(200);
+      }
+
+      const balance = async (address: PublicKey) => (await getAccount(connection, address)).amount;
+      const accrued = async () =>
+        BigInt((await local.account.userStake.fetch(accountsA.userStake)).yieldAccrued.toString());
+      const unstakeA = () => local.methods.unstakeUsdc(new BN(0)).accounts(accountsA).rpc();
+      const unstakedEvent = async (signature: string) => {
+        const tx = await connection.getTransaction(signature, {
+          commitment: "confirmed", maxSupportedTransactionVersion: 0,
+        });
+        const parser = new anchor.EventParser(local.programId, local.coder);
+        const event = [...parser.parseLogs(tx?.meta?.logMessages ?? [])].find((e) => e.name === "unstaked");
+        assert.exists(event, "expected an Unstaked event");
+        return event!.data;
+      };
+
+      assert.equal(await balance(poolVault), principal * 2n, "only principal is funded");
+      const first = await unstakeA();
+      assert.equal(await balance(aUsdc), principal, "A receives only principal");
+      assert.equal(await balance(poolVault), principal, "B's principal stays in the vault");
+      const deferred = await accrued();
+      assert.isTrue(deferred > 1n, "A retains enough rewards to test a partial top-up");
+      const firstEvent = await unstakedEvent(first);
+      assert.equal(firstEvent.yieldPaid.toString(), "0");
+      assert.equal(firstEvent.yieldDeferred.toString(), deferred.toString());
+
+      await local.methods.unstakeUsdc(new BN(0)).accounts(accountsB).signers([b]).rpc();
+      assert.equal(await balance(bUsdc), principal, "B receives the full principal");
+      assert.equal(await balance(poolVault), 0n);
+      assert.equal((await local.account.stakePool.fetch(stakePool)).totalStaked.toString(), "0");
+      await rejects(unstakeA(), /NothingToWithdraw/);
+      assert.equal(await accrued(), deferred, "an unfunded retry does not clear rewards");
+
+      const partialReward = 1n;
+      await transfer(connection, a, rewardUsdc, poolVault, a, partialReward);
+      const partialEvent = await unstakedEvent(await unstakeA());
+      const remaining = deferred - partialReward;
+      assert.equal(await balance(aUsdc), principal + partialReward);
+      assert.equal(await accrued(), remaining);
+      assert.equal(partialEvent.yieldPaid.toString(), partialReward.toString());
+      assert.equal(partialEvent.yieldDeferred.toString(), remaining.toString());
+
+      await transfer(connection, a, rewardUsdc, poolVault, a, remaining);
+      const paidEvent = await unstakedEvent(await unstakeA());
+      assert.equal(await balance(aUsdc), principal + deferred);
+      assert.equal(await balance(poolVault), 0n);
+      assert.equal(await accrued(), 0n);
+      assert.equal(paidEvent.principal.toString(), "0");
+      assert.equal(paidEvent.yieldPaid.toString(), remaining.toString());
+      assert.equal(paidEvent.yieldDeferred.toString(), "0");
+      await rejects(unstakeA(), /NothingToWithdraw/);
+    } finally {
+      // The web3.js connection has no public teardown; avoid reconnecting to
+      // a validator this test is about to stop.
+      connection._rpcWebSocket.setAutoReconnect(false);
+      connection._rpcWebSocket.close();
+      validator.kill();
+      await closed;
+      await rm(ledger, { recursive: true, force: true });
+    }
   });
 });
