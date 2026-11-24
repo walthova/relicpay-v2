@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getBalances, initialDemo, reduceDemo } from "../src/lib/creditDemo.ts";
+import { getBalances, getPurchaseBlock, initialDemo, reduceDemo } from "../src/lib/creditDemo.ts";
 
 const open = (demo = initialDemo()) => reduceDemo(demo, { type: "open" });
 const buy = (demo, agent = "atlas") => reduceDemo(demo, { type: "attempt", agent });
@@ -45,6 +45,33 @@ test("an expired mandate blocks payment without drawing credit", () => {
   const blocked = buy(expired);
   assert.match(blocked.events.at(-1).detail, /spending window/);
   assert.deepEqual(getBalances(blocked), getBalances(expired));
+});
+
+test("purchase guidance matches enforcement and reset recovers every blocked Atlas state", () => {
+  const lowCap = open(reduceDemo(initialDemo(), { type: "set-cap", cap: 120 }));
+  const expired = reduceDemo(open(), { type: "advance" });
+  const revoked = reduceDemo(open(), { type: "revoke", agent: "atlas" });
+  for (const demo of [lowCap, expired, revoked]) {
+    const block = getPurchaseBlock(demo, "atlas");
+    assert.ok(block);
+    const blocked = buy(demo);
+    assert.equal(blocked.draw, null);
+    assert.equal(blocked.events.at(-1).detail, block.detail);
+    const reset = reduceDemo(blocked, { type: "reset" });
+    assert.deepEqual(reset, initialDemo());
+    assert.equal(getPurchaseBlock(reset, "atlas"), null);
+    assert.equal(getBalances(buy(open(reset))).merchantPaid, 180);
+  }
+  assert.match(getPurchaseBlock(lowCap, "atlas").detail, /180 USDC.*120 USDC/);
+  assert.match(getPurchaseBlock(expired, "atlas").detail, /day 45.*day 46/);
+});
+
+test("Atlas remains eligible through its last authorized day and at each sufficient cap", () => {
+  for (const cap of [200, 250]) {
+    const demo = { ...open(reduceDemo(initialDemo(), { type: "set-cap", cap })), day: 45 };
+    assert.equal(getPurchaseBlock(demo, "atlas"), null);
+    assert.equal(getBalances(buy(demo)).merchantPaid, 180);
+  }
 });
 
 test("repayments restore credit over three installments without paying the merchant twice", () => {
