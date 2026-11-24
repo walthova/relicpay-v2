@@ -17,10 +17,11 @@ export const GRACE_PERIOD_SECONDS = 7 * 24 * 60 * 60;
 export const DEFAULT_YIELD_RATE_BPS = 300n;
 const BPS_DIVISOR = 10_000n;
 const SECONDS_PER_YEAR = 31_536_000n;
+const MAX_U64 = (1n << 64n) - 1n;
 const PRODUCT_ID_TOO_LONG = `productId exceeds ${MAX_PRODUCT_ID_LEN} bytes`;
 
 export interface CheckoutRequest {
-  /** Total price in USDC base units (6 decimals). */
+  /** Positive u64 total price in USDC base units (6 decimals). */
   totalPrice: bigint;
   installmentCount: number;
   intervalSeconds: number;
@@ -54,6 +55,7 @@ export interface Quote {
 export function validateCheckout(req: CheckoutRequest, maxAgreementDeposit: bigint = 0n): string[] {
   const errs: string[] = [];
   if (req.totalPrice <= 0n) errs.push("totalPrice must be greater than zero");
+  if (req.totalPrice > MAX_U64) errs.push("totalPrice exceeds the u64 maximum");
   if (!Number.isInteger(req.installmentCount) || req.installmentCount < MIN_INSTALLMENTS || req.installmentCount > MAX_INSTALLMENTS)
     errs.push(`installmentCount must be an integer between ${MIN_INSTALLMENTS} and ${MAX_INSTALLMENTS}`);
   if (!Number.isInteger(req.intervalSeconds) || req.intervalSeconds <= 0) errs.push("intervalSeconds must be a positive integer");
