@@ -160,7 +160,7 @@ function PurchaseCard({ demo, dispatch, onReview, onReset }: {
   return (
     <section className={styles.panel} aria-labelledby="purchase-title">
       <div className={styles.panelHeading}>
-        <h2 id="purchase-title">Demo purchase</h2>
+        <h2 id="purchase-title">Atlas purchase</h2>
         <Badge tone={block ? "blocked" : demo.draw ? "paid" : "neutral"}>{block ? "Blocked" : complete ? "Repaid" : demo.draw ? "Merchant paid" : "Not purchased"}</Badge>
       </div>
       <div className={styles.product}>
@@ -297,7 +297,10 @@ export default function CreditDemoPage() {
           <div className={styles.noticeSlot} role="status" aria-atomic="true">
             {latest && <div className={styles.notice} data-tone={latest.tone}>
               <Icon name={latest.tone === "blocked" ? "shield" : latest.tone === "paid" ? "check" : "info"} />
-              <p><strong>{latest.title}.</strong> {latest.detail}</p>
+              <div>
+                <span className={styles.noticeLabel}>Latest action · Day {latest.day}</span>
+                <p><strong>{latest.title}.</strong> {latest.detail}</p>
+              </div>
             </div>}
           </div>
           {view === "Owner workspace" ? (

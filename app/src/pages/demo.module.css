@@ -232,6 +232,7 @@
   font-size: 13px;
 }
 .notice strong { color: var(--text); }
+.noticeLabel { display: block; margin-bottom: 3px; font: 500 10px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
 .notice[data-tone="paid"] { border-color: #2f5143; background: #12251e; }
 .notice[data-tone="blocked"] { border-color: #5e482e; background: #2b2117; }
 .notice[data-tone="paid"] svg, .goodText { color: var(--mint); }
