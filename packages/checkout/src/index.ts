@@ -44,7 +44,7 @@ export interface Quote {
   installments: Installment[];
   /** Charged to the buyer in the creating transaction. */
   upfront: bigint;
-  /** Fee the merchant keeps if the buyer cancels early (10%). */
+  /** Fee the merchant keeps if the buyer cancels right after checkout: 10% of the escrowed upfront installment. */
   cancelFeeIfCancelledNow: bigint;
   /** Simple-interest yield the buyer would earn if every installment sits in escrow to the end. */
   estimatedYieldAtSimulatedRate: bigint;
@@ -85,7 +85,7 @@ export function quote(req: CheckoutRequest): Quote {
   return {
     installments,
     upfront: base,
-    cancelFeeIfCancelledNow: (req.totalPrice * CANCEL_FEE_BPS) / BPS_DIVISOR,
+    cancelFeeIfCancelledNow: (base * CANCEL_FEE_BPS) / BPS_DIVISOR,
     estimatedYieldAtSimulatedRate: (weighted * DEFAULT_YIELD_RATE_BPS) / (BPS_DIVISOR * SECONDS_PER_YEAR),
   };
 }

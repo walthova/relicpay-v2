@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { UserStakeView } from "../hooks/useStakePool";
 
@@ -25,26 +24,8 @@ function formatUsdc(units: number, decimals = 2): string {
 
 export function VirtualCard({ stake, loading }: Props) {
   const { publicKey } = useWallet();
-  const [tickYield, setTickYield] = useState(0);
-
-  // Force a re-render every second so the live yield ticks visibly
-  useEffect(() => {
-    if (!stake) return;
-    const id = setInterval(() => setTickYield((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [stake]);
-
   const tier = stake?.tier;
   const stakedUsd = stake?.stakedUsd ?? 0;
-  const totalYieldUsd = (stake?.totalYieldUnits ?? 0) / 1_000_000;
-
-  // Recompute live yield each tick
-  let liveYield = stake?.totalYieldUnits ?? 0;
-  if (stake) {
-    const elapsedSec = Math.max(0, Math.floor(Date.now() / 1000) - stake.lastUpdate);
-    const live = Math.floor((stake.stakedUnits * 300 * elapsedSec) / (10_000 * 31_536_000));
-    liveYield = stake.yieldAccruedUnits + live;
-  }
 
   const purchasingPower = stakedUsd + (tier ? (stakedUsd * tier.discount_bps) / 10_000 : 0);
   const isActive = !!stake && stake.stakedUnits > 0;
@@ -74,9 +55,9 @@ export function VirtualCard({ stake, loading }: Props) {
           <span className="stat-value">${formatUsdc(stake?.stakedUnits ?? 0)}</span>
         </div>
         <div className="card-stat">
-          <span className="stat-label">Yield earned</span>
+          <span className="stat-label">Recorded yield</span>
           <span className="stat-value yield-pulse">
-            +${formatUsdc(liveYield, 6)}
+            +${formatUsdc(stake?.yieldAccruedUnits ?? 0, 6)}
           </span>
         </div>
         <div className="card-stat">
