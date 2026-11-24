@@ -190,10 +190,10 @@ function PurchaseCard({ demo, dispatch, onReview, onReset }: {
       </div> : <div className={styles.nextAction}>
         <p>{description}</p>
         <button type="button" className={styles.primary} onClick={takeNextStep}>{label} <Icon name="arrow" size={16} /></button>
-        {demo.opened && !demo.draw && <div className={styles.secondaryActions}>
-          <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })}>Try as Nova</button>
-          {demo.day <= AGENTS.atlas.expiry && <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "advance" })}>Skip past expiry</button>}
-        </div>}
+      </div>}
+      {demo.opened && !demo.draw && <div className={styles.secondaryActions}>
+        <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })}>Try as Nova</button>
+        {demo.day <= AGENTS.atlas.expiry && <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "advance" })}>Skip past expiry</button>}
       </div>}
     </section>
   );
