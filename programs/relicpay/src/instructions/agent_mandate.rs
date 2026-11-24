@@ -6,8 +6,8 @@
 //!     the limits and the running spend for the current period.
 //!   - The owner's USDC account delegates a bounded SPL allowance to the
 //!     mandate PDA. Funds never leave the owner's wallet until the agent
-//!     actually buys, and `revoke_agent_mandate` pulls the allowance back in
-//!     the same transaction that kills the mandate.
+//!     actually buys. Revoke accepts any owner token account and clears its
+//!     allowance only if its delegate still points at this mandate.
 //!   - `agent_create_agreement` opens an ordinary `BnplAgreement` with
 //!     `buyer = owner`, so pay_installment / cancel / default / close all
 //!     work unchanged and stay in the owner's hands.
@@ -17,8 +17,8 @@
 //!   committing to, not just the first installment), purchases per period,
 //!   approved merchants, expiry, and an owner co-sign above a threshold.
 //!
-//! An SPL token account has a single delegate, so one owner USDC account
-//! backs one live mandate at a time. A second mandate on the same account
+//! Each mandate is permanently bound to one owner USDC account. An SPL token
+//! account has a single delegate, so a second mandate on the same account
 //! replaces the first one's allowance.
 
 use anchor_lang::prelude::*;
@@ -121,6 +121,7 @@ pub fn create_handler(ctx: Context<CreateAgentMandate>, limits: MandateLimits) -
     mandate.total_spent = 0;
     mandate.created_at = now;
     mandate.bump = ctx.bumps.mandate;
+    mandate.owner_usdc = ctx.accounts.owner_usdc.key();
 
     approve_and_emit(
         &ctx.accounts.mandate,
@@ -186,7 +187,11 @@ pub struct UpdateAgentMandate<'info> {
 
     pub owner: Signer<'info>,
 
-    #[account(mut, token::authority = owner)]
+    #[account(
+        mut,
+        token::authority = owner,
+        address = mandate.owner_usdc @ RelicPayError::MandateTokenAccountMismatch,
+    )]
     pub owner_usdc: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
@@ -194,8 +199,8 @@ pub struct UpdateAgentMandate<'info> {
 
 // ─── revoke_agent_mandate ────────────────────────────────────────────────────
 
-/// One-tap revoke: the mandate is dead and the SPL allowance is pulled back
-/// in the same transaction. Terminal: create a new mandate to re-enable.
+/// Revoke kills the mandate and clears any delegation on the passed owner
+/// token account that points at it. Terminal: create a new mandate to re-enable.
 /// Agreements the agent already opened stay with the owner as normal.
 pub fn revoke_handler(ctx: Context<RevokeAgentMandate>) -> Result<()> {
     let mandate = &mut ctx.accounts.mandate;
@@ -439,6 +444,7 @@ pub struct AgentCreateAgreement<'info> {
         mut,
         token::mint = usdc_mint,
         token::authority = owner,
+        address = mandate.owner_usdc @ RelicPayError::MandateTokenAccountMismatch,
     )]
     pub owner_usdc: Account<'info, TokenAccount>,
 
