@@ -23,9 +23,13 @@ const fs = require("fs");
 const mocha = new Mocha({ timeout: 60000 });
 
 const testDir = path.join(__dirname, "..", "tests");
-fs.readdirSync(testDir)
-  .filter((f) => f.endsWith(".ts"))
-  .forEach((f) => mocha.addFile(path.join(testDir, f)));
+const requestedFiles = process.argv.slice(2);
+const testFiles = requestedFiles.length
+  ? requestedFiles
+  : fs.readdirSync(testDir)
+      .filter((f) => f.endsWith(".ts"))
+      .map((f) => path.join(testDir, f));
+testFiles.forEach((file) => mocha.addFile(file));
 
 mocha.run((failures) => {
   process.exitCode = failures ? 1 : 0;
