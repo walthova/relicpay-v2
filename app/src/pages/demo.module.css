@@ -293,6 +293,7 @@
 .nextAction { margin-top: 13px; }
 .nextAction > p { margin-bottom: 10px; color: var(--muted); font-size: 13px; }
 .nextAction > .primary { width: 100%; }
+.purchaseFeedback { margin-bottom: 10px; }
 .secondaryActions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
 .receipt { margin-top: 16px; padding: 15px; }
 .page .receiptDetails { margin-top: 10px; max-width: 460px; }
