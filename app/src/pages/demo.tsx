@@ -178,10 +178,13 @@ function PurchaseCard({ demo, dispatch, onReview }: { demo: Demo; dispatch: Disp
       </ol>
       {demo.draw && <progress className={styles.progress} aria-label="Repayment progress" value={paid} max={PURCHASE_PRICE} />}
       <div className={styles.nextAction}>
-        {blocked ? <div id="purchase-feedback" className={`${styles.notice} ${styles.purchaseFeedback}`} data-tone="blocked">
-          <Icon name="shield" />
-          <p><strong>{blocked.title}.</strong> {blocked.detail}</p>
-        </div> : <p>{description}</p>}
+        <div role="status" aria-atomic="true">
+          {blocked && <div id="purchase-feedback" className={`${styles.notice} ${styles.purchaseFeedback}`} data-tone="blocked">
+            <Icon name="shield" />
+            <p><strong>{blocked.title}.</strong> {blocked.detail}</p>
+          </div>}
+        </div>
+        {!blocked && <p>{description}</p>}
         <button type="button" className={styles.primary} onClick={takeNextStep} aria-describedby={blocked ? "purchase-feedback" : undefined}>{label} <Icon name="arrow" size={16} /></button>
         {demo.opened && !demo.draw && <div className={styles.secondaryActions}>
           <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })} aria-describedby={blocked ? "purchase-feedback" : undefined}>Try as Nova</button>
@@ -287,7 +290,7 @@ export default function CreditDemoPage() {
             ))}
           </div>
           <div className={styles.noticeSlot} role="status" aria-atomic="true">
-            {latest && <div className={styles.notice} data-tone={latest.tone}>
+            {latest && !(view === "Owner workspace" && latest.tone === "blocked") && <div className={styles.notice} data-tone={latest.tone}>
               <Icon name={latest.tone === "blocked" ? "shield" : latest.tone === "paid" ? "check" : "info"} />
               <p><strong>{latest.title}.</strong> {latest.detail}</p>
             </div>}
