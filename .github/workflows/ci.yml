@@ -83,7 +83,7 @@ jobs:
           git diff --exit-code -- Cargo.lock
 
   app:
-    name: Demo app (build)
+    name: Demo app (test + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -102,6 +102,7 @@ jobs:
       - run: npm ci
         working-directory: .
       - run: npm ci
+      - run: npm test
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: "1"

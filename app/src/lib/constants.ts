@@ -57,9 +57,6 @@ export const STAKE_POOL_SEED = "stake_pool";
 export const POOL_VAULT_SEED = "pool_vault";
 export const USER_STAKE_SEED = "user_stake";
 
-export const YIELD_RATE_BPS_ANNUAL = 300; // 3% APY
-export const SECONDS_PER_YEAR = 31_536_000;
-
 export interface Tier {
   level: 0 | 1 | 2 | 3 | 4;
   name: string;
