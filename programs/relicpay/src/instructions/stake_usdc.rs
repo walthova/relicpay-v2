@@ -1,5 +1,5 @@
 //! Deposit USDC into the stake pool. Creates the UserStake PDA on first
-//! deposit; on top-ups, accrues yield on the prior balance first so the new
+//! deposit; on top-ups, accrues simulated yield on the prior balance so the new
 //! principal doesn't retroactively earn.
 
 use anchor_lang::prelude::*;
@@ -19,7 +19,7 @@ pub fn handler(ctx: Context<StakeUsdc>, amount: u64) -> Result<()> {
     let clock = Clock::get()?;
 
     if user_stake.staked_amount > 0 {
-        // Existing staker: accrue yield on prior balance before topping up.
+        // Accrue simulated yield on the prior balance before topping up.
         let elapsed = (clock.unix_timestamp - user_stake.last_update) as u64;
         let new_yield = calculate_yield(
             user_stake.staked_amount,
@@ -31,7 +31,7 @@ pub fn handler(ctx: Context<StakeUsdc>, amount: u64) -> Result<()> {
             .checked_add(new_yield)
             .ok_or(RelicPayError::MathOverflow)?;
     } else {
-        // First stake: initialize PDA fields.
+        // Initialize identity fields without clearing any deferred rewards.
         user_stake.owner = ctx.accounts.user.key();
         user_stake.bump = ctx.bumps.user_stake;
     }

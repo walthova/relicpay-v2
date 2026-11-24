@@ -1,7 +1,7 @@
 //! One-time protocol initialization: creates the global StakePool and vault.
 //!
-//! The StakePool is separate from BNPL agreements. Users lock USDC to earn
-//! 3% APY and unlock browser-extension discount tiers (see constants.rs).
+//! The StakePool is separate from BNPL agreements. Staking unlocks browser
+//! extension discount tiers. Demo rewards are simulated and require surplus.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};

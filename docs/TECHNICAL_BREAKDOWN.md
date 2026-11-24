@@ -18,8 +18,8 @@ This document traces exactly what happens — at the code level — when someone
 | **Anchor** | A framework for writing Solana smart contracts in Rust. It generates TypeScript bindings automatically. |
 | **Instruction** | A function call on a Solana smart contract. Like calling a method in an API. |
 | **USDC** | USD Coin — a stablecoin pegged to $1. Relic Pay uses USDC with 6 decimal places ($1.00 = 1,000,000 USDC lamports). |
-| **APY** | Annual Percentage Yield — the interest rate earned over one year. 3% APY = $3 earned on $100 in one year. |
-| **Basis Points (bps)** | 1 basis point = 0.01%. 300 bps = 3%. Used in yield math to avoid decimals. |
+| **APY** | Annual Percentage Yield — annualized return including compounding. Relic Pay does not offer a fixed APY. |
+| **Basis Points (bps)** | One hundredth of a percentage point. Used in simulated yield math to avoid decimals. |
 | **IDL** | Interface Definition Language — the JSON file Anchor generates that describes your program's instructions, accounts, and types. The frontend uses this to call the program. |
 | **CPI** | Cross-Program Invocation — when one Solana program calls another. Relic Pay v2 uses this to call Kamino Lend. |
 
@@ -98,7 +98,7 @@ When the transaction lands:
    start_time = current_unix_timestamp
    last_yield_update = current_unix_timestamp
    state = Active
-   yield_rate_bps_annual = 300
+   yield_rate_bps_annual = DEFAULT_YIELD_RATE_BPS  (simulated)
    yield_accrued = 0
    escrow_deposited = 0
    ```
@@ -113,7 +113,7 @@ When the transaction lands:
 
 ---
 
-## Part 2: How Yield Accrues
+## Part 2: How Simulated Yield Accrues
 
 ### The Math
 
@@ -121,32 +121,11 @@ When the transaction lands:
 yield = principal × (rate_bps / 10_000) × (elapsed_seconds / 31_536_000)
 ```
 
-For $100 over 30 days at 3% APY:
-```
-yield = 100_000_000 × (300 / 10_000) × (2_592_000 / 31_536_000)
-      = 100_000_000 × 0.03 × 0.08219
-      = 246,575 USDC lamports
-      = ~$0.25
-```
+This is simple-interest accounting for the demo, not a product rate, return forecast, or earned DeFi yield. The agreement's `claim_yield` records an event without a token payout.
 
 ### Why `last_yield_update` Matters
 
-A naive implementation might compute yield from `start_time` every time a payment is made. This double-counts:
-
-**Bad (double-counting):**
-- t=0: escrow=$100, no yield yet
-- t=30d: `yield += $100 × 3% × (60d/365)` = $0.49 ← WRONG
-  - (At t=30d it should be $100 × 3% × (30d/365) = $0.25)
-- t=60d: `yield += $200 × 3% × (60d/365)` = $0.99 ← WRONG
-  - (At t=60d it should be $200 × 3% × (30d/365) = $0.49)
-- Total accrued: $0.25 + $0.99 = $1.24 — OVERCOUNTED
-
-**Correct (per-window):**
-- t=30d: `yield += $100 × 3% × (30d/365)` = $0.25 (30 days of $100)
-- t=60d: `yield += $200 × 3% × (30d/365)` = $0.49 (30 days of $200)
-- Total accrued: $0.25 + $0.49 = $0.74 — CORRECT
-
-The fix: always compute yield only for `clock.unix_timestamp - last_yield_update`, then set `last_yield_update = clock.unix_timestamp`.
+Recomputing from `start_time` counts earlier windows again and applies the larger balance retroactively. If escrow holds $100 for the first window and $200 for the next, use $100 for the first window and $200 only for the second. Compute from `last_yield_update` and advance that timestamp after each payment.
 
 ---
 
@@ -245,9 +224,9 @@ All escrowed USDC goes to the merchant. The buyer forfeits everything in escrow.
 
 ### Why Stake?
 
-Two reasons:
-1. Earn 3% APY on idle USDC
-2. Unlock browser extension discount tiers (up to 3% off every purchase)
+Staking unlocks browser extension discount tiers (up to 3% off).
+
+The goal is for a yield agent, now in development, to find and monitor yield opportunities for staked collateral in approved DeFi markets. The demo simulates rewards; it does not generate DeFi yield.
 
 ### How Staking Works
 
@@ -259,9 +238,11 @@ await program.methods
 ```
 
 On-chain:
-1. If user already has a stake: accrue yield on prior balance first
+1. If the user already has a stake, accrue simulated rewards on the prior balance first
 2. Transfer USDC: `user_wallet → pool_vault`
 3. Update `staked_amount`, `last_update`, `tier`
+
+On full unstake, rewards can only use the vault balance above all stakers' principal before the withdrawal. A plain USDC transfer into the vault funds rewards. Any unpaid amount stays accrued and can be collected by calling `unstake_usdc(0)` after a top-up, even with no stake remaining.
 
 `tier = compute_tier(staked_amount)`:
 - $0–$9.99 → Tier 0 (0% discount)
@@ -397,7 +378,7 @@ const agreement = await program.account.bnplAgreement.fetch(agreementPDA);
 console.log({
   totalPrice: agreement.totalPrice.toNumber() / 1_000_000, // → $300.00
   paidInstallments: agreement.paidInstallments,            // → 2
-  yieldAccrued: agreement.yieldAccrued.toNumber() / 1_000_000, // → $0.25
+  simulatedYieldAccrued: agreement.yieldAccrued.toNumber() / 1_000_000,
   state: agreement.state,                                  // → { active: {} }
 });
 ```

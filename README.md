@@ -6,7 +6,8 @@
 
 ## What works today
 
-- **On-chain installments:** The Anchor program escrows buyer-funded installments and pays the merchant after the plan is complete. Owners can grant and revoke an `AgentMandate` with spending caps, merchant restrictions, and an expiry. Yield is simulated in the demo; the Kamino adapter has been tested against a local mock reserve, not verified for live yield.
+- **On-chain installments:** The Anchor program escrows buyer-funded installments and pays the merchant after the plan is complete. Owners can grant and revoke an `AgentMandate` with spending caps, merchant restrictions, and an expiry.
+- **Simulated yield:** Demo staking rewards are payable only from vault funds above total staked principal. [The yield agent](docs/DEFI_YIELD_ENGINE.md) is in development: the goal is to deploy staked collateral into approved DeFi markets, compare available yields, and monitor risk. There is no fixed APY or live yield. The Kamino escrow adapter has been tested against a local mock reserve.
 - **Local mock x402 flow ([#10](https://github.com/walthova/relicpay-v2/pull/10)):** A mock merchant sends an HTTP 402 challenge and releases a demo resource after verifying the first on-chain installment. This uses test tokens and existing installment instructions, not standard x402 settlement or an upfront merchant payment.
 - **Wallet-free owner credit demo ([#14](https://github.com/walthova/relicpay-v2/pull/14)):** A browser walkthrough lets you set limits, try agent purchases, and see simulated merchant payouts and repayments. [IBG Collection](https://IBGCollects.com) is the example merchant, not a live integration.
 - **CI and seeded fuzz testing ([#3](https://github.com/walthova/relicpay-v2/pull/3)):** The `RelicPay PR gate` checks the frozen v1 characterization suite, Rust unit tests, Anchor integration tests (including seeded agent-mandate cases), and the demo app. PRs to `main` require the gate to pass.

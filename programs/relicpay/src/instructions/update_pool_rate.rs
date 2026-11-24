@@ -1,4 +1,4 @@
-//! v2: governance tunes the stake pool APY, capped at MAX_YIELD_RATE_BPS.
+//! Set the stake pool's simulated demo rate, capped at MAX_YIELD_RATE_BPS.
 //!
 //! CALLER: the stake pool authority only.
 

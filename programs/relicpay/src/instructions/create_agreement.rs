@@ -165,7 +165,7 @@ pub(crate) fn init_agreement(
     agreement.product_id = product_id;
     agreement.merchant_name = merchant_name;
     agreement.yield_accrued = 0;
-    // V2_KAMINO: replaced by actual Kamino Lend supply APY.
+    // Demo accounting only; this rate is not a DeFi return.
     agreement.yield_rate_bps_annual = DEFAULT_YIELD_RATE_BPS;
     agreement.bump = bump;
     agreement.merchant_withdrawn = false;

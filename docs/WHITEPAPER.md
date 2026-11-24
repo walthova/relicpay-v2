@@ -1,5 +1,5 @@
 # Relic Pay Whitepaper
-### Yield-Bearing Buy Now, Pay Later — Where Your Payment Plan Makes You Money
+### Buy Now, Pay Later with a DeFi Yield Roadmap
 **Version 1.0 | May 2026**
 
 ---
@@ -25,7 +25,7 @@
 
 Relic Pay is a non-custodial Buy Now Pay Later (BNPL) protocol built on Solana. It allows crypto holders to use their digital assets as collateral to generate instant credit lines — without selling their positions.
 
-The protocol's defining innovation: the funds locked in escrow during the repayment period are automatically deployed into DeFi yield strategies. This means the buyer earns interest on their locked capital while paying back. The merchant receives full payment on completion. The seller gains access to a new category of buyer — the crypto holder who refuses to sell.
+The goal is to put staked collateral to work in approved DeFi markets. A yield agent is in development to compare available yields and monitor the risk of those positions. Demo yield is simulated; there is no live yield or fixed APY. The installment program pays the merchant when the buyer completes the plan.
 
 Relic Pay does not require banks, credit checks, or intermediaries. It is governed by smart contracts alone.
 
@@ -45,7 +45,7 @@ Neither outcome serves the buyer, the merchant, or the ecosystem.
 ### DeFi BNPL Has No Yield for Borrowers
 Existing on-chain lending protocols (Aave, Compound, MarginFi) let users borrow against collateral — but the borrower pays interest to lenders. They are a cost center for the borrower.
 
-Relic Pay inverts this: the borrower's locked capital earns yield during the repayment period, partially or fully offsetting the cost of the installment plan.
+Relic Pay is exploring whether deployed collateral can generate returns during repayment. Those returns would depend on market conditions and would not be guaranteed to offset installment costs.
 
 ### Merchants Lose Crypto-Native Sales
 E-commerce merchants miss a significant demographic — crypto holders who actively avoid fiat spending. Without a BNPL product that meets buyers where they are (in-wallet, on-chain), these sales are lost.
@@ -59,8 +59,8 @@ Relic Pay introduces three key mechanics that no existing BNPL product offers si
 **1. Collateral-Based Credit Lines**
 The buyer locks USDC (or approved crypto assets in v2) into a smart contract escrow. This collateral determines their credit line. No credit bureau check. No bank account required.
 
-**2. Yield-Bearing Escrow**
-While installments sit in the escrow PDA, the protocol autonomously deploys them into DeFi yield protocols (Kamino Lend in v2). The yield accrues to the buyer — not the protocol.
+**2. DeFi Yield Roadmap**
+The demo tracks simulated yield. The Kamino escrow adapter has been tested against a local mock reserve. The separate stake pool still needs a real yield adapter and the yield agent is not live.
 
 **3. Browser Extension Pricing**
 A browser extension detects product prices on any e-commerce page and overlays the "Relic Pay Price" — the item cost minus the buyer's discount tier, based on their staked USDC balance. This makes Relic Pay pricing visible at the point of purchase.
@@ -72,10 +72,10 @@ A browser extension detects product prices on any e-commerce page and overlays t
 ### The Four Actors
 
 ```
-BUYER        — Has crypto. Wants to buy now. Pays in installments. Earns yield.
+BUYER        — Has crypto. Wants to buy now. Pays in installments.
 MERCHANT     — Sells goods. Receives full payment on completion. New payment rail.
-STAKER       — Locks USDC. Earns 3% APY. Gets browser extension discounts.
-PROTOCOL     — Smart contracts + reserve fund. Enforces rules autonomously.
+STAKER       — Locks USDC. Unlocks browser extension discounts.
+PROTOCOL     — Smart contracts enforce the agreement and stake pool rules.
 ```
 
 ### The Purchase Flow
@@ -93,20 +93,19 @@ Step 3: create_agreement() called on-chain
         - First installment ($100) transferred: BUYER wallet → Escrow PDA
            |
            v
-Step 4: Yield begins accruing on $100 in escrow (3% APY, computes per-second)
+Step 4: Demo accounting tracks simulated yield on escrow
            |
            v
 Step 5: 30 days later — BUYER calls pay_installment()
-        - Yield accrued on $100 for 30 days (~$0.25) is recorded
+        - Simulated yield for the prior escrow balance is recorded
         - Second installment ($100) transferred: BUYER → Escrow
-        - Escrow now holds $200, yield accrual continues
+        - Escrow now holds $200 for the next accrual window
            |
            v
 Step 6: 60 days — BUYER calls pay_installment() for final payment
-        - Yield accrued on $200 for 30 days (~$0.49) recorded
+        - Simulated yield for the latest window is recorded
         - Final installment transferred (adjusted for any remainder)
         - Agreement state → Completed
-        - Total yield earned: ~$0.74 over 60 days
            |
            v
 Step 7: MERCHANT calls merchant_withdraw()
@@ -114,7 +113,7 @@ Step 7: MERCHANT calls merchant_withdraw()
            |
            v
 Step 8: BUYER calls claim_yield()
-        - Receives ~$0.74 USDC (from protocol reserve in v1; from Kamino in v2)
+        - Records the simulated claim; no USDC is transferred
 ```
 
 ### The Default Flow
@@ -144,7 +143,7 @@ BUYER calls cancel_agreement()
 ## 5. Smart Contract Architecture
 
 ### Program ID
-`DEWSsuX2icjv8Dd6VHMGYoBEUfaF1uZbwFDWrzZmMW5` (Solana devnet)
+See [Anchor.toml](../Anchor.toml) for the configured program ID. This is not a live yield deployment.
 
 ### Account Structure (PDA Model)
 
@@ -178,14 +177,14 @@ UserStake PDA (one per staker)
 | Instruction | Caller | What It Does |
 |---|---|---|
 | `create_agreement` | Buyer | Creates agreement + escrow, pays first installment |
-| `pay_installment` | Buyer | Pays next installment, accrues yield |
+| `pay_installment` | Buyer | Pays next installment, records simulated yield |
 | `cancel_agreement` | Buyer | Early exit: 10% fee to merchant, 90% refund to buyer |
 | `merchant_withdraw` | Merchant | Withdraws total_price after completion |
-| `claim_yield` | Buyer | Claims earned yield after completion |
+| `claim_yield` | Buyer | Records a simulated claim after completion; no token transfer |
 | `trigger_default` | Anyone | Liquidates escrow to merchant after grace period |
 | `init_stake_pool` | Protocol admin | One-time: creates global stake pool |
-| `stake_usdc` | Staker | Deposits USDC, earns yield, advances tier |
-| `unstake_usdc` | Staker | Withdraws principal + yield |
+| `stake_usdc` | Staker | Deposits USDC and updates the discount tier |
+| `unstake_usdc` | Staker | Withdraws principal; pays demo rewards only from surplus on full unstake |
 
 ### State Machine
 
@@ -203,33 +202,23 @@ Active ───┤  pay_installment() (final)     ► Completed ──► merch
 
 ## 6. The Yield Engine
 
-### v1: Simulated On-Chain (Current)
+### Simulated Yield (Demo)
 
-Yield is computed using simple interest:
+The demo uses simple interest to illustrate accrual:
 
 ```
 yield = principal × (rate_bps / 10_000) × (elapsed_seconds / 31_536_000)
 ```
 
-At 3% APY (300 bps):
-- $100 locked for 30 days → $0.25 yield
-- $200 locked for 30 days → $0.49 yield
-- $500 locked for 90 days → $3.70 yield
-
-Yield is tracked in the `yield_accrued` field of `BnplAgreement`. Actual USDC payout at `claim_yield` comes from the protocol reserve in v1.
+The agreement's `yield_accrued` field records a simulated amount. The corresponding claim does not transfer tokens.
 
 **Key implementation detail:** yield is computed only for the window since `last_yield_update`, not from `start_time`. This prevents double-counting as the escrow balance grows with each installment.
 
-### v2: Kamino Lend CPI (Next Milestone)
+Stake pool rewards are also simulated. Any payout is limited to USDC in the vault above all stakers' principal. A direct USDC top-up funds rewards; unpaid amounts remain accrued for a later claim.
 
-In v2, `create_agreement` and `pay_installment` will include a Kamino Lend CPI to:
-1. Deposit USDC into Kamino's USDC lending market
-2. Receive kUSDC (receipt token) in the escrow PDA
-3. At `merchant_withdraw` and `claim_yield`: redeem kUSDC for USDC + real yield
+### DeFi Yield (In Development)
 
-Target APY: 3–8% on USDC depending on Kamino utilization.
-
-This makes Relic Pay self-sustaining — no protocol reserve needed.
+The Kamino escrow adapter has been exercised against a local mock. A real stake pool adapter and a yield agent to find available yields and monitor DeFi positions are in development. See the [yield engine](DEFI_YIELD_ENGINE.md).
 
 ---
 
@@ -254,7 +243,7 @@ The browser extension is the consumer-facing product layer. It activates on any 
 | 4 | $500+ | 3.0% |
 
 ### Why Stake?
-Stakers earn 3% APY on their locked USDC AND gain checkout discounts. The more you stake, the cheaper every Relic Pay purchase becomes. This creates a flywheel: stakers are incentivized to use Relic Pay for every purchase.
+Staking unlocks checkout discounts. DeFi deployment of staked collateral and the yield agent are in development; demo rewards are not investment returns.
 
 ---
 
@@ -262,7 +251,6 @@ Stakers earn 3% APY on their locked USDC AND gain checkout discounts. The more y
 
 ### For the Buyer
 - Buy now, pay in installments — no credit check
-- Earn yield on locked funds while you pay
 - Unlock extension discounts by staking
 - Never forced to sell crypto to buy things
 
@@ -272,15 +260,15 @@ Stakers earn 3% APY on their locked USDC AND gain checkout discounts. The more y
 - No chargebacks (blockchain is final)
 - Partial recovery on default (escrowed installments)
 
-### For the Staker (yield earner)
-- 3% APY on idle USDC (v1 simulated; v2 real Kamino yield)
+### For the Staker
+- Future access to variable DeFi yield, if deployed and realized
 - Discount tiers on all Relic Pay purchases
 - No lockup period (unstake anytime)
 
 ### For the Ecosystem
 - Idle crypto becomes productive without selling
 - New payment rail that bridges DeFi and commerce
-- La Familia DAO governance of protocol parameters (yield rate, fees, tiers)
+- Planned governance of protocol parameters (approved markets, fees, tiers)
 
 ---
 
@@ -291,8 +279,6 @@ Stakers earn 3% APY on their locked USDC AND gain checkout discounts. The more y
 | Protocol fee (v2) | 0.5% of total_price | Protocol treasury |
 | Cancellation fee | 10% of escrow balance | Merchant |
 | Default recovery | 100% of escrow | Merchant |
-| Stake pool yield (v1) | 3% APY | Staker (from reserve) |
-| Stake pool yield (v2) | Kamino APY | Staker (from Kamino) |
 
 The protocol fee is not yet implemented in v1. It will be introduced in v2 governance.
 
@@ -301,23 +287,24 @@ The protocol fee is not yet implemented in v1. It will be introduced in v2 gover
 ## 10. Roadmap
 
 ### Phase 1 — MVP (Current)
-- Anchor smart contract on Solana devnet
+- Anchor smart contract tested on localnet
 - Core BNPL instructions: create, pay, withdraw, default, cancel
 - Stake pool with tier-based discounts
-- Simulated yield (v1)
+- Simulated yield (demo only)
 - Next.js demo frontend with Claude AI guide
 - Whitepaper + technical breakdown docs
 
 ### Phase 2 — Testnet
 - Anchor.toml configured for devnet public deployment
-- Kamino Lend CPI integration (real yield)
+- Validate the Kamino escrow adapter against a real test market
+- Develop the stake pool yield adapter and yield agent
 - Browser extension beta (Chrome)
 - IBG Collection merchant integration (first live merchant)
 - Claude-powered credit assessment layer
 
 ### Phase 3 — Mainnet
-- Audited smart contract (OtterSec or Neodyme)
-- La Familia DAO governance (yield rate, fees, whitelist)
+- Independent smart contract audit before launch
+- Planned governance (approved markets, fees, whitelist)
 - Multi-asset collateral (SOL, JitoSOL, mSOL)
 - Mobile app (React Native, Solana Mobile Stack)
 - Superposition.ai credit scoring layer
@@ -336,13 +323,13 @@ The protocol fee is not yet implemented in v1. It will be introduced in v2 gover
 All funds are held in PDAs whose authority is the program itself — not any human key. This means no individual (including the protocol team) can drain escrow funds outside of the defined instruction logic.
 
 ### Reentrancy
-`claim_yield` zeroes `yield_accrued` before emitting the event. In v2, the Kamino CPI call follows the zero-before-transfer pattern to prevent reentrancy.
+`claim_yield` zeroes simulated `yield_accrued` before emitting the event. It does not transfer tokens.
 
 ### Default Authorization
 `trigger_default` is permissionless — any account can call it after the grace period. This ensures liquidation is not dependent on the protocol team being online. It is time-gated by the on-chain clock.
 
 ### Integer Overflow
-All arithmetic uses Rust's `saturating_add` / `saturating_sub`. Yield math uses `u128` intermediate values to prevent overflow on large principals.
+Yield math uses checked arithmetic and `u128` intermediates. The stake pool clamps surplus to zero if the vault balance falls below total staked.
 
 ### Price Oracle (v2)
 Collateral LTV ratios in v2 will rely on a Pyth Network price feed. Stale price protection (price older than 60 seconds is rejected) will be enforced on-chain.
@@ -354,7 +341,7 @@ v1: unaudited prototype. v2 testnet will be submitted for a security review befo
 
 ## 12. Conclusion
 
-Relic Pay is the first BNPL protocol designed explicitly for the crypto holder. By combining on-chain escrow, automated yield, and browser-level price overlays, it creates a financial product that is better for buyers (earn while you pay), better for merchants (new customers, guaranteed payment), and better for the ecosystem (idle capital becomes productive).
+Relic Pay combines on-chain installments and browser-level checkout discounts for crypto holders. Its roadmap adds DeFi deployment of staked collateral and a yield agent to find and monitor opportunities; those features are not live.
 
 The protocol is built on Solana for speed and cost — a $300 purchase agreement costs under $0.01 in fees. It is governed by smart contracts alone, with La Familia DAO providing the governance layer for long-term parameter evolution.
 
@@ -362,6 +349,6 @@ Relic Pay does not ask crypto holders to give up their assets to participate in 
 
 ---
 
-*Relic Pay is a work in progress. This whitepaper describes the v1 architecture and v2 roadmap as of May 2026. All yields described are estimates and not financial advice.*
+*Relic Pay is a work in progress. This whitepaper describes the prototype and roadmap. Demo rewards are simulated and are not financial advice.*
 
 *Built by Walter Mendez | github.com/walthova/relicpay-v2 | relicpay.app*

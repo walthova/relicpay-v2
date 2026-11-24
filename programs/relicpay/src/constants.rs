@@ -26,10 +26,11 @@ pub const CANCEL_FEE_BPS: u64 = 1_000;
 /// Grace period past a missed due date before anyone may trigger default
 pub const GRACE_PERIOD_SECONDS: i64 = 7 * 24 * 60 * 60;
 
-/// Default yield rate: 3% APY, in basis points
+/// Legacy simulated demo rate required by the frozen v1 characterization suite.
+/// The pool authority can set the simulation rate explicitly via `update_pool_rate`.
 pub const DEFAULT_YIELD_RATE_BPS: u16 = 300;
 
-/// Governance may never set the stake pool APY above 20%
+/// Safety cap on the stake pool's simulated rate, in basis points.
 pub const MAX_YIELD_RATE_BPS: u16 = 2_000;
 
 /// Yield math denominators

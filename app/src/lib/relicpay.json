@@ -1660,6 +1660,10 @@
           {
             "name": "tier",
             "type": "u8"
+          },
+          {
+            "name": "yield_deferred",
+            "type": "u64"
           }
         ]
       }
