@@ -112,7 +112,7 @@ function changedFiles(range) {
       if (status === "R" || status === "C") return { status, oldPath: parts[1], path: parts[2] };
       return { status, oldPath: parts[1], path: parts[1] };
     })
-    .filter((f) => !IGNORED_PREFIXES.some((pre) => f.path.startsWith(pre)));
+    .filter((f) => (f.status === "R" && isTestFile(f.oldPath)) || !IGNORED_PREFIXES.some((pre) => f.path.startsWith(pre)));
 }
 
 function addedLines(range, path) {
@@ -179,6 +179,12 @@ function run(opts) {
       continue;
     }
 
+    // 2. Deleted test file (including renames out of the test suite)
+    if (isTestFile(f.oldPath) && (f.status === "D" || (f.status === "R" && (!isTestFile(f.path) || !isCode(f.path))))) {
+      add("fail", f.oldPath, "test file deleted");
+      continue;
+    }
+
     // 6. Guard and runner changes are loud
     if (GUARD_FILES.includes(f.path) || GUARD_FILES.includes(f.oldPath)) {
       // Adding the guard is fine; weakening or removing it must be loud.
@@ -194,12 +200,6 @@ function run(opts) {
     }
 
     if (!isCode(f.path)) continue;
-
-    // 2. Deleted test file
-    if (f.status === "D" && isTestFile(f.oldPath)) {
-      add("fail", f.oldPath, "test file deleted");
-      continue;
-    }
 
     // 3. Assertions removed from a test file that stayed
     if (isTestFile(f.path) && oldSrc != null && newSrc != null) {
