@@ -1,4 +1,4 @@
-# Agent Credit Primitive — Technical Design
+# Agent Credit Primitive: Technical Design
 
 **Status:** Design only (paired with pure math in `programs/relicpay/src/credit.rs`). No new on-chain instructions, accounts, or state transitions are implemented in this PR. The credit line, stake-pool yield adapter, and yield agent are **not live**, and the program is **unaudited**.
 
@@ -40,14 +40,14 @@ An owner's credit line is backed by their staked USDC collateral:
 
 ## 2. Merchant funding: Option A vs Option B (Walter's decision)
 
-**What `main` implements today:** `main` implements **Option B** — `merchant_withdraw.rs` (and `merchant_withdraw_reconciled.rs`) pay `agreement.total_price` to the merchant from `escrow_usdc` only after the buyer completes all installments (`AgreementState::Completed`).
+**What `main` implements today:** `main` implements **Option B**: `merchant_withdraw.rs` (and `merchant_withdraw_reconciled.rs`) pay `agreement.total_price` to the merchant from `escrow_usdc` only after the buyer completes all installments (`AgreementState::Completed`).
 
 | Dimension | Option A: Upfront payout from a separate lending pool | Option B: Paid from escrow at agreement completion |
 |---|---|---|
 | **When merchant is paid** | Immediately at agent draw time in USDC | After all installments are paid (`AgreementState::Completed`) |
 | **Funding source** | Separate `LendingPool` USDC vault | Per-agreement `escrow_usdc` funded by buyer installments |
 | **Role of staked collateral** | Backs the lending pool's upfront advance (`<= 80%` LTV); seizable on default | Holds no protocol credit advance; only signals commitment unless repurposed |
-| **Matches demo & product brief** | Yes — matches PR #14 (`app/src/lib/creditDemo.ts`), `RELICPAY_V2.md`, and `walthova/relicpay-agents` | No — behaves like layaway / delayed settlement rather than Buy Now, Pay Later |
+| **Matches demo & product brief** | Yes: matches PR #14 (`app/src/lib/creditDemo.ts`), `RELICPAY_V2.md`, and `walthova/relicpay-agents` | No: behaves like layaway / delayed settlement rather than Buy Now, Pay Later |
 | **Capital & liquidity requirement** | Requires funded `LendingPool` liquidity and utilization/solvency tracking | No external pool liquidity needed |
 | **Default recovery** | Seize owner's staked collateral to reimburse the lending pool (merchant already paid) | Existing `trigger_default*` sends accumulated `escrow_usdc` to the merchant |
 | **Implementation complexity** | Higher: new `LendingPool` vault, draw/repay flows, collateral seizure on default | Lower: reuses existing escrow settlement, fewer new vaults |
@@ -73,7 +73,7 @@ While an owner has `outstanding_debt > 0`, unstaking collateral is rejected if t
 
 ## 4. Repayment
 
-- Every repayment reduces `outstanding_debt` first (`apply_repayment(debt, payment)`), which immediately restores `available_credit` by the repaid principal (assuming `ltv_bps` and `collateral` are unchanged).
+- Every repayment reduces debt first (`apply_repayment(debt, payment)`). When the position is at or below its credit limit (`outstanding_debt <= credit_limit`), repayment immediately restores `available_credit` by the repaid principal (assuming `ltv_bps` and `collateral` are unchanged); if `outstanding_debt > credit_limit` (for example after an LTV reduction), repayment closes the shortfall first and `available_credit` stays `0` until `outstanding_debt < credit_limit`.
 - Under Option A, repayment transfers USDC from the owner to the `LendingPool` liquidity vault and records installment progress on the credit agreement.
 - **Overpayment is rejected**, not silently kept or auto-staked: `payment == 0` returns `InvalidAmount` and `payment > outstanding_debt` returns `RepaymentExceedsDebt`.
 
@@ -85,7 +85,7 @@ While an owner has `outstanding_debt > 0`, unstaking collateral is rejected if t
 
 - After a missed payment plus `GRACE_PERIOD_SECONDS` (7 days on `main`), a permissionless default instruction marks the credit draw defaulted.
 - **Under Option A**: The merchant was already paid up front by the lending pool. Default seizes staked collateral from the owner's `UserStake` / `pool_vault` up to `outstanding_debt` (capped at available collateral; any shortfall is bad debt tracked on the pool, and any excess collateral above `outstanding_debt` stays with the owner) and transfers it to the lending pool vault, reducing `outstanding_debt` by the recovered amount.
-- **Under Option B**: Existing `trigger_default` / `trigger_default_reconciled` behavior applies — escrowed installments go to the merchant.
+- **Under Option B**: Existing `trigger_default` / `trigger_default_reconciled` behavior applies: escrowed installments go to the merchant.
 
 ### Rounding direction
 
@@ -94,16 +94,16 @@ All credit math rounds conservatively in favor of protocol solvency:
 - **Collateral value / borrowing power (`credit_limit`)**: rounds **down** (`floor`).
 - **Required collateral (`max_unstake`) and any future debt/fee accrual**: rounds **up** (`ceil`).
 
-Combined, `credit_limit(collateral - max_unstake, ltv_bps) >= debt` always holds, and withdrawing even 1 additional base unit drops `credit_limit` strictly below `debt`.
+Combined, whenever a position is covered (`credit_limit(collateral, ltv_bps) >= debt`), `credit_limit(collateral - max_unstake, ltv_bps) >= debt` always holds, and withdrawing even 1 additional base unit drops `credit_limit` strictly below `debt`. If a position is already under-collateralized (for example after governance lowers `ltv_bps`), `max_unstake` returns `0` and blocks all withdrawals until collateral is added or debt is repaid.
 
 ### When collateral is deployed to Kamino and cannot be withdrawn in one transaction
 
-On `main` today, `StakePool` holds raw USDC in `pool_vault` and has no Kamino CPI yet. Once a future stake-pool Kamino adapter deploys idle collateral to Kamino, a reserve pause, 100% utilization, or oracle staleness can prevent redeeming kTokens in the same transaction — and per `docs/design/KAMINO_CPI_INTEGRATION.md`, a failed CPI aborts the entire Solana transaction.
+On `main` today, `StakePool` holds raw USDC in `pool_vault` and has no Kamino CPI yet. Once a future stake-pool Kamino adapter deploys idle collateral to Kamino, a reserve pause, 100% utilization, or oracle staleness can prevent redeeming kTokens in the same transaction, and per `docs/design/KAMINO_CPI_INTEGRATION.md`, a failed CPI aborts the entire Solana transaction.
 
 To prevent defaulted owners from escaping seizure when Kamino cannot redeem atomically, default must use a **two-phase settlement**:
 
-1. **Phase 1 — Freeze (always succeeds without Kamino CPI):** Verify grace-period expiry, mark the draw `DefaultPending`, lock `seizure_pending += outstanding_debt` on the owner's credit state, and block all new draws and unstakes for that owner immediately.
-2. **Phase 2 — Reconcile & seize (permissionless crank):** Redeem the needed kTokens from Kamino into `pool_vault` (when liquidity/reserve status allows) and transfer `seizure_pending` to the lending pool vault, reducing `UserStake.staked_amount`, `StakePool.total_staked`, and `outstanding_debt`.
+1. **Phase 1: Freeze (always succeeds without Kamino CPI):** Verify grace-period expiry on the delinquent `CreditDraw`, mark that draw `DefaultPending`, add only that draw's unpaid balance (`draw_remaining = principal - amount_repaid`) to `seizure_pending` on the owner's `CreditLine` (so other draws in good standing are not prematurely seized or double-counted), and set `CreditLine.frozen = true` to block all new draws and unstakes for that owner immediately.
+2. **Phase 2: Reconcile & seize (permissionless crank):** Redeem the needed kTokens from Kamino into `pool_vault` (when liquidity/reserve status allows) and transfer `seizure_pending` to the lending pool vault, reducing `UserStake.staked_amount`, `StakePool.total_staked`, `seizure_pending`, and `outstanding_debt`, and marking the draw `Defaulted`.
 
 ---
 
@@ -132,17 +132,17 @@ Staked collateral may later be put to work in DeFi by a yield agent that is in d
 
 ### Proposed accounts (not implemented)
 
-1. **`CreditConfig` (or reserved bytes in `ProtocolConfig`)** — proposed, not implemented
+1. **`CreditConfig` (or reserved bytes in `ProtocolConfig`)** (proposed, not implemented)
    - **Seeds:** `["credit_config"]` (separate singleton PDA avoids modifying existing `ProtocolConfig` deserialization on older accounts; upgrade-authority gated like `init_protocol_config`).
    - **Fields:** `authority: Pubkey`, `usdc_mint: Pubkey`, `ltv_bps: u16` (`<= 8_000`, defaults to `0` = disabled until governance enables), `paused: bool`, `bump: u8`.
-2. **`CreditLine` (one per owner)** — proposed, not implemented
+2. **`CreditLine` (one per owner)** (proposed, not implemented)
    - **Seeds:** `["credit_line", owner.key().as_ref()]`.
    - **Fields:** `owner: Pubkey`, `outstanding_debt: u64`, `seizure_pending: u64`, `total_borrowed: u64`, `total_repaid: u64`, `draws_repaid: u32`, `frozen: bool`, `bump: u8`.
    - **Why a new PDA instead of adding fields to `UserStake` or `AgentMandate`:** Keeps `UserStake` (covered by the frozen v1 characterization suite) and `AgentMandate` (which contains `allowed_merchants: Vec<Pubkey>`, where appended trailing fields can read stale bytes on existing accounts) untouched.
-3. **`LendingPool` + `lending_vault` (Option A only)** — proposed, not implemented
+3. **`LendingPool` + `lending_vault` (Option A only)** (proposed, not implemented)
    - **Seeds:** `["lending_pool"]` and `["lending_vault", lending_pool.key().as_ref()]`.
    - **Fields:** `authority: Pubkey`, `usdc_mint: Pubkey`, `total_liquidity: u64`, `total_lent: u64`, `total_repaid: u64`, `bad_debt: u64`, `bump: u8`.
-4. **`CreditDraw` (one per credit-backed agent purchase)** — proposed, not implemented
+4. **`CreditDraw` (one per credit-backed agent purchase)** (proposed, not implemented)
    - **Seeds:** `["credit_draw", owner.key().as_ref(), product_id.as_bytes()]`.
    - **Fields:** `owner: Pubkey`, `agent: Pubkey`, `mandate: Pubkey`, `merchant: Pubkey`, `principal: u64`, `amount_repaid: u64`, `installment_count: u8`, `interval_seconds: i64`, `start_time: i64`, `state: u8` (`Active | Repaid | DefaultPending | Defaulted`), `product_id: String`, `bump: u8`.
 
@@ -153,6 +153,6 @@ Staked collateral may later be put to work in DeFi by a yield agent that is in d
 | `init_credit_config` / `update_credit_config` | Upgrade authority (init) / governance authority (update) | Creates `CreditConfig` and sets `ltv_bps <= 8_000` and pause flag. | None (new singleton; mirrors `protocol_config.rs`). |
 | `init_lending_pool` / `fund_lending_pool` *(Option A)* | Upgrade authority (init) / liquidity provider (fund) | Creates `LendingPool` + `lending_vault` and deposits USDC liquidity. | None. |
 | `agent_draw_credit` | `agent` (+ `owner` if above `approval_threshold`) | Runs all `AgentMandate` checks + `credit::check_draw` against `UserStake.staked_amount` and `CreditLine.outstanding_debt`; updates `CreditLine` and creates `CreditDraw`; under Option A pays `merchant_usdc` up front from `lending_vault`. | Reuses shared limit-check helper factored from `agent_mandate.rs` without changing `agent_create_agreement`. |
-| `repay_credit_draw` | `owner` | Calls `credit::apply_repayment`, transfers USDC from `owner_usdc` to `lending_vault` (Option A), reduces `CreditLine.outstanding_debt`, and marks `CreditDraw` repaid when zero. | None. |
+| `repay_credit_draw` | `owner` | Calls `credit::apply_repayment(draw_remaining, payment)` on the draw's unpaid balance (`principal - amount_repaid`) to reject per-draw overpayment and detect draw completion, calls `credit::apply_repayment(credit_line.outstanding_debt, payment)` to update the line total, transfers USDC from `owner_usdc` to `lending_vault` (Option A), and marks `CreditDraw` repaid when `draw_remaining` reaches `0`. | None. |
 | `freeze_credit_default` / `settle_credit_default` | Permissionless | Phase 1 freezes `CreditLine` after grace period (`seizure_pending`); Phase 2 seizes collateral from `UserStake`/`pool_vault` into `lending_vault` (with Kamino redeem crank once stake-pool Kamino exists). | Touches `StakePool` / `UserStake` balances during Phase 2 seizure; leaves existing `trigger_default*` untouched. |
 | Unstake guard in `unstake_usdc` | `user` (owner) | Reads optional/uninitialized `CreditLine` PDA (`["credit_line", user]`) and `CreditConfig` (`["credit_config"]`), enforces `withdraw_principal <= credit::max_unstake(staked_amount, ltv_bps, outstanding_debt)` and `!credit_line.frozen`. | Touches `unstake_usdc.rs`. Must preserve frozen `tests/characterization.ts` calls (using Anchor constant/derived PDA resolution with `UncheckedAccount` when `CreditLine` is uninitialized, same pattern as `ProtocolConfig`). |

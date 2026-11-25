@@ -71,10 +71,11 @@ pub fn max_unstake(collateral: u64, ltv_bps: u16, debt: u64) -> Result<u64> {
     }
 
     let ltv = ltv_bps as u128;
+    let rounding = ltv.checked_sub(1).ok_or(RelicPayError::MathOverflow)?;
     let numerator = (debt as u128)
         .checked_mul(BPS_DIVISOR)
         .ok_or(RelicPayError::MathOverflow)?
-        .checked_add(ltv - 1)
+        .checked_add(rounding)
         .ok_or(RelicPayError::MathOverflow)?;
     let required_collateral = numerator
         .checked_div(ltv)
