@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { merchantRpcUrl } from "./e2e/fixtures";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -23,7 +24,9 @@ export default defineConfig({
   webServer: {
     command: "npm run dev -- --hostname 127.0.0.1",
     url: "http://127.0.0.1:3000/merchant",
-    reuseExistingServer: !process.env.CI,
+    // An existing app could have a different RPC compiled into its client bundle.
+    reuseExistingServer: false,
+    env: { NEXT_PUBLIC_RPC_URL: merchantRpcUrl },
     timeout: 120_000,
   },
 });

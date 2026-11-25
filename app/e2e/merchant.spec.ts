@@ -1,5 +1,6 @@
 import { expect, test, Page } from "@playwright/test";
 import { PublicKey } from "@solana/web3.js";
+import { merchantRpcUrl } from "./fixtures";
 
 // An injected wallet double and intercepted RPC only: no keys or transactions.
 const merchant = new PublicKey(new Uint8Array(32).fill(7));
@@ -89,7 +90,7 @@ test("connected merchant can recover from a failed request and refresh an empty 
   await installWallet(page);
   let fail = true;
   let requests = 0;
-  await page.route("https://api.devnet.solana.com/**", async (route) => {
+  await page.route(merchantRpcUrl, async (route) => {
     requests++;
     const { id, params } = route.request().postDataJSON();
     expect(params[1].filters).toContainEqual({
@@ -142,7 +143,7 @@ test("switching wallets resets the summary and disconnecting restores onboarding
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route("https://api.devnet.solana.com/**", async (route) => {
+  await page.route(merchantRpcUrl, async (route) => {
     const { id, params } = route.request().postDataJSON();
     const firstWallet = params[1].filters.some(
       (filter: any) => filter.memcmp?.bytes === merchant.toBase58(),
