@@ -1,12 +1,23 @@
-// Match create_agreement / pay_installment: the first payment is immediate,
-// later payments use their 1-based installment number, and the last takes dust.
-export function checkoutSchedule(totalUnits: number, count: number, intervalDays: number) {
-  const installmentUnits = Math.floor(totalUnits / count);
-  return Array.from({ length: count }, (_, index) => ({
-    amountUnits: index === count - 1
-      ? totalUnits - installmentUnits * (count - 1)
-      : installmentUnits,
-    dueDay: index === 0 ? 0 : (index + 1) * intervalDays,
+import { quote } from "../../../packages/checkout/src";
+import { IBG_MERCHANT } from "./constants";
+
+const SECONDS_PER_DAY = 86_400;
+
+// Presentation adapter only: the SDK owns installment amounts and due offsets.
+export function checkoutSchedule(
+  product: { id: string; price_usdc: number },
+  plan: { count: number; interval_days: number },
+) {
+  const { installments } = quote({
+    totalPrice: BigInt(product.price_usdc),
+    installmentCount: plan.count,
+    intervalSeconds: plan.interval_days * SECONDS_PER_DAY,
+    productId: product.id,
+    merchantName: IBG_MERCHANT.name,
+  });
+  return installments.map(payment => ({
+    amountUnits: Number(payment.amount),
+    dueDay: payment.dueOffsetSeconds / SECONDS_PER_DAY,
   }));
 }
 

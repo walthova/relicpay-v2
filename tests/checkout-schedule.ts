@@ -10,7 +10,7 @@ describe("checkout payment summary", () => {
         const totalUnits = product.price_usdc;
         const count = option.count;
         const intervalDays = option.interval_days;
-        const schedule = checkoutSchedule(totalUnits, count, intervalDays);
+        const schedule = checkoutSchedule(product, option);
         const expected = quote({
           totalPrice: BigInt(totalUnits),
           installmentCount: count,
@@ -28,7 +28,10 @@ describe("checkout payment summary", () => {
   }
 
   it("labels cent-rounded amounts as approximate instead of implying a larger total", () => {
-    const schedule = checkoutSchedule(500_000_000, 3, 30);
+    const schedule = checkoutSchedule(
+      { id: "rounding", price_usdc: 500_000_000 },
+      { count: 3, interval_days: 30 },
+    );
     assert.deepEqual(schedule.map(payment => payment.amountUnits), [166_666_666, 166_666_666, 166_666_668]);
     assert.equal(checkoutAmount(schedule[0].amountUnits), "≈$166.67");
     assert.equal(checkoutAmount(schedule[2].amountUnits), "≈$166.67");

@@ -25,7 +25,7 @@ export function BuyNowPayLater({ product }: { product: Product }) {
   const [result, setResult] = useState<{ tx: string; agreementPda: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const schedule = checkoutSchedule(product.price_usdc, selectedOption.count, selectedOption.interval_days);
+  const schedule = checkoutSchedule(product, selectedOption);
   const payToday = checkoutAmount(schedule[0].amountUnits);
   const roundedAmounts = schedule.some(payment => payment.amountUnits % 10_000 !== 0);
 
@@ -96,7 +96,7 @@ export function BuyNowPayLater({ product }: { product: Product }) {
         <legend>Choose your plan<span className={styles.srOnly}> for {product.name}</span></legend>
         <div className={styles.options}>
           {INSTALLMENT_OPTIONS.map((option) => {
-            const optionSchedule = checkoutSchedule(product.price_usdc, option.count, option.interval_days);
+            const optionSchedule = checkoutSchedule(product, option);
             const amount = optionSchedule[0].amountUnits;
             const nextDueDay = optionSchedule[1].dueDay;
             return (
