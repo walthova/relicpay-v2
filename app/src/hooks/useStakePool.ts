@@ -1,6 +1,7 @@
+import { useCallback } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
-import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
+import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import {
   TOKEN_PROGRAM_ID,
   getAssociatedTokenAddress,
@@ -14,6 +15,7 @@ import {
   tierFor,
   Tier,
 } from "../lib/constants";
+import { createRelicPayProgram } from "../lib/relicpayProgram";
 import { parseUsdcAmount } from "../lib/usdc";
 
 export interface UserStakeView {
@@ -25,9 +27,16 @@ export interface UserStakeView {
   tier: Tier;
 }
 
+const userStakePda = (owner: PublicKey): PublicKey =>
+  PublicKey.findProgramAddressSync(
+    [Buffer.from(USER_STAKE_SEED), owner.toBuffer()],
+    PROGRAM_ID,
+  )[0];
+
 export function useStakePool() {
   const { connection } = useConnection();
   const wallet = useWallet();
+  const { publicKey } = wallet;
 
   const getProvider = () => {
     if (!wallet.publicKey) throw new Error("Wallet not connected");
@@ -48,12 +57,6 @@ export function useStakePool() {
       PROGRAM_ID,
     )[0];
 
-  const userStakePda = (owner: PublicKey): PublicKey =>
-    PublicKey.findProgramAddressSync(
-      [Buffer.from(USER_STAKE_SEED), owner.toBuffer()],
-      PROGRAM_ID,
-    )[0];
-
   const stakeUsdc = async (amountUsd: string) => {
     const amountUnits = parseUsdcAmount(amountUsd);
     const provider = getProvider();
@@ -63,10 +66,7 @@ export function useStakePool() {
     const stake = userStakePda(user);
     const userUsdc = await getAssociatedTokenAddress(USDC_MINT, user);
 
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) throw new Error("IDL not found — deploy program first");
-
-    const program = new Program(idl, provider);
+    const program = createRelicPayProgram(provider);
 
     const tx = await (program.methods as any)
       .stakeUsdc(new BN(amountUnits.toString()))
@@ -94,10 +94,7 @@ export function useStakePool() {
     const stake = userStakePda(user);
     const userUsdc = await getAssociatedTokenAddress(USDC_MINT, user);
 
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) throw new Error("IDL not found");
-
-    const program = new Program(idl, provider);
+    const program = createRelicPayProgram(provider);
 
     const tx = await (program.methods as any)
       .unstakeUsdc(new BN(amountUnits.toString()))
@@ -114,14 +111,11 @@ export function useStakePool() {
     return { tx };
   };
 
-  const getUserStake = async (): Promise<UserStakeView | null> => {
-    if (!wallet.publicKey) return null;
-    const provider = getProvider();
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) return null;
+  const getUserStake = useCallback(async (): Promise<UserStakeView | null> => {
+    if (!publicKey) return null;
 
-    const program = new Program(idl, provider);
-    const stake = userStakePda(wallet.publicKey);
+    const program = createRelicPayProgram({ connection });
+    const stake = userStakePda(publicKey);
 
     try {
       const account: any = await (program.account as any).userStake.fetch(stake);
@@ -140,7 +134,7 @@ export function useStakePool() {
       // No stake account yet
       return null;
     }
-  };
+  }, [connection, publicKey]);
 
   return {
     stakeUsdc,

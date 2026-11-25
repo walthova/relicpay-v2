@@ -1,8 +1,9 @@
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
-import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
+import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { PROGRAM_ID, USDC_MINT } from "../lib/constants";
+import { createRelicPayProgram } from "../lib/relicpayProgram";
 import { validateUsdcUnits } from "../lib/usdc";
 
 export function useRelicPay() {
@@ -58,11 +59,7 @@ export function useRelicPay() {
 
     const intervalSeconds = intervalDays * 24 * 60 * 60;
 
-    // Load IDL and call program
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) throw new Error("IDL not found — deploy program first");
-
-    const program = new Program(idl, provider);
+    const program = createRelicPayProgram(provider);
 
     const tx = await (program.methods as any)
       .createAgreement(
@@ -96,12 +93,8 @@ export function useRelicPay() {
     const buyer = wallet.publicKey!;
     const agreementKey = new PublicKey(agreementPda);
 
-    // Fetch agreement to get product_id
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) throw new Error("IDL not found");
-
-    const program = new Program(idl, provider);
-    const agreement = await (program.account as any).bnplAgreement.fetch(agreementKey);
+    const program = createRelicPayProgram(provider);
+    await (program.account as any).bnplAgreement.fetch(agreementKey);
 
     const [escrowPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("escrow"), agreementKey.toBuffer()],
@@ -129,10 +122,7 @@ export function useRelicPay() {
    */
   const getMyAgreements = async () => {
     const provider = getProvider();
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) return [];
-
-    const program = new Program(idl, provider);
+    const program = createRelicPayProgram(provider);
     const accounts = await (program.account as any).bnplAgreement.all([
       {
         memcmp: {
@@ -156,10 +146,7 @@ export function useRelicPay() {
     const buyer = wallet.publicKey!;
     const agreementKey = new PublicKey(agreementPda);
 
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) throw new Error("IDL not found");
-
-    const program = new Program(idl, provider);
+    const program = createRelicPayProgram(provider);
     const agreement = await (program.account as any).bnplAgreement.fetch(agreementKey);
 
     const [escrowPda] = PublicKey.findProgramAddressSync(
@@ -193,10 +180,7 @@ export function useRelicPay() {
     const merchant = wallet.publicKey!;
     const agreementKey = new PublicKey(agreementPda);
 
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) throw new Error("IDL not found");
-
-    const program = new Program(idl, provider);
+    const program = createRelicPayProgram(provider);
     const agreement = await (program.account as any).bnplAgreement.fetch(agreementKey);
 
     const [escrowPda] = PublicKey.findProgramAddressSync(
@@ -229,10 +213,7 @@ export function useRelicPay() {
     const buyer = wallet.publicKey!;
     const agreementKey = new PublicKey(agreementPda);
 
-    const idl = await Program.fetchIdl(PROGRAM_ID, provider);
-    if (!idl) throw new Error("IDL not found");
-
-    const program = new Program(idl, provider);
+    const program = createRelicPayProgram(provider);
 
     const tx = await (program.methods as any)
       .claimYield()
