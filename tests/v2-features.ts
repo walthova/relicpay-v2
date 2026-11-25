@@ -1804,14 +1804,20 @@ describe("relicpay v2 features", () => {
       }
       const acct = await program.account.bnplAgreement.fetch(agreement);
       assert.equal(acct.paidInstallments, 1, "failed tx must not advance the schedule");
+      assert.isNull(await provider.connection.getAccountInfo(escrowCollateralPDA(agreement)));
     });
 
     // create_agreement_kamino (v2.1 inline deposit of the first installment)
-    const createKamino = (productId: string, overrides: any = {}, total = new BN(40_000_000)) => {
+    const createKamino = (
+      productId: string,
+      overrides: any = {},
+      total = new BN(40_000_000),
+      installmentCount = 2
+    ) => {
       const agreement = agreementPDA(productId);
       const escrow = escrowPDA(agreement);
       return program.methods
-        .createAgreementKamino(total, 2, new BN(1), productId, MERCHANT_NAME)
+        .createAgreementKamino(total, installmentCount, new BN(1), productId, MERCHANT_NAME)
         .accounts({
           agreement,
           buyer: buyer.publicKey,
@@ -1930,8 +1936,50 @@ describe("relicpay v2 features", () => {
       } catch (err: any) {
         assert.include(err.message, "KaminoAccountMismatch");
       }
-      const info = await provider.connection.getAccountInfo(agreementPDA("v2-create-kamino-mismatch"));
+      const agreement = agreementPDA("v2-create-kamino-mismatch");
+      const info = await provider.connection.getAccountInfo(agreement);
       assert.isNull(info, "failed tx must not leave an agreement behind");
+      assert.isNull(await provider.connection.getAccountInfo(escrowCollateralPDA(agreement)));
+    });
+
+    it("both Kamino deposit instructions retain approved collateral when disabled and resume deposits when enabled", async () => {
+      const setEnabled = (enabled: boolean) => program.methods
+        .setKaminoConfig(
+          enabled, mockKamino.programId, approvedLendingMarket,
+          approvedLendingMarketAuthority, reservePDA, reserveLiquiditySupply, collateralMint
+        )
+        .accounts({ config: probeConfigPDA(), authority: kaminoConfigAuthority.publicKey })
+        .signers([kaminoConfigAuthority])
+        .rpc();
+
+      await setEnabled(false);
+      let created: { agreement: PublicKey; escrow: PublicKey };
+      try {
+        created = await createKamino("v2-approved-kamino-disabled", {}, new BN(60_000_000), 3);
+        assert.equal((await getAccount(provider.connection, created.escrow)).amount, 20_000_000n);
+
+        await delay(5000);
+        await payKamino(created.agreement, created.escrow);
+
+        const agreement = await program.account.bnplAgreement.fetch(created.agreement);
+        assert.equal(agreement.paidInstallments, 2);
+        assert.equal(agreement.yieldSource, 0);
+        const collateral = await getAccount(provider.connection, escrowCollateralPDA(created.agreement));
+        assert.isTrue(collateral.mint.equals(collateralMint));
+        assert.equal(collateral.amount, 0n);
+        assert.equal((await getAccount(provider.connection, created.escrow)).amount, 40_000_000n);
+      } finally {
+        await setEnabled(true);
+      }
+
+      await delay(5000);
+      await payKamino(created.agreement, created.escrow);
+      const agreement = await program.account.bnplAgreement.fetch(created.agreement);
+      assert.deepEqual(agreement.state, { completed: {} });
+      assert.equal(agreement.yieldSource, 1);
+      const collateral = await getAccount(provider.connection, escrowCollateralPDA(created.agreement));
+      assert.equal(collateral.amount, 20_000_000n);
+      assert.equal((await getAccount(provider.connection, created.escrow)).amount, 40_000_000n);
     });
 
     it("create_agreement_kamino enforces the same argument validation as create_agreement", async () => {

@@ -17,8 +17,8 @@
 //! disabled, or the reserve looks paused (same best-effort preflight as the
 //! probe), the deposit is skipped, a `KaminoDepositProbeFallback` event is
 //! emitted, and the installment lands as raw USDC exactly as plain
-//! `pay_installment` would. Passing accounts that do NOT match an enabled
-//! `KaminoConfig` is a caller error and reverts.
+//! `pay_installment` would. All Kamino accounts must match `KaminoConfig`,
+//! even during fallback.
 //!
 //! ADDITIVE: `pay_installment` keeps its original Accounts struct (frozen
 //! suite). CALLER: the buyer's wallet.
@@ -27,11 +27,11 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::constants::*;
+use crate::errors::RelicPayError;
 use crate::events::{KaminoDepositProbeFallback, KaminoDepositProbeSucceeded};
 use crate::instructions::kamino_cpi::{
     mock_reserve_looks_paused, try_kamino_deposit, KaminoDepositAccounts,
 };
-use crate::instructions::merchant_withdraw_reconciled::require_matches_kamino_config;
 use crate::instructions::pay_installment::{finish_installment, prepare_installment};
 use crate::state::{BnplAgreement, KaminoConfig};
 
@@ -70,16 +70,6 @@ pub fn handler(ctx: Context<PayInstallmentKamino>) -> Result<()> {
         });
         return Ok(());
     }
-
-    require_matches_kamino_config(
-        &ctx.accounts.config,
-        &ctx.accounts.kamino_program.key(),
-        &ctx.accounts.kamino_lending_market.key(),
-        &ctx.accounts.kamino_lending_market_authority.key(),
-        &ctx.accounts.kamino_reserve.key(),
-        &ctx.accounts.kamino_reserve_liquidity_supply.key(),
-        &ctx.accounts.kamino_reserve_collateral_mint.key(),
-    )?;
 
     let buyer = ctx.accounts.agreement.buyer;
     let product_id = ctx.accounts.agreement.product_id.clone();
@@ -171,20 +161,23 @@ pub struct PayInstallmentKamino<'info> {
     )]
     pub config: Box<Account<'info, KaminoConfig>>,
 
-    /// CHECK: checked against `config.kamino_program` before the deposit.
+    /// CHECK: address constrained to the governance-approved program.
+    #[account(address = config.kamino_program @ RelicPayError::KaminoAccountMismatch)]
     pub kamino_program: UncheckedAccount<'info>,
-    /// CHECK: checked against `config.lending_market` before the deposit.
+    /// CHECK: address constrained to the governance-approved market.
+    #[account(address = config.lending_market @ RelicPayError::KaminoAccountMismatch)]
     pub kamino_lending_market: UncheckedAccount<'info>,
-    /// CHECK: checked against `config.lending_market_authority`.
+    /// CHECK: address constrained to the governance-approved market authority.
+    #[account(address = config.lending_market_authority @ RelicPayError::KaminoAccountMismatch)]
     pub kamino_lending_market_authority: UncheckedAccount<'info>,
-    /// CHECK: checked against `config.reserve`.
-    #[account(mut)]
+    /// CHECK: address constrained to the governance-approved reserve.
+    #[account(mut, address = config.reserve @ RelicPayError::KaminoAccountMismatch)]
     pub kamino_reserve: UncheckedAccount<'info>,
 
-    #[account(mut)]
+    #[account(mut, address = config.reserve_liquidity_supply @ RelicPayError::KaminoAccountMismatch)]
     pub kamino_reserve_liquidity_supply: Box<Account<'info, TokenAccount>>,
 
-    #[account(mut)]
+    #[account(mut, address = config.reserve_collateral_mint @ RelicPayError::KaminoAccountMismatch)]
     pub kamino_reserve_collateral_mint: Box<Account<'info, anchor_spl::token::Mint>>,
 
     /// Created on the first Kamino-routed installment, paid by the buyer.
