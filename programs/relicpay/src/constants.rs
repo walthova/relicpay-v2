@@ -47,3 +47,6 @@ pub const TIER_4_MIN: u64 = 500_000_000; // $500 → 3.0% off
 /// Agent BNPL: most merchants an owner can allow-list on one mandate.
 /// An empty list means "any merchant" (still bounded by the caps).
 pub const MAX_MANDATE_MERCHANTS: usize = 8;
+
+/// Hard protocol ceiling on agent credit-line loan-to-value (80% = 8,000 bps).
+pub const MAX_LTV_BPS: u16 = 8_000;
