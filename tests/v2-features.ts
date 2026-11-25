@@ -25,6 +25,8 @@ import {
 } from "@solana/spl-token";
 import { assert } from "chai";
 import { rejects } from "node:assert/strict";
+import appIdl from "../app/src/lib/relicpay.json";
+import { getAgreementStatus } from "../packages/checkout/src";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -1243,6 +1245,10 @@ describe("relicpay v2 features", () => {
         1,
         "yield_source must flip to KaminoLend on a successful deposit"
       );
+
+      const appProgram = new Program(appIdl as anchor.Idl, provider);
+      const status = await getAgreementStatus(appProgram, agreement);
+      assert.equal(status?.yieldSource, "kamino");
     });
 
     it("redeems escrow kTokens back into USDC and flips yield_source back to Simulated", async () => {
