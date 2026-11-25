@@ -4,9 +4,212 @@
     "name": "relicpay",
     "version": "2.0.0",
     "spec": "0.1.0",
-    "description": "Relic Pay v2 — Decentralized BNPL on Solana using USDC"
+    "description": "Relic Pay v2 — yield-bearing BNPL on Solana using USDC"
   },
   "instructions": [
+    {
+      "name": "agent_create_agreement",
+      "docs": [
+        "The agent opens a BNPL agreement for its owner, inside the mandate."
+      ],
+      "discriminator": [
+        147,
+        12,
+        128,
+        120,
+        197,
+        76,
+        145,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "mandate",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116,
+                  95,
+                  109,
+                  97,
+                  110,
+                  100,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "docs": [
+            "The agent pays rent for the new accounts and signs the purchase."
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "mandate"
+          ]
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "purchase is above the mandate's approval threshold."
+          ],
+          "relations": [
+            "mandate"
+          ]
+        },
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "product_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant",
+          "docs": [
+            "in the handler and stored for withdrawal authorization."
+          ]
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "owner_usdc",
+          "writable": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "`CreateAgreement::protocol_config` (see create_agreement.rs)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "total_price",
+          "type": "u64"
+        },
+        {
+          "name": "installment_count",
+          "type": "u8"
+        },
+        {
+          "name": "interval_seconds",
+          "type": "i64"
+        },
+        {
+          "name": "product_id",
+          "type": "string"
+        },
+        {
+          "name": "merchant_name",
+          "type": "string"
+        }
+      ]
+    },
     {
       "name": "cancel_agreement",
       "discriminator": [
@@ -85,11 +288,279 @@
         },
         {
           "name": "merchant_usdc",
+          "docs": [
+            "Cancellation-fee destination — must belong to the recorded merchant so",
+            "the buyer cannot route the fee back to themselves."
+          ],
           "writable": true
         },
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "for the constant-seed-PDA auto-derivation pattern). Deliberately",
+            "`UncheckedAccount` — the PDA may not exist yet. `mut` so",
+            "`apply_tvl_decrease` can write the updated `current_tvl` back."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_agreement_reconciled",
+      "docs": [
+        "v2.1: single-transaction, Kamino-aware `cancel_agreement`. Redeems the",
+        "full `escrow_kamino_collateral` balance (if any) back into",
+        "`escrow_usdc` first, then runs the same fee/refund split",
+        "`cancel_agreement` does — so a buyer never needs to know a separate",
+        "`kamino_probe_redeem` crank exists before they can cancel cleanly.",
+        "Purely additive: `cancel_agreement` is untouched, and this degrades to",
+        "the same behavior when an agreement never touched Kamino. See",
+        "`cancel_agreement_reconciled.rs`."
+      ],
+      "discriminator": [
+        99,
+        227,
+        106,
+        61,
+        240,
+        120,
+        157,
+        88
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buyer_usdc",
+          "writable": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant_usdc",
+          "docs": [
+            "Cancellation-fee destination — must belong to the recorded merchant so",
+            "the buyer cannot route the fee back to themselves (see cancel_agreement.rs)."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "protocol_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "docs": [
+            "See kamino_probe.rs — governance-approved Kamino target set."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamino_program",
+          "docs": [
+            "reconcile is actually attempted."
+          ]
+        },
+        {
+          "name": "kamino_lending_market"
+        },
+        {
+          "name": "kamino_lending_market_authority"
+        },
+        {
+          "name": "kamino_reserve",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_liquidity_supply",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_collateral_mint",
+          "writable": true
+        },
+        {
+          "name": "escrow_kamino_collateral",
+          "docs": [
+            "`init_if_needed`, same as `kamino_probe`'s collateral account: an",
+            "agreement that never touched Kamino has no `escrow_kamino_collateral`",
+            "account yet. This is what lets the instruction degrade to plain",
+            "`cancel_agreement` — the account is created with a zero balance (so",
+            "`collateral_balance == 0`, the reconcile branch is skipped) rather",
+            "than the whole call reverting."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
         }
       ],
       "args": []
@@ -141,6 +612,68 @@
         {
           "name": "buyer",
           "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_agent_mandate",
+      "docs": [
+        "Reclaims rent from a revoked mandate."
+      ],
+      "discriminator": [
+        245,
+        189,
+        140,
+        146,
+        25,
+        130,
+        175,
+        216
+      ],
+      "accounts": [
+        {
+          "name": "mandate",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116,
+                  95,
+                  109,
+                  97,
+                  110,
+                  100,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "mandate.agent",
+                "account": "AgentMandate"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "mandate"
+          ]
         }
       ],
       "args": []
@@ -226,6 +759,89 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "create_agent_mandate",
+      "docs": [
+        "Owner lets one agent buy on their behalf inside `limits`, and",
+        "delegates a bounded USDC allowance to the mandate PDA."
+      ],
+      "discriminator": [
+        18,
+        127,
+        239,
+        152,
+        115,
+        110,
+        62,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "mandate",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116,
+                  95,
+                  109,
+                  97,
+                  110,
+                  100,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent"
+        },
+        {
+          "name": "owner_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "limits",
+          "type": {
+            "defined": {
+              "name": "MandateLimits"
+            }
+          }
+        }
+      ]
     },
     {
       "name": "create_agreement",
@@ -322,6 +938,46 @@
         {
           "name": "rent",
           "address": "SysvarRent111111111111111111111111111111111"
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "Constant PDA seed — no other account/instruction-arg dependency — so",
+            "Anchor's TS client auto-derives and injects this address even when",
+            "callers never list it in `.accounts()`. Deliberately `UncheckedAccount`,",
+            "not `Account<ProtocolConfig>`: the PDA may not exist yet (pre-governance",
+            "deployments, or any caller who hasn't called `init_protocol_config`),",
+            "and an `Account<T>` wrapper would hard-fail deserialization in that",
+            "case. The handler manually checks ownership and treats a",
+            "system-owned (uninitialized) account as \"no risk controls configured.\"",
+            "`mut` so `apply_tvl_increase` can write the updated `current_tvl` back",
+            "(a no-op write when the PDA is uninitialized — see protocol_config.rs)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         }
       ],
       "args": [
@@ -346,6 +1002,528 @@
           "type": "string"
         }
       ]
+    },
+    {
+      "name": "create_agreement_kamino",
+      "docs": [
+        "v2.1: `create_agreement` plus an inline Kamino deposit of the first",
+        "installment (same fallback rules as `pay_installment_kamino`).",
+        "Purely additive; see `create_agreement_kamino.rs`."
+      ],
+      "discriminator": [
+        34,
+        255,
+        141,
+        101,
+        58,
+        110,
+        65,
+        112
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "arg",
+                "path": "product_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "merchant"
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "buyer_usdc",
+          "writable": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamino_program"
+        },
+        {
+          "name": "kamino_lending_market"
+        },
+        {
+          "name": "kamino_lending_market_authority"
+        },
+        {
+          "name": "kamino_reserve",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_liquidity_supply",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_collateral_mint",
+          "writable": true
+        },
+        {
+          "name": "escrow_kamino_collateral",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "total_price",
+          "type": "u64"
+        },
+        {
+          "name": "installment_count",
+          "type": "u8"
+        },
+        {
+          "name": "interval_seconds",
+          "type": "i64"
+        },
+        {
+          "name": "product_id",
+          "type": "string"
+        },
+        {
+          "name": "merchant_name",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "init_kamino_config",
+      "docs": [
+        "Creates the singleton KaminoConfig PDA. Caller becomes governance authority."
+      ],
+      "discriminator": [
+        67,
+        244,
+        158,
+        238,
+        99,
+        234,
+        13,
+        254
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "upgrade_authority",
+          "docs": [
+            "Only the program's upgrade authority (the deployer) may create this",
+            "singleton. Without this gate the first caller after deploy would",
+            "become governance and could point every escrow's Kamino CPI (signed",
+            "by the agreement PDA) at a program of their choosing."
+          ],
+          "signer": true
+        },
+        {
+          "name": "program_data",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  63,
+                  95,
+                  228,
+                  81,
+                  243,
+                  237,
+                  250,
+                  80,
+                  134,
+                  3,
+                  39,
+                  205,
+                  32,
+                  138,
+                  64,
+                  61,
+                  60,
+                  58,
+                  252,
+                  96,
+                  210,
+                  139,
+                  34,
+                  49,
+                  74,
+                  43,
+                  112,
+                  180,
+                  153,
+                  151,
+                  65,
+                  211
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                2,
+                168,
+                246,
+                145,
+                78,
+                136,
+                161,
+                176,
+                226,
+                16,
+                21,
+                62,
+                247,
+                99,
+                174,
+                43,
+                0,
+                194,
+                185,
+                61,
+                22,
+                193,
+                36,
+                210,
+                192,
+                83,
+                122,
+                16,
+                4,
+                128,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_protocol_config",
+      "docs": [
+        "Creates the singleton ProtocolConfig PDA. Caller becomes governance authority."
+      ],
+      "discriminator": [
+        91,
+        97,
+        211,
+        137,
+        96,
+        222,
+        139,
+        40
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "upgrade_authority",
+          "docs": [
+            "Only the program's upgrade authority (the deployer) may create this",
+            "singleton. Without this gate the first caller after deploy would",
+            "become governance and could pause the protocol or set a TVL cap that",
+            "blocks every deposit."
+          ],
+          "signer": true
+        },
+        {
+          "name": "program_data",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  63,
+                  95,
+                  228,
+                  81,
+                  243,
+                  237,
+                  250,
+                  80,
+                  134,
+                  3,
+                  39,
+                  205,
+                  32,
+                  138,
+                  64,
+                  61,
+                  60,
+                  58,
+                  252,
+                  96,
+                  210,
+                  139,
+                  34,
+                  49,
+                  74,
+                  43,
+                  112,
+                  180,
+                  153,
+                  151,
+                  65,
+                  211
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                2,
+                168,
+                246,
+                145,
+                78,
+                136,
+                161,
+                176,
+                226,
+                16,
+                21,
+                62,
+                247,
+                99,
+                174,
+                43,
+                0,
+                194,
+                185,
+                61,
+                22,
+                193,
+                36,
+                210,
+                192,
+                83,
+                122,
+                16,
+                4,
+                128,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "init_stake_pool",
@@ -434,6 +1612,376 @@
       "args": []
     },
     {
+      "name": "kamino_probe_deposit",
+      "docs": [
+        "Moves USDC already sitting in an agreement's escrow into a Kamino",
+        "(or mock-Kamino) reserve. Never fails the transaction on a CPI",
+        "error — emits a fallback event instead."
+      ],
+      "discriminator": [
+        46,
+        176,
+        44,
+        68,
+        182,
+        171,
+        238,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement.buyer",
+                "account": "BnplAgreement"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Permissionless crank caller — pays rent for `escrow_kamino_collateral`",
+            "if it doesn't exist yet. Not required to be the agreement's buyer;",
+            "see module doc, \"MADE PERMISSIONLESS 2026-09-09\"."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "docs": [
+            "The governance-approved Kamino target set. Every account below is",
+            "validated against this PDA (`require_matches_kamino_config`) before",
+            "anything is read or invoked — see module doc, \"GATED 2026-08-07\"."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamino_program",
+          "docs": [
+            "`invoke_signed` after being checked against `config.kamino_program`."
+          ]
+        },
+        {
+          "name": "kamino_lending_market",
+          "docs": [
+            "passed straight through to the CPI."
+          ]
+        },
+        {
+          "name": "kamino_lending_market_authority"
+        },
+        {
+          "name": "kamino_reserve",
+          "docs": [
+            "program validates ownership/seeds on its side."
+          ],
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_liquidity_supply",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_collateral_mint",
+          "writable": true
+        },
+        {
+          "name": "escrow_kamino_collateral",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "kamino_probe_redeem",
+      "docs": [
+        "Redeems kTokens held by an agreement's escrow back into USDC."
+      ],
+      "discriminator": [
+        59,
+        235,
+        112,
+        120,
+        72,
+        169,
+        241,
+        187
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement.buyer",
+                "account": "BnplAgreement"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Permissionless crank caller — see KaminoProbeDeposit."
+          ],
+          "signer": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "docs": [
+            "See KaminoProbeDeposit."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamino_program"
+        },
+        {
+          "name": "kamino_lending_market"
+        },
+        {
+          "name": "kamino_lending_market_authority"
+        },
+        {
+          "name": "kamino_reserve",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_liquidity_supply",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_collateral_mint",
+          "writable": true
+        },
+        {
+          "name": "escrow_kamino_collateral",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "merchant_withdraw",
       "discriminator": [
         0,
@@ -512,6 +2060,277 @@
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "for the constant-seed-PDA auto-derivation pattern). Deliberately",
+            "`UncheckedAccount` — the PDA may not exist yet. `mut` so",
+            "`apply_tvl_decrease` can write the updated `current_tvl` back."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "merchant_withdraw_reconciled",
+      "docs": [
+        "v2.1: single-transaction, Kamino-aware `merchant_withdraw`. If",
+        "`escrow_usdc` alone doesn't cover `total_price`, redeems just enough",
+        "`escrow_kamino_collateral` first (same CPI path as",
+        "`kamino_probe_redeem`), then pays the merchant — collapsing the",
+        "previous two-transaction \"crank, then withdraw\" flow into one. Purely",
+        "additive: `merchant_withdraw` is untouched, and this degrades to the",
+        "same behavior when an agreement never touched Kamino. See",
+        "`merchant_withdraw_reconciled.rs`."
+      ],
+      "discriminator": [
+        233,
+        133,
+        144,
+        119,
+        74,
+        175,
+        13,
+        193
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement.buyer",
+                "account": "BnplAgreement"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant_usdc",
+          "docs": [
+            "The payout destination doubles as the authorization check — must be",
+            "owned by `agreement.merchant`, same constraint `merchant_withdraw`",
+            "uses (there it's expressed via a `Signer` + key-match; here there's",
+            "no dedicated merchant signer since any keeper may submit the tx)."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "protocol_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "docs": [
+            "See kamino_probe.rs — governance-approved Kamino target set."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamino_program",
+          "docs": [
+            "reconcile is actually attempted."
+          ]
+        },
+        {
+          "name": "kamino_lending_market"
+        },
+        {
+          "name": "kamino_lending_market_authority"
+        },
+        {
+          "name": "kamino_reserve",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_liquidity_supply",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_collateral_mint",
+          "writable": true
+        },
+        {
+          "name": "escrow_kamino_collateral",
+          "docs": [
+            "`init_if_needed`, same as `kamino_probe`'s collateral account: an",
+            "agreement that never touched Kamino has no `escrow_kamino_collateral`",
+            "account yet, and `Account<'info, TokenAccount>` deserialization would",
+            "fail outright on a missing account before the handler ever runs. This",
+            "is what lets the instruction degrade to plain `merchant_withdraw` —",
+            "the account is created with a zero balance (so `collateral_balance ==",
+            "0`, the reconcile branch is skipped) rather than the whole call",
+            "reverting."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Pays rent for `escrow_kamino_collateral`'s `init_if_needed` when it",
+            "doesn't exist yet. Any funded keypair — same permissionless shape as",
+            "`kamino_probe`'s crank; the payout destination (`merchant_usdc`), not",
+            "this signer, is what's authorization-checked."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
         }
       ],
       "args": []
@@ -595,9 +2414,455 @@
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "create_agreement.rs for the constant-seed-PDA auto-derivation",
+            "pattern). Deliberately `UncheckedAccount` — the PDA may not exist yet.",
+            "`mut` so `apply_tvl_increase` can write the updated `current_tvl` back."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         }
       ],
       "args": []
+    },
+    {
+      "name": "pay_installment_kamino",
+      "docs": [
+        "v2.1: `pay_installment` plus an inline Kamino deposit of the",
+        "installment into the governance-approved reserve (falls back to raw",
+        "USDC if Kamino is disabled or the reserve is paused). Purely",
+        "additive; see `pay_installment_kamino.rs`."
+      ],
+      "discriminator": [
+        179,
+        94,
+        206,
+        177,
+        199,
+        95,
+        27,
+        58
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buyer_usdc",
+          "writable": true
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamino_program"
+        },
+        {
+          "name": "kamino_lending_market"
+        },
+        {
+          "name": "kamino_lending_market_authority"
+        },
+        {
+          "name": "kamino_reserve",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_liquidity_supply",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_collateral_mint",
+          "writable": true
+        },
+        {
+          "name": "escrow_kamino_collateral",
+          "docs": [
+            "Created on the first Kamino-routed installment, paid by the buyer."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "revoke_agent_mandate",
+      "docs": [
+        "One-tap revoke: kills the mandate and pulls back the allowance."
+      ],
+      "discriminator": [
+        209,
+        86,
+        165,
+        121,
+        56,
+        132,
+        131,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "mandate",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116,
+                  95,
+                  109,
+                  97,
+                  110,
+                  100,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "mandate.agent",
+                "account": "AgentMandate"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "mandate"
+          ]
+        },
+        {
+          "name": "owner_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_kamino_config",
+      "docs": [
+        "Governance-only: sets the target Kamino reserve/market accounts and",
+        "the master enable switch. All-zero pubkeys + enabled=false (the",
+        "post-init default) is always safe — no CPI is attempted."
+      ],
+      "discriminator": [
+        38,
+        187,
+        115,
+        110,
+        126,
+        86,
+        129,
+        139
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        },
+        {
+          "name": "kamino_program",
+          "type": "pubkey"
+        },
+        {
+          "name": "lending_market",
+          "type": "pubkey"
+        },
+        {
+          "name": "lending_market_authority",
+          "type": "pubkey"
+        },
+        {
+          "name": "reserve",
+          "type": "pubkey"
+        },
+        {
+          "name": "reserve_liquidity_supply",
+          "type": "pubkey"
+        },
+        {
+          "name": "reserve_collateral_mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_protocol_paused",
+      "docs": [
+        "Governance-only emergency stop switch."
+      ],
+      "discriminator": [
+        47,
+        62,
+        75,
+        69,
+        166,
+        0,
+        147,
+        157
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
     },
     {
       "name": "stake_usdc",
@@ -800,6 +3065,279 @@
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "for the constant-seed-PDA auto-derivation pattern). Deliberately",
+            "`UncheckedAccount` — the PDA may not exist yet. `mut` so",
+            "`apply_tvl_decrease` can write the updated `current_tvl` back."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "trigger_default_reconciled",
+      "docs": [
+        "v2.1: single-transaction, Kamino-aware `trigger_default`. Redeems the",
+        "full `escrow_kamino_collateral` balance (if any) back into",
+        "`escrow_usdc` first, then runs the same full-recovery transfer",
+        "`trigger_default` does — so a liquidator/bot never needs to know a",
+        "separate `kamino_probe_redeem` crank exists before it can recover a",
+        "defaulted agreement's full value. Purely additive: `trigger_default`",
+        "is untouched, and this degrades to the same behavior when an",
+        "agreement never touched Kamino. See `trigger_default_reconciled.rs`."
+      ],
+      "discriminator": [
+        218,
+        235,
+        199,
+        148,
+        214,
+        102,
+        48,
+        97
+      ],
+      "accounts": [
+        {
+          "name": "agreement",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  114,
+                  101,
+                  101,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement.buyer",
+                "account": "BnplAgreement"
+              },
+              {
+                "kind": "account",
+                "path": "agreement.product_id",
+                "account": "BnplAgreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "docs": [
+            "period, same as `trigger_default`."
+          ]
+        },
+        {
+          "name": "escrow_usdc",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant_usdc",
+          "docs": [
+            "Merchant recovery destination — must belong to the recorded merchant",
+            "so a hostile caller cannot redirect escrow to themselves."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "protocol_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "docs": [
+            "See kamino_probe.rs — governance-approved Kamino target set."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamino_program",
+          "docs": [
+            "reconcile is actually attempted."
+          ]
+        },
+        {
+          "name": "kamino_lending_market"
+        },
+        {
+          "name": "kamino_lending_market_authority"
+        },
+        {
+          "name": "kamino_reserve",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_liquidity_supply",
+          "writable": true
+        },
+        {
+          "name": "kamino_reserve_collateral_mint",
+          "writable": true
+        },
+        {
+          "name": "escrow_kamino_collateral",
+          "docs": [
+            "`init_if_needed`, same as `kamino_probe`'s collateral account: an",
+            "agreement that never touched Kamino has no `escrow_kamino_collateral`",
+            "account yet. This is what lets the instruction degrade to plain",
+            "`trigger_default` — the account is created with a zero balance (so",
+            "`collateral_balance == 0`, the reconcile branch is skipped) rather",
+            "than the whole call reverting."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  107,
+                  97,
+                  109,
+                  105,
+                  110,
+                  111,
+                  95,
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agreement"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Pays rent for `escrow_kamino_collateral`'s `init_if_needed` when it",
+            "doesn't exist yet. Any funded keypair — same permissionless shape as",
+            "`trigger_default`; the payout destination (`merchant_usdc`), not this",
+            "signer, is what's authorization-checked."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
         }
       ],
       "args": []
@@ -916,9 +3454,87 @@
       ]
     },
     {
+      "name": "update_agent_mandate",
+      "docs": [
+        "Owner changes an active mandate's limits and allowance."
+      ],
+      "discriminator": [
+        37,
+        209,
+        34,
+        174,
+        22,
+        82,
+        150,
+        20
+      ],
+      "accounts": [
+        {
+          "name": "mandate",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116,
+                  95,
+                  109,
+                  97,
+                  110,
+                  100,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "mandate.agent",
+                "account": "AgentMandate"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "mandate"
+          ]
+        },
+        {
+          "name": "owner_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "limits",
+          "type": {
+            "defined": {
+              "name": "MandateLimits"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "update_pool_rate",
       "docs": [
-        "v2: stake pool authority tunes the APY (capped at MAX_YIELD_RATE_BPS)."
+        "Stake pool authority sets the capped simulated demo rate."
       ],
       "discriminator": [
         68,
@@ -965,9 +3581,83 @@
           "type": "u16"
         }
       ]
+    },
+    {
+      "name": "update_risk_limits",
+      "docs": [
+        "Governance-only per-agreement deposit cap and protocol-wide TVL cap.",
+        "A value of 0 means unlimited."
+      ],
+      "discriminator": [
+        48,
+        53,
+        83,
+        216,
+        119,
+        29,
+        74,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "max_agreement_deposit",
+          "type": "u64"
+        },
+        {
+          "name": "tvl_cap",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "AgentMandate",
+      "discriminator": [
+        31,
+        231,
+        224,
+        237,
+        201,
+        149,
+        38,
+        235
+      ]
+    },
     {
       "name": "BnplAgreement",
       "discriminator": [
@@ -979,6 +3669,32 @@
         37,
         16,
         195
+      ]
+    },
+    {
+      "name": "KaminoConfig",
+      "discriminator": [
+        112,
+        184,
+        242,
+        189,
+        68,
+        34,
+        187,
+        114
+      ]
+    },
+    {
+      "name": "ProtocolConfig",
+      "discriminator": [
+        207,
+        91,
+        250,
+        28,
+        152,
+        179,
+        215,
+        209
       ]
     },
     {
@@ -1009,6 +3725,45 @@
     }
   ],
   "events": [
+    {
+      "name": "AgentMandateRevoked",
+      "discriminator": [
+        103,
+        125,
+        249,
+        134,
+        2,
+        139,
+        248,
+        205
+      ]
+    },
+    {
+      "name": "AgentMandateSet",
+      "discriminator": [
+        236,
+        193,
+        198,
+        145,
+        216,
+        25,
+        34,
+        187
+      ]
+    },
+    {
+      "name": "AgentPurchase",
+      "discriminator": [
+        86,
+        22,
+        37,
+        174,
+        51,
+        143,
+        138,
+        184
+      ]
+    },
     {
       "name": "AgreementCancelled",
       "discriminator": [
@@ -1088,6 +3843,84 @@
       ]
     },
     {
+      "name": "KaminoConfigInitialized",
+      "discriminator": [
+        4,
+        215,
+        226,
+        204,
+        218,
+        98,
+        134,
+        93
+      ]
+    },
+    {
+      "name": "KaminoConfigUpdated",
+      "discriminator": [
+        99,
+        159,
+        3,
+        84,
+        126,
+        192,
+        49,
+        235
+      ]
+    },
+    {
+      "name": "KaminoDepositProbeFallback",
+      "discriminator": [
+        18,
+        196,
+        128,
+        133,
+        237,
+        60,
+        28,
+        199
+      ]
+    },
+    {
+      "name": "KaminoDepositProbeSucceeded",
+      "discriminator": [
+        110,
+        239,
+        112,
+        40,
+        14,
+        246,
+        32,
+        200
+      ]
+    },
+    {
+      "name": "KaminoRedeemProbeFallback",
+      "discriminator": [
+        197,
+        220,
+        116,
+        51,
+        4,
+        165,
+        138,
+        22
+      ]
+    },
+    {
+      "name": "KaminoRedeemProbeSucceeded",
+      "discriminator": [
+        16,
+        125,
+        186,
+        202,
+        32,
+        45,
+        72,
+        109
+      ]
+    },
+    {
       "name": "MerchantPaid",
       "discriminator": [
         112,
@@ -1111,6 +3944,45 @@
         16,
         166,
         190
+      ]
+    },
+    {
+      "name": "ProtocolConfigInitialized",
+      "discriminator": [
+        243,
+        69,
+        27,
+        238,
+        111,
+        169,
+        87,
+        231
+      ]
+    },
+    {
+      "name": "ProtocolPauseUpdated",
+      "discriminator": [
+        18,
+        112,
+        97,
+        19,
+        182,
+        70,
+        162,
+        226
+      ]
+    },
+    {
+      "name": "RiskLimitsUpdated",
+      "discriminator": [
+        34,
+        134,
+        119,
+        140,
+        68,
+        116,
+        41,
+        165
       ]
     },
     {
@@ -1185,7 +4057,7 @@
     {
       "code": 6003,
       "name": "InvalidProductId",
-      "msg": "Product ID must be 64 characters or fewer"
+      "msg": "Product ID must be 32 UTF-8 bytes or fewer"
     },
     {
       "code": 6004,
@@ -1246,9 +4118,280 @@
       "code": 6015,
       "name": "RateTooHigh",
       "msg": "Yield rate exceeds the protocol maximum"
+    },
+    {
+      "code": 6016,
+      "name": "ProtocolPaused",
+      "msg": "Protocol is paused — new deposits are blocked"
+    },
+    {
+      "code": 6017,
+      "name": "DepositCapExceeded",
+      "msg": "Deposit exceeds the per-agreement cap"
+    },
+    {
+      "code": 6018,
+      "name": "TvlCapExceeded",
+      "msg": "Deposit would exceed the protocol-wide TVL cap"
+    },
+    {
+      "code": 6019,
+      "name": "KaminoConfigDisabled",
+      "msg": "KaminoConfig is disabled — governance has not enabled real Kamino CPI"
+    },
+    {
+      "code": 6020,
+      "name": "KaminoAccountMismatch",
+      "msg": "Kamino target account does not match the governance-approved KaminoConfig"
+    },
+    {
+      "code": 6021,
+      "name": "AgreementNotRedeemable",
+      "msg": "Kamino collateral can only be redeemed while an agreement is Active or Completed"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidMandate",
+      "msg": "Mandate limits are invalid"
+    },
+    {
+      "code": 6023,
+      "name": "MandateRevoked",
+      "msg": "This agent mandate has been revoked by its owner"
+    },
+    {
+      "code": 6024,
+      "name": "MandateExpired",
+      "msg": "This agent mandate has expired"
+    },
+    {
+      "code": 6025,
+      "name": "MerchantNotApproved",
+      "msg": "Merchant is not on this mandate's approved list"
+    },
+    {
+      "code": 6026,
+      "name": "AgentPurchaseCapExceeded",
+      "msg": "Purchase exceeds the mandate's per-purchase cap"
+    },
+    {
+      "code": 6027,
+      "name": "AgentPeriodCapExceeded",
+      "msg": "Purchase would exceed the mandate's spending cap for this period"
+    },
+    {
+      "code": 6028,
+      "name": "AgentPurchaseLimitReached",
+      "msg": "Mandate's purchase count for this period is used up"
+    },
+    {
+      "code": 6029,
+      "name": "OwnerApprovalRequired",
+      "msg": "Purchase is above the owner-approval threshold — the owner must co-sign"
+    },
+    {
+      "code": 6030,
+      "name": "MandateNotRevoked",
+      "msg": "Mandate must be revoked before it can be closed"
+    },
+    {
+      "code": 6031,
+      "name": "MandateTokenAccountMismatch",
+      "msg": "Token account does not match the mandate's bound owner USDC account"
     }
   ],
   "types": [
+    {
+      "name": "AgentMandate",
+      "docs": [
+        "Agent BNPL: what an owner lets one AI agent buy on their behalf.",
+        "",
+        "PDA seeds: [\"agent_mandate\", owner, agent]. The owner keeps custody: USDC",
+        "stays in the owner's own token account, which delegates a bounded SPL",
+        "allowance to this PDA. The mandate spends only from that bound account;",
+        "revoke accepts any owner token account. Agreements record `buyer = owner`, so",
+        "repayment, cancellation and default work exactly as for any other",
+        "agreement."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "per_purchase_cap",
+            "type": "u64"
+          },
+          {
+            "name": "period_cap",
+            "type": "u64"
+          },
+          {
+            "name": "period_seconds",
+            "type": "i64"
+          },
+          {
+            "name": "max_purchases_per_period",
+            "type": "u16"
+          },
+          {
+            "name": "approval_threshold",
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "delegated_allowance",
+            "type": "u64"
+          },
+          {
+            "name": "revoked",
+            "type": "bool"
+          },
+          {
+            "name": "period_start",
+            "type": "i64"
+          },
+          {
+            "name": "period_spent",
+            "type": "u64"
+          },
+          {
+            "name": "period_purchases",
+            "type": "u16"
+          },
+          {
+            "name": "total_purchases",
+            "type": "u32"
+          },
+          {
+            "name": "total_spent",
+            "type": "u64"
+          },
+          {
+            "name": "allowed_merchants",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "owner_usdc",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentMandateRevoked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mandate",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentMandateSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mandate",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "per_purchase_cap",
+            "type": "u64"
+          },
+          {
+            "name": "period_cap",
+            "type": "u64"
+          },
+          {
+            "name": "delegated_allowance",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentPurchase",
+      "docs": [
+        "The on-chain audit record of every agent purchase."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mandate",
+            "type": "pubkey"
+          },
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_price",
+            "type": "u64"
+          },
+          {
+            "name": "owner_cosigned",
+            "type": "bool"
+          },
+          {
+            "name": "period_spent",
+            "type": "u64"
+          }
+        ]
+      }
+    },
     {
       "name": "AgreementCancelled",
       "type": {
@@ -1357,6 +4500,10 @@
           {
             "name": "merchant_name",
             "type": "string"
+          },
+          {
+            "name": "yield_source",
+            "type": "u8"
           }
         ]
       }
@@ -1529,6 +4676,216 @@
       }
     },
     {
+      "name": "KaminoConfig",
+      "docs": [
+        "v2.1: landing pad for real Kamino Lend CPI (DEVELOPMENT_PLAN.md v2.1",
+        "items 1-3). See `docs/design/KAMINO_CPI_INTEGRATION.md` for the full",
+        "technical design (verified against Kamino's actual source, fetched",
+        "2026-07-14) — account layout for `deposit_reserve_liquidity` /",
+        "`redeem_reserve_collateral`, the anchor-lang version-mismatch risk",
+        "(0.32.1 here vs 0.29.0 in klend, meaning we can't use their typed",
+        "`Program<'info, _>` wrappers and must build the CPI instruction",
+        "manually), and why a cloned-devnet-market localnet test can't validate",
+        "a real deposit (oracle staleness).",
+        "",
+        "A singleton governance PDA (seeds = [\"kamino_config\"]), mirroring the",
+        "exact `ProtocolConfig` pattern already used in this codebase: shipped",
+        "ahead of the CPI code that will consume it, `enabled` defaults to",
+        "`false` so an uninitialized or disabled config is a pure no-op and",
+        "every code path today (raw-USDC escrow, simulated yield) is completely",
+        "unaffected. No instruction reads this account yet — it exists so the",
+        "next session's CPI call has a concrete place to source its target",
+        "reserve/market accounts from, set once via governance instead of",
+        "hardcoded per-instruction."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "kamino_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "lending_market",
+            "type": "pubkey"
+          },
+          {
+            "name": "lending_market_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "reserve",
+            "type": "pubkey"
+          },
+          {
+            "name": "reserve_liquidity_supply",
+            "type": "pubkey"
+          },
+          {
+            "name": "reserve_collateral_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "KaminoConfigInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "KaminoConfigUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "reserve",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "KaminoDepositProbeFallback",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "KaminoDepositProbeSucceeded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "KaminoRedeemProbeFallback",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "KaminoRedeemProbeSucceeded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agreement",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MandateLimits",
+      "docs": [
+        "Owner-chosen limits, shared by create and update."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "per_purchase_cap",
+            "type": "u64"
+          },
+          {
+            "name": "period_cap",
+            "type": "u64"
+          },
+          {
+            "name": "period_seconds",
+            "type": "i64"
+          },
+          {
+            "name": "max_purchases_per_period",
+            "type": "u16"
+          },
+          {
+            "name": "approval_threshold",
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "delegated_allowance",
+            "type": "u64"
+          },
+          {
+            "name": "allowed_merchants",
+            "type": {
+              "vec": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "MerchantPaid",
       "type": {
         "kind": "struct",
@@ -1564,6 +4921,118 @@
           {
             "name": "new_rate_bps",
             "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolConfig",
+      "docs": [
+        "v2.1: protocol-wide risk controls, laid down ahead of real Kamino CPI",
+        "yield (see DEVELOPMENT_PLAN.md v2.1 item 5). A singleton PDA",
+        "(seeds = [\"protocol_config\"]) governing an emergency pause switch and",
+        "deposit/TVL caps.",
+        "",
+        "Wired into `create_agreement` and `pay_installment` as a constant-seed PDA",
+        "account (`UncheckedAccount`, no client-side change needed — Anchor's TS",
+        "client auto-derives constant-seed PDAs even when the caller's",
+        "`.accounts()` never mentions them, which is what keeps the frozen v1",
+        "characterization suite untouched). `create_agreement` enforces `paused`",
+        "and `max_agreement_deposit` (against `total_price`, the agreement's",
+        "maximum ever exposure); `pay_installment` enforces `paused` on every",
+        "subsequent payment too, so an emergency pause halts USDC moving into",
+        "escrow on existing agreements, not just new agreement creation. An",
+        "uninitialized (system-owned) PDA is treated as \"no risk controls",
+        "configured.\"",
+        "",
+        "`tvl_cap` / `current_tvl` are now enforced end-to-end: every path that",
+        "moves money in or out of escrow (create_agreement, pay_installment,",
+        "merchant_withdraw, cancel_agreement, trigger_default) calls",
+        "`apply_tvl_increase`/`apply_tvl_decrease` (protocol_config.rs) to keep",
+        "`current_tvl` accurate and reject deposits that would breach `tvl_cap`.",
+        "Not yet wired into `stake_usdc` (stake pool deposits are a separate token",
+        "flow from BNPL escrow TVL). Real Kamino CPI (v2.1 items 1-3) will need to",
+        "touch these same call sites again when escrow moves from raw USDC to",
+        "kTokens, but the bookkeeping itself no longer waits on that work."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "max_agreement_deposit",
+            "type": "u64"
+          },
+          {
+            "name": "tvl_cap",
+            "type": "u64"
+          },
+          {
+            "name": "current_tvl",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolConfigInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolPauseUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RiskLimitsUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "config",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_agreement_deposit",
+            "type": "u64"
+          },
+          {
+            "name": "tvl_cap",
+            "type": "u64"
           }
         ]
       }

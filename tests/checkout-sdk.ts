@@ -196,16 +196,16 @@ describe("@relicpay/checkout SDK", () => {
     assert.equal(st0!.yieldSource, "simulated");
     assert.isNull(await getAgreementStatus(program, Keypair.generate().publicKey));
 
-    // Events decode from the creating transaction's logs.
+    // Use the bundled IDL to decode the creating transaction and the live agreement.
+    const appProgram = new Program(appIdl as anchor.Idl, provider);
     const tx = await provider.connection.getTransaction(createSig, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
-    const evs = decodeEvents(program, tx!.meta!.logMessages!);
+    const evs = decodeEvents(appProgram, tx!.meta!.logMessages!);
     const created = evs.find((e) => e.name.toLowerCase() === "agreementcreated");
     assert.exists(created);
     assert.equal(created!.data.productId, request.productId);
-    assert.isEmpty(decodeEvents(program, ["Program 11111111111111111111111111111111 invoke [1]", "Program 11111111111111111111111111111111 success"]));
+    assert.equal(created!.data.yieldSource, 0);
+    assert.isEmpty(decodeEvents(appProgram, ["Program 11111111111111111111111111111111 invoke [1]", "Program 11111111111111111111111111111111 success"]));
 
-    // Use the same bundled IDL as the merchant page to read the live agreement.
-    const appProgram = new Program(appIdl as anchor.Idl, provider);
     const dash = await getMerchantDashboard(appProgram, merchant.publicKey, Number(acct.startTime));
     assert.equal(dash.rows.length, 1);
     assert.isTrue(dash.rows[0].address.equals(built.agreement));
