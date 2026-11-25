@@ -27,6 +27,10 @@ pub fn handler(ctx: Context<CancelAgreement>) -> Result<()> {
         ctx.accounts.buyer.key() == agreement.buyer,
         RelicPayError::Unauthorized
     );
+    require!(
+        agreement.yield_source != BnplAgreement::YIELD_SOURCE_KAMINO_LEND,
+        RelicPayError::KaminoCollateralPresent
+    );
 
     // 10% fee to merchant; buyer refunded the rest. u128 math avoids overflow.
     let escrow_balance = ctx.accounts.escrow_usdc.amount;

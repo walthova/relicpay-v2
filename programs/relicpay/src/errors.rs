@@ -70,4 +70,9 @@ pub enum RelicPayError {
     MandateNotRevoked,
     #[msg("Token account does not match the mandate's bound owner USDC account")]
     MandateTokenAccountMismatch,
+    // ── v2.1: Kamino collateral settlement guards ──
+    #[msg("Agreement has unredeemed Kamino collateral — redeem or use the reconciled instruction")]
+    KaminoCollateralPresent,
+    #[msg("Kamino reserve is paused — cannot redeem collateral to settle agreement")]
+    KaminoReservePaused,
 }
