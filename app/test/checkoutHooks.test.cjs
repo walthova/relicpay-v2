@@ -121,7 +121,10 @@ test("checkout can construct a transaction without fetching an on-chain IDL", as
   assert.equal(tx, "fixture-tx");
   assert.deepEqual(calls, []);
   const [instruction] = send.mock.calls[0].arguments[0].instructions;
-  const [protocolConfig] = PublicKey.findProgramAddressSync([Buffer.from("protocol_config")], programId);
   assert.ok(instruction.programId.equals(programId));
+  const [protocolConfig] = PublicKey.findProgramAddressSync([Buffer.from("protocol_config")], programId);
   assert.deepEqual(instruction.keys.at(-1), { pubkey: protocolConfig, isSigner: false, isWritable: true });
+  assert.deepEqual(instruction.keys.find(({ pubkey }) => pubkey.equals(owner)), {
+    pubkey: owner, isSigner: true, isWritable: true,
+  });
 });
