@@ -122,6 +122,8 @@ pub(crate) fn init_agreement(
         (MIN_INSTALLMENTS..=MAX_INSTALLMENTS).contains(&installment_count),
         RelicPayError::InvalidInstallments
     );
+    let first_installment = total_price / u64::from(installment_count);
+    require!(first_installment > 0, RelicPayError::ZeroInstallmentAmount);
     require!(interval_seconds > 0, RelicPayError::InvalidInterval);
     product_id.checked_seed()?;
     require!(
@@ -157,7 +159,7 @@ pub(crate) fn init_agreement(
     agreement.installment_count = installment_count;
     // Integer division: any remainder is absorbed into the final installment
     // so total_price is always fully collected.
-    agreement.installment_amount = total_price / installment_count as u64;
+    agreement.installment_amount = first_installment;
     agreement.interval_seconds = interval_seconds;
     agreement.start_time = clock.unix_timestamp;
     agreement.last_yield_update = clock.unix_timestamp;
@@ -173,8 +175,6 @@ pub(crate) fn init_agreement(
     // Starts simulated; `create_agreement_kamino` flips it to
     // YIELD_SOURCE_KAMINO_LEND after a successful deposit CPI.
     agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
-
-    let first_installment = agreement.installment_amount;
 
     // v2.1: enforce + update the protocol-wide TVL cap before the transfer
     // (checks-effects-interactions) — a cap violation must revert before any

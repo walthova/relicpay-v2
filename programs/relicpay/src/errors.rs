@@ -70,4 +70,6 @@ pub enum RelicPayError {
     MandateNotRevoked,
     #[msg("Token account does not match the mandate's bound owner USDC account")]
     MandateTokenAccountMismatch,
+    #[msg("Total price in base units must be at least the installment count")]
+    ZeroInstallmentAmount,
 }

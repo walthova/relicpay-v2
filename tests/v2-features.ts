@@ -382,6 +382,20 @@ describe("relicpay v2 features", () => {
     }
   });
 
+  it("rejects agreement creation when the upfront installment would be zero", async () => {
+    const productId = "v2-zero-installment";
+    await rejects(
+      () => createAgreement(productId, new BN(2), 3, new BN(1)),
+      (err: any) => err.error?.errorCode?.code === "ZeroInstallmentAmount",
+    );
+    assert.isNull(await program.account.bnplAgreement.fetchNullable(agreementPDA(productId)));
+
+    const { agreement, escrow } = await createAgreement(productId, new BN(3), 3, new BN(1));
+    const acct = await program.account.bnplAgreement.fetch(agreement);
+    assert.equal(acct.installmentAmount.toString(), "1");
+    assert.equal((await getAccount(provider.connection, escrow)).amount, 1n);
+  });
+
   // ── v2.1: ProtocolConfig risk controls (DEVELOPMENT_PLAN.md v2.1 item 5) ──
   // Standalone in this increment — not yet wired into create_agreement /
   // stake_usdc (see state.rs for why). These tests cover the governance

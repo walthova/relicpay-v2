@@ -106,6 +106,38 @@ describe("@relicpay/checkout SDK", () => {
     assert.throws(() => quote(request), /invalid checkout request: totalPrice exceeds the u64 maximum/);
   });
 
+  it("rejects a total price that would round installments to zero", () => {
+    const request = { ...req, totalPrice: 2n };
+    const message = "totalPrice must be at least installmentCount";
+    assert.deepEqual(validateCheckout(request), [message]);
+    assert.throws(() => quote(request), `invalid checkout request: ${message}`);
+    assert.equal(quote({ ...request, totalPrice: 3n }).upfront, 1n);
+  });
+
+  it("rejects the unsafe interval before the checkout builder reaches BN", async () => {
+    const request = { ...req, intervalSeconds: 1e21 };
+    const key = Keypair.generate().publicKey;
+    const program = { programId: key, methods: { createAgreement: () => assert.fail("unexpected instruction build") } };
+    const message = "intervalSeconds must be a positive safe integer";
+    assert.isTrue(Number.isInteger(request.intervalSeconds));
+    assert.throws(() => new anchor.BN(request.intervalSeconds.toString()), "Invalid character");
+    await rejects(() => buildCreateAgreement({ program, request, buyer: key, merchant: key, usdcMint: key, buyerUsdc: key }), {
+      message: `invalid checkout request: ${message}`,
+    });
+    assert.deepEqual(validateCheckout(request), [message]);
+    assert.throws(() => quote(request), `invalid checkout request: ${message}`);
+  });
+
+  it("rejects intervals that make the quoted due offsets unsafe", () => {
+    const intervalSeconds = Math.floor(Number.MAX_SAFE_INTEGER / req.installmentCount);
+    const request = { ...req, intervalSeconds: intervalSeconds + 1 };
+    const message = "intervalSeconds is too large for the installment schedule";
+    assert.deepEqual(validateCheckout(request), [message]);
+    assert.throws(() => quote(request), `invalid checkout request: ${message}`);
+    const last = quote({ ...req, intervalSeconds }).installments[req.installmentCount - 1];
+    assert.isTrue(Number.isSafeInteger(last.dueOffsetSeconds));
+  });
+
   it("preserves raw agreement seeds at the 32-byte limit", () => {
     const programId = Keypair.generate().publicKey;
     const buyer = Keypair.generate().publicKey;
