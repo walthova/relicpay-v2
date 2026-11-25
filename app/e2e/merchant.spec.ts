@@ -125,6 +125,14 @@ test("connected merchant can recover from a failed request and refresh an empty 
   await expect(
     page.locator('[aria-label="Agreement summary"] strong'),
   ).toHaveText(["0", "0.00", "0.00", "0.00", "0.00"]);
+  await expect(
+    page.getByRole("link", { name: "Preview IBG checkout" }),
+  ).toHaveAttribute("href", "/checkout");
+  await expect(
+    page.getByText(
+      "The IBG preview uses its own payout address. Connecting here doesn’t change it.",
+    ),
+  ).toBeVisible();
   const before = requests;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect.poll(() => requests).toBeGreaterThan(before);

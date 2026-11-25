@@ -304,12 +304,12 @@ function MerchantWorkspace() {
                   then refresh after a buyer creates a plan.
                 </p>
                 <Link href="/checkout" className={styles.primaryButton}>
-                  Open buyer checkout
+                  Preview IBG checkout
                   <Icon name="arrow" />
                 </Link>
                 <span className={styles.connectionNote}>
-                  Already accepting payments? Check you connected the right
-                  wallet.
+                  The IBG preview uses its own payout address. Connecting here
+                  doesn’t change it.
                 </span>
               </div>
             ) : view ? (
