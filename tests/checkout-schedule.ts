@@ -1,18 +1,22 @@
 import { assert } from "chai";
 import { checkoutAmount, checkoutSchedule } from "../app/src/lib/checkoutSchedule";
+import { IBG_MERCHANT, INSTALLMENT_OPTIONS } from "../app/src/lib/constants";
 import { quote } from "../packages/checkout/src";
 
 describe("checkout payment summary", () => {
-  for (const totalUnits of [300_000_000, 500_000_000]) {
-    for (const [count, intervalDays] of [[3, 30], [4, 14]]) {
-      it(`matches the protocol quote for ${totalUnits / 1_000_000} USDC in ${count}`, () => {
+  for (const product of IBG_MERCHANT.products) {
+    for (const option of INSTALLMENT_OPTIONS) {
+      it(`matches the protocol quote for ${product.name}, ${option.label}`, () => {
+        const totalUnits = product.price_usdc;
+        const count = option.count;
+        const intervalDays = option.interval_days;
         const schedule = checkoutSchedule(totalUnits, count, intervalDays);
         const expected = quote({
           totalPrice: BigInt(totalUnits),
           installmentCount: count,
           intervalSeconds: intervalDays * 86_400,
-          productId: "checkout-summary",
-          merchantName: "IBG Collection",
+          productId: product.id,
+          merchantName: IBG_MERCHANT.name,
         });
         assert.deepEqual(schedule.map(payment => BigInt(payment.amountUnits)),
           expected.installments.map(payment => payment.amount));
