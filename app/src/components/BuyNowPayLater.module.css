@@ -122,6 +122,8 @@
   background: #11182b;
 }
 
+.receipt { min-height: 0; margin: 20px 0; text-align: left; }
+
 .summaryHeading,
 .paymentRow,
 .today,

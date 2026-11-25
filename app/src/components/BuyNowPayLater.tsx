@@ -57,9 +57,21 @@ export function BuyNowPayLater({ product }: { product: Product }) {
         <div className={styles.successIcon} aria-hidden="true">✓</div>
         <h3>You're a steward now.</h3>
         <p>First payment of <strong>{payToday} USDC</strong> sent.</p>
-        <p className={styles.description}>
-          Remaining payments are due on days {schedule.slice(1).map(payment => payment.dueDay).join(", ")} after purchase.
-        </p>
+        <div className={`${styles.summary} ${styles.receipt}`}>
+          <div className={styles.summaryHeading}>
+            <h4>Remaining payments</h4>
+            <span>USDC</span>
+          </div>
+          <dl className={styles.breakdown}>
+            {schedule.slice(1).map(payment => (
+              <div key={payment.dueDay} className={styles.paymentRow}>
+                <dt>Day {payment.dueDay}</dt>
+                <dd>{checkoutAmount(payment.amountUnits)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className={styles.scheduleNote}>Days shown are after purchase.{roundedAmounts && " ≈ Rounded to cents; final payment includes any remainder."}</p>
+        </div>
         <a
           href={`https://solscan.io/tx/${result.tx}?cluster=devnet`}
           target="_blank"
