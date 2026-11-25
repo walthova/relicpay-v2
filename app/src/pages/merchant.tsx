@@ -10,6 +10,7 @@ import {
   toDashboardView,
   MerchantDashboardView,
 } from "../../../packages/checkout/src";
+import { USDC_MINT } from "../lib/constants";
 import idl from "../lib/relicpay.json";
 
 // Same SSR guard as the buyer page: wallet adapters must not run on the server.
@@ -59,7 +60,7 @@ function MerchantDashboard() {
     try {
       const provider = new AnchorProvider(connection, wallet as any, { commitment: "confirmed" });
       const program = new Program(idl as any, provider);
-      const { rows, summary } = await getMerchantDashboard(program, wallet.publicKey);
+      const { rows, summary } = await getMerchantDashboard(program, wallet.publicKey, USDC_MINT);
       setView(toDashboardView(rows, summary));
     } catch (e: any) {
       setError(e?.message ?? "Failed to load agreements");

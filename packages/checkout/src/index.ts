@@ -220,6 +220,7 @@ export const AGREEMENT_MERCHANT_OFFSET = 40;
 export interface MerchantAgreementRow {
   address: PublicKey;
   buyer: PublicKey;
+  usdcMint: PublicKey;
   productId: string;
   totalPrice: bigint;
   /** Escrow balance the merchant would receive if the agreement defaulted now. */
@@ -245,8 +246,8 @@ export interface MerchantSummary {
   nextDueAt: number | null;
 }
 
-/** Pure: aggregates merchant-facing numbers from derived rows. */
-export function summarizeMerchant(rows: MerchantAgreementRow[]): MerchantSummary {
+/** Pure: aggregates merchant-facing numbers for the expected USDC mint only. */
+export function summarizeMerchant(rows: MerchantAgreementRow[], usdcMint: PublicKey): MerchantSummary {
   const out: MerchantSummary = {
     counts: { active: 0, completed: 0, defaulted: 0, cancelled: 0 },
     overdueCount: 0,
@@ -258,6 +259,7 @@ export function summarizeMerchant(rows: MerchantAgreementRow[]): MerchantSummary
     nextDueAt: null,
   };
   for (const r of rows) {
+    if (!r.usdcMint.equals(usdcMint)) continue;
     const st = r.status;
     out.counts[st.phase] += 1;
     out.outstandingReceivable += st.remainingToPay;
@@ -281,6 +283,7 @@ export function toMerchantRows(accounts: { publicKey: PublicKey; account: any }[
     .map(({ publicKey, account }) => ({
       address: publicKey,
       buyer: account.buyer as PublicKey,
+      usdcMint: account.usdcMint as PublicKey,
       productId: account.productId as string,
       totalPrice: big(account.totalPrice),
       escrowDeposited: big(account.escrowDeposited),
@@ -289,17 +292,18 @@ export function toMerchantRows(accounts: { publicKey: PublicKey; account: any }[
     .sort((a, b) => (a.status.nextDueAt ?? Infinity) - (b.status.nextDueAt ?? Infinity));
 }
 
-/** Fetches every agreement for a merchant wallet (memcmp filter on the merchant field) with derived status and totals. */
+/** Fetches a merchant's agreements and returns dashboard rows and totals for the expected USDC mint only. */
 export async function getMerchantDashboard(
   program: any,
   merchant: PublicKey,
+  usdcMint: PublicKey,
   nowUnix: number = Math.floor(Date.now() / 1000)
 ): Promise<{ rows: MerchantAgreementRow[]; summary: MerchantSummary }> {
   const accounts = await program.account.bnplAgreement.all([
     { memcmp: { offset: AGREEMENT_MERCHANT_OFFSET, bytes: merchant.toBase58() } },
   ]);
-  const rows = toMerchantRows(accounts, nowUnix);
-  return { rows, summary: summarizeMerchant(rows) };
+  const rows = toMerchantRows(accounts, nowUnix).filter((row) => row.usdcMint.equals(usdcMint));
+  return { rows, summary: summarizeMerchant(rows, usdcMint) };
 }
 
 // ---------------------------------------------------------------------------
