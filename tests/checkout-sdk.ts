@@ -334,7 +334,7 @@ describe("@relicpay/checkout SDK", () => {
     it("excludes other mints from dashboard rows and USDC totals", async () => {
       const merchant = pk();
       const otherMint = pk();
-      const now = 1200 + G + 1;
+      const now = 1100 + G + 1;
       const completed = { state: { completed: {} }, paidInstallments: 3 };
       const accounts = [
         { publicKey: pk(), account: acct({ merchant, usdcMint: new PublicKey(usdcMint.toBytes()) }) },
@@ -350,7 +350,7 @@ describe("@relicpay/checkout SDK", () => {
         overdueExposure: 60n,
         recoverableOnDefault: 30n,
         pendingPayouts: 90n,
-        nextDueAt: 1200,
+        nextDueAt: 1100,
       };
       const prog = { account: { bnplAgreement: { all: async () => accounts } } };
       const dash = await getMerchantDashboard(prog, merchant, usdcMint, now);
