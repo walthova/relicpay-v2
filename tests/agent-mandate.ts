@@ -239,7 +239,7 @@ describe("agent BNPL: agent mandates", () => {
     // Wait on the validator's clock, not the wall clock: a lagging local
     // validator made a fixed sleep flaky (PaymentNotDue).
     const ag: any = await program.account.bnplAgreement.fetch(agreement);
-    const due = ag.startTime.toNumber() + (ag.paidInstallments + 1) * ag.intervalSeconds.toNumber();
+    const due = ag.startTime.toNumber() + ag.paidInstallments * ag.intervalSeconds.toNumber();
     for (let i = 0; i < 60; i++) {
       const t = await provider.connection.getBlockTime(await provider.connection.getSlot());
       if (t !== null && t >= due) break;
