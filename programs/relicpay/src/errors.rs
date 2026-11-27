@@ -70,6 +70,13 @@ pub enum RelicPayError {
     MandateNotRevoked,
     #[msg("Token account does not match the mandate's bound owner USDC account")]
     MandateTokenAccountMismatch,
+    // ── Agent credit line math (pure math; instructions not wired yet) ──
+    #[msg("LTV exceeds the protocol maximum of 8,000 bps")]
+    LtvTooHigh,
+    #[msg("Draw exceeds available credit")]
+    ExceedsCreditLimit,
+    #[msg("Repayment exceeds outstanding debt")]
+    RepaymentExceedsDebt,
     // ── v2.1: Kamino collateral settlement guards ──
     #[msg("Agreement has unredeemed Kamino collateral — redeem or use the reconciled instruction")]
     KaminoCollateralPresent,

@@ -11,6 +11,7 @@ use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::AgreementDefaulted;
 use crate::instructions::protocol_config::apply_tvl_decrease;
+use crate::math::installment_due_time;
 use crate::state::{AgreementState, BnplAgreement};
 
 pub fn handler(ctx: Context<TriggerDefault>) -> Result<()> {
@@ -28,14 +29,11 @@ pub fn handler(ctx: Context<TriggerDefault>) -> Result<()> {
     );
 
     let next_installment = agreement.paid_installments + 1;
-    let due_time = agreement
-        .start_time
-        .checked_add(
-            (next_installment as i64)
-                .checked_mul(agreement.interval_seconds)
-                .ok_or(RelicPayError::MathOverflow)?,
-        )
-        .ok_or(RelicPayError::MathOverflow)?;
+    let due_time = installment_due_time(
+        agreement.start_time,
+        agreement.interval_seconds,
+        next_installment,
+    )?;
     let grace_expiry = due_time
         .checked_add(GRACE_PERIOD_SECONDS)
         .ok_or(RelicPayError::MathOverflow)?;
