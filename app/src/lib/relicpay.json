@@ -1248,7 +1248,7 @@
       "msg": "Yield rate exceeds the protocol maximum"
     },
     {
-      "code": 6032,
+      "code": 6035,
       "name": "ZeroInstallmentAmount",
       "msg": "Total price in base units must be at least the installment count"
     }

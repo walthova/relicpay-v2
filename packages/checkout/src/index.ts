@@ -35,8 +35,8 @@ export interface Installment {
   amount: bigint;
   /**
    * Seconds after agreement start when it falls due. Installment 1 is the
-   * upfront charge (offset 0); installment N >= 2 is due at N * interval,
-   * matching pay_installment.rs (installment 2 is NOT due after one interval).
+   * upfront charge (offset 0); installment N is due at (N - 1) * interval,
+   * matching `installment_due_time` in programs/relicpay/src/math.rs.
    */
   dueOffsetSeconds: number;
 }
@@ -63,7 +63,7 @@ export function validateCheckout(req: CheckoutRequest, maxAgreementDeposit: bigi
     errs.push("totalPrice must be at least installmentCount");
   if (!Number.isSafeInteger(req.intervalSeconds) || req.intervalSeconds <= 0)
     errs.push("intervalSeconds must be a positive safe integer");
-  else if (validCount && !Number.isSafeInteger(req.installmentCount * req.intervalSeconds))
+  else if (validCount && !Number.isSafeInteger((req.installmentCount - 1) * req.intervalSeconds))
     errs.push("intervalSeconds is too large for the installment schedule");
   if (Buffer.byteLength(req.productId) > MAX_PRODUCT_ID_LEN) errs.push(PRODUCT_ID_TOO_LONG);
   if (Buffer.byteLength(req.merchantName) > MAX_MERCHANT_NAME_LEN) errs.push(`merchantName exceeds ${MAX_MERCHANT_NAME_LEN} bytes`);
@@ -83,11 +83,11 @@ export function quote(req: CheckoutRequest): Quote {
     installments.push({
       index: i + 1,
       amount: last ? req.totalPrice - base * (n - 1n) : base,
-      dueOffsetSeconds: i === 0 ? 0 : (i + 1) * req.intervalSeconds,
+      dueOffsetSeconds: i * req.intervalSeconds,
     });
   }
   // Escrow balance integrated over time: each installment sits from its due time to the final due time.
-  const end = BigInt(req.installmentCount * req.intervalSeconds);
+  const end = BigInt((req.installmentCount - 1) * req.intervalSeconds);
   let weighted = 0n;
   for (const it of installments) weighted += it.amount * (end - BigInt(it.dueOffsetSeconds));
   return {
@@ -190,7 +190,7 @@ export function deriveStatus(acct: any, nowUnix: number): AgreementStatus {
   const per = big(acct.installmentAmount);
   const active = phase === "active" && paid < count;
   const nextNo = active ? paid + 1 : null;
-  const nextDueAt = nextNo === null ? null : start + nextNo * interval;
+  const nextDueAt = nextNo === null ? null : start + (nextNo - 1) * interval;
   const graceExpiresAt = nextDueAt === null ? null : nextDueAt + GRACE_PERIOD_SECONDS;
   const paidSoFar = paid >= count ? total : per * BigInt(paid);
   return {
