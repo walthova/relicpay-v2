@@ -15,7 +15,7 @@ use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::{AgreementCompleted, InstallmentPaid};
 use crate::instructions::protocol_config::{apply_tvl_increase, check_not_paused};
-use crate::math::calculate_yield;
+use crate::math::{calculate_yield, installment_due_time};
 use crate::state::{AgreementState, BnplAgreement};
 
 pub fn handler(ctx: Context<PayInstallment>) -> Result<()> {
@@ -73,16 +73,12 @@ pub(crate) fn prepare_installment(
         RelicPayError::AlreadyCompleted
     );
 
-    // Installment N is due at start_time + (N * interval_seconds).
     let next_installment = agreement.paid_installments + 1;
-    let due_time = agreement
-        .start_time
-        .checked_add(
-            (next_installment as i64)
-                .checked_mul(agreement.interval_seconds)
-                .ok_or(RelicPayError::MathOverflow)?,
-        )
-        .ok_or(RelicPayError::MathOverflow)?;
+    let due_time = installment_due_time(
+        agreement.start_time,
+        agreement.interval_seconds,
+        next_installment,
+    )?;
     require!(
         clock.unix_timestamp >= due_time,
         RelicPayError::PaymentNotDue

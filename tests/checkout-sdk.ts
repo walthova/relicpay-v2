@@ -65,7 +65,7 @@ describe("@relicpay/checkout SDK", () => {
     assert.deepEqual(q.installments.map((i) => i.amount), [33_333_333n, 33_333_333n, 33_333_334n]);
     assert.equal(q.installments.reduce((s, i) => s + i.amount, 0n), req.totalPrice);
     assert.equal(q.upfront, 33_333_333n);
-    assert.deepEqual(q.installments.map((i) => i.dueOffsetSeconds), [0, 172_800, 259_200]);
+    assert.deepEqual(q.installments.map((i) => i.dueOffsetSeconds), [0, 86_400, 172_800]);
     assert.equal(q.cancelFeeIfCancelledNow, 3_333_333n);
   });
 
@@ -77,10 +77,10 @@ describe("@relicpay/checkout SDK", () => {
   });
 
   it("estimates simple-interest yield from escrow balance over time", () => {
-    // 2 installments of 50 USDC, interval 1 year. Installment 2 is due at 2 * interval
-    // (program rule), so the first 50 sits 2 years at 3% = 3.0 USDC.
+    // 2 installments of 50 USDC, interval 1 year. Installment 2 is due one interval
+    // after the upfront charge, so the first 50 sits 1 year at 3% = 1.5 USDC.
     const q = quote({ ...req, totalPrice: 100_000_000n, installmentCount: 2, intervalSeconds: 31_536_000 });
-    assert.equal(q.estimatedYieldAtSimulatedRate, 3_000_000n);
+    assert.equal(q.estimatedYieldAtSimulatedRate, 1_500_000n);
   });
 
   it("rejects the same bad inputs the program rejects", () => {
@@ -308,17 +308,17 @@ describe("@relicpay/checkout SDK", () => {
     });
 
     it("aggregates receivables, overdue exposure, default recovery, and pending payouts", () => {
-      const now = 1000 + 2 * 100 + G + 1; // agreement A (paid 1) is past grace
+      const now = 1000 + 100 + G + 1; // agreement A (paid 1) is past grace
       const accounts = [
         { publicKey: pk(), account: acct() }, // defaultable: owes 60, escrow 30
-        { publicKey: pk(), account: acct({ paidInstallments: 2, startTime: now - 150, escrowDeposited: 60n }) }, // next due at now+50: not overdue, owes 30
+        { publicKey: pk(), account: acct({ paidInstallments: 2, startTime: now - 50, escrowDeposited: 60n }) }, // next due at now+50: not overdue, owes 30
         { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3, escrowDeposited: 90n }) }, // payout pending 90
         { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3, merchantWithdrawn: true }) },
         { publicKey: pk(), account: acct({ state: { defaulted: {} } }) },
         { publicKey: pk(), account: acct({ state: { cancelled: {} } }) },
       ];
       const rows = toMerchantRows(accounts, now);
-      assert.equal(rows[0].status.nextDueAt, 1200); // earliest due first; finished agreements last
+      assert.equal(rows[0].status.nextDueAt, 1100); // earliest due first; finished agreements last
       assert.isNull(rows[rows.length - 1].status.nextDueAt);
       const s = summarizeMerchant(rows, usdcMint);
       assert.deepEqual(s.counts, { active: 2, completed: 2, defaulted: 1, cancelled: 1 });
@@ -328,7 +328,7 @@ describe("@relicpay/checkout SDK", () => {
       assert.equal(s.defaultableCount, 1);
       assert.equal(s.recoverableOnDefault, 30n);
       assert.equal(s.pendingPayouts, 90n);
-      assert.equal(s.nextDueAt, 1200);
+      assert.equal(s.nextDueAt, 1100);
     });
 
     it("excludes other mints from dashboard rows and USDC totals", async () => {
@@ -367,10 +367,10 @@ describe("@relicpay/checkout SDK", () => {
       assert.equal(formatUsdc(1_234_500_000n), "1,234.50");
       assert.equal(formatUsdc(9_999n), "0.00"); // sub-cent dust truncated
       assert.equal(formatUsdc(-5_000_000n), "-5.00");
-      const now = 1000 + 2 * 100 + G + 1;
+      const now = 1000 + 100 + G + 1;
       const rows = toMerchantRows([
         { publicKey: pk(), account: acct() }, // past grace
-        { publicKey: pk(), account: acct({ paidInstallments: 2, startTime: now - 150 }) }, // on schedule
+        { publicKey: pk(), account: acct({ paidInstallments: 2, startTime: now - 50 }) }, // on schedule
         { publicKey: pk(), account: acct({ paidInstallments: 1, startTime: now - 300 }) }, // overdue within grace
         { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3 }) }, // payout pending
         { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3, merchantWithdrawn: true }) },
@@ -409,20 +409,20 @@ describe("@relicpay/checkout SDK", () => {
     const G = GRACE_PERIOD_SECONDS;
 
     it("tracks the due window, grace window, and default eligibility", () => {
-      // installment 2 due at start + 2 * interval = 1200
-      let s = deriveStatus(base(), 1199);
+      // installment 2 due at start + interval = 1100
+      let s = deriveStatus(base(), 1099);
       assert.equal(s.nextInstallmentNumber, 2);
-      assert.equal(s.nextDueAt, 1200);
+      assert.equal(s.nextDueAt, 1100);
       assert.isFalse(s.payable);
       assert.equal(s.remainingToPay, 60n);
-      s = deriveStatus(base(), 1200);
+      s = deriveStatus(base(), 1100);
       assert.isTrue(s.payable);
       assert.isFalse(s.overdue);
-      s = deriveStatus(base(), 1201);
+      s = deriveStatus(base(), 1101);
       assert.isTrue(s.overdue);
       assert.isFalse(s.defaultable);
-      assert.isFalse(deriveStatus(base(), 1200 + G).defaultable); // strict >, as on-chain
-      assert.isTrue(deriveStatus(base(), 1200 + G + 1).defaultable);
+      assert.isFalse(deriveStatus(base(), 1100 + G).defaultable); // strict >, as on-chain
+      assert.isTrue(deriveStatus(base(), 1100 + G + 1).defaultable);
     });
 
     it("handles terminal phases, merchant payout, and the kamino source", () => {
