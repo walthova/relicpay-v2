@@ -2003,7 +2003,7 @@ describe("relicpay v2 features", () => {
       await provider.sendAndConfirm(new Transaction().add(SystemProgram.transfer({
         fromPubkey: buyer.publicKey,
         toPubkey: escrowCollateralPDA(agreementPDA(productId)),
-        lamports: 1,
+        lamports: await provider.connection.getMinimumBalanceForRentExemption(0),
       })), [buyer]);
       await setEnabled(false);
       let created: { agreement: PublicKey; escrow: PublicKey };
