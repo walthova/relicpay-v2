@@ -55,6 +55,27 @@ export function getCap(demo: Demo, agent: AgentId) {
   return agent === "atlas" ? demo.atlasCap : AGENTS[agent].cap;
 }
 
+export function getPurchaseBlock(demo: Demo, id: AgentId) {
+  const agent = AGENTS[id];
+  if (demo.revoked[id]) return {
+    title: `${agent.name}’s access is revoked`,
+    detail: "The owner revoked this agent’s permission.",
+  };
+  if (demo.day > agent.expiry) return {
+    title: `${agent.name}’s spending window ended`,
+    detail: `This agent’s spending window ended on day ${agent.expiry}. The demo is now on day ${demo.day}.`,
+  };
+  if (agent.merchant !== MERCHANT) return {
+    title: "Merchant not allowed",
+    detail: `${MERCHANT} is not on this agent’s merchant list.`,
+  };
+  if (PURCHASE_PRICE > getCap(demo, id)) return {
+    title: `${agent.name}’s spend cap is too low`,
+    detail: `This ${PURCHASE_PRICE} USDC purchase exceeds ${agent.name}’s ${getCap(demo, id)} USDC spending cap.`,
+  };
+  return null;
+}
+
 function record(demo: Demo, title: string, detail: string, tone: Event["tone"] = "neutral"): Demo {
   return { ...demo, events: [...demo.events, { title, detail, day: getBalances(demo).day, tone }] };
 }
@@ -72,16 +93,8 @@ export function reduceDemo(demo: Demo, action: Action): Demo {
     case "attempt": {
       if (!demo.opened || demo.draw) return demo;
       const agent = AGENTS[action.agent];
-      const reason = demo.revoked[action.agent]
-        ? "The owner revoked this agent’s permission."
-        : demo.day > agent.expiry
-          ? "This agent’s spending window has ended."
-          : agent.merchant !== MERCHANT
-          ? `${MERCHANT} is not on this agent’s merchant list.`
-          : PURCHASE_PRICE > getCap(demo, action.agent)
-            ? "This purchase exceeds the agent’s spending cap."
-            : null;
-      if (reason) return record(demo, `${agent.name}’s purchase blocked`, reason, "blocked");
+      const block = getPurchaseBlock(demo, action.agent);
+      if (block) return record(demo, `${agent.name}’s purchase blocked`, block.detail, "blocked");
       return record(
         { ...demo, draw: { agent: action.agent, openedDay: demo.day, installmentsPaid: 0 } },
         `${MERCHANT} paid up front`,
