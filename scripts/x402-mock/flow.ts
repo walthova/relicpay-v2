@@ -286,7 +286,7 @@ export async function runFlow(options: FlowOptions) {
     check("replay402", (await request(proof)).status === 402);
     let account: any = await program.account.bnplAgreement.fetch(agreement);
     for (let next = 2; next <= offered.installments; next++) {
-      const due = account.startTime.toNumber() + next * offered.interval;
+      const due = account.startTime.toNumber() + (next - 1) * offered.interval;
       const deadline = Date.now() + 90_000;
       while (true) {
         const slot = await connection.getSlot("confirmed");
