@@ -271,25 +271,13 @@ pub struct CloseAgentMandate<'info> {
     pub owner: Signer<'info>,
 }
 
-// ─── agent_create_agreement ──────────────────────────────────────────────────
-
-/// The agent buys now, pay later for its owner. Same agreement and first
-/// installment as `create_agreement`, but the agent signs, the mandate PDA
-/// moves the first installment as the owner's SPL delegate, and every
-/// mandate limit is checked first.
-pub fn agent_purchase_handler(
-    ctx: Context<AgentCreateAgreement>,
+pub(super) fn record_purchase(
+    mandate: &mut AgentMandate,
     total_price: u64,
-    installment_count: u8,
-    interval_seconds: i64,
-    product_id: String,
-    merchant_name: String,
+    merchant: Pubkey,
+    owner_cosigned: bool,
+    now: i64,
 ) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp;
-    let merchant = ctx.accounts.merchant.key();
-    let owner_cosigned = ctx.accounts.owner.is_signer;
-
-    let mandate = &mut ctx.accounts.mandate;
     require!(!mandate.revoked, RelicPayError::MandateRevoked);
     require!(
         mandate.expires_at == 0 || now < mandate.expires_at,
@@ -344,6 +332,33 @@ pub fn agent_purchase_handler(
         .total_spent
         .checked_add(total_price)
         .ok_or(RelicPayError::MathOverflow)?;
+    Ok(())
+}
+
+// ─── agent_create_agreement ──────────────────────────────────────────────────
+
+/// The agent buys now, pay later for its owner. Same agreement and first
+/// installment as `create_agreement`, but the agent signs, the mandate PDA
+/// moves the first installment as the owner's SPL delegate, and every
+/// mandate limit is checked first.
+pub fn agent_purchase_handler(
+    ctx: Context<AgentCreateAgreement>,
+    total_price: u64,
+    installment_count: u8,
+    interval_seconds: i64,
+    product_id: String,
+    merchant_name: String,
+) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let merchant = ctx.accounts.merchant.key();
+    let owner_cosigned = ctx.accounts.owner.is_signer;
+    record_purchase(
+        &mut ctx.accounts.mandate,
+        total_price,
+        merchant,
+        owner_cosigned,
+        now,
+    )?;
 
     let config_info = ctx.accounts.protocol_config.to_account_info();
     let bump = ctx.bumps.agreement;

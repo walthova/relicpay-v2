@@ -70,7 +70,7 @@ pub enum RelicPayError {
     MandateNotRevoked,
     #[msg("Token account does not match the mandate's bound owner USDC account")]
     MandateTokenAccountMismatch,
-    // ── Agent credit line math (pure math; instructions not wired yet) ──
+    // Agent credit line
     #[msg("LTV exceeds the protocol maximum of 8,000 bps")]
     LtvTooHigh,
     #[msg("Draw exceeds available credit")]
@@ -82,4 +82,19 @@ pub enum RelicPayError {
     KaminoCollateralPresent,
     #[msg("Kamino reserve is paused — cannot redeem collateral to settle agreement")]
     KaminoReservePaused,
+    // Agent credit instruction guards
+    #[msg("New credit draws are paused")]
+    CreditPaused,
+    #[msg("This credit line is frozen")]
+    CreditLineFrozen,
+    #[msg("Withdrawal would leave too little collateral")]
+    CreditCollateralLocked,
+    #[msg("The lending pool has insufficient available liquidity")]
+    InsufficientLendingLiquidity,
+    #[msg("The credit draw is not in the required state")]
+    InvalidCreditDrawState,
+    #[msg("The merchant destination cannot be the lending vault")]
+    InvalidCreditDestination,
+    #[msg("Credit and collateral must use the configured mint")]
+    CreditMintMismatch,
 }

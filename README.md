@@ -12,7 +12,7 @@
 - **Wallet-free owner credit demo ([#14](https://github.com/walthova/relicpay-v2/pull/14)):** A browser walkthrough lets you set limits, try agent purchases, and see simulated merchant payouts and repayments. [IBG Collection](https://IBGCollects.com) is the example merchant, not a live integration.
 - **CI and seeded fuzz testing ([#3](https://github.com/walthova/relicpay-v2/pull/3)):** The `RelicPay PR gate` checks the frozen v1 characterization suite, Rust unit tests, Anchor integration tests (including seeded agent-mandate cases), and the demo app. PRs to `main` require the gate to pass.
 
-**The program is unaudited and not deployed to mainnet.** The collateral-backed credit line and upfront merchant funding shown in the browser demo are not implemented in the program on `main`. Do not use real funds.
+**The program is unaudited and not deployed to mainnet.** The collateral-backed credit line and upfront merchant funding are implemented for localnet. The browser demo remains a simulation. Do not use real funds.
 
 ## Quickstart
 
