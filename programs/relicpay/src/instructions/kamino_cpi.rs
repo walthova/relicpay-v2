@@ -30,7 +30,52 @@ use anchor_lang::system_program;
 use anchor_spl::token::{self, InitializeAccount3, Mint, Token, TokenAccount};
 use sha2::{Digest, Sha256};
 
-use crate::constants::SEED_KAMINO_COLLATERAL;
+/// Anchor's discriminator scheme: first 8 bytes of SHA256("global:<name>").
+/// Computing it ourselves (rather than depending on Kamino's crate for a
+/// generated constant) keeps this program free of a BUSL-1.1-licensed git
+/// dependency — the licensing question flagged for Walter in the design
+/// doc stays unresolved-but-avoided, not silently decided here. We reach
+/// for the `sha2` crate directly (not `anchor_lang::solana_program::hash`)
+/// because anchor-lang 0.32's split-crate `solana_program` shim doesn't
+/// re-export a hash module.
+fn sighash(name: &str) -> [u8; 8] {
+    let preimage = format!("global:{name}");
+    let digest = Sha256::digest(preimage.as_bytes());
+    let mut out = [0u8; 8];
+    out.copy_from_slice(&digest[..8]);
+    out
+}
+
+/// Account set for `deposit_reserve_liquidity`, matching the order
+/// `mock_kamino_lend::DepositReserveLiquidity` expects (and the order real
+/// Kamino's account list follows per KAMINO_CPI_INTEGRATION.md, modulo the
+/// oracle/token-2022-interface accounts this mock doesn't model).
+pub struct KaminoDepositAccounts<'a, 'info> {
+    pub kamino_program: &'a AccountInfo<'info>,
+    pub owner: &'a AccountInfo<'info>,
+    pub lending_market: &'a AccountInfo<'info>,
+    pub lending_market_authority: &'a AccountInfo<'info>,
+    pub reserve: &'a AccountInfo<'info>,
+    pub reserve_liquidity_supply: &'a AccountInfo<'info>,
+    pub reserve_collateral_mint: &'a AccountInfo<'info>,
+    pub user_source_liquidity: &'a AccountInfo<'info>,
+    pub user_destination_collateral: &'a AccountInfo<'info>,
+    pub token_program: &'a AccountInfo<'info>,
+}
+
+/// Same account set, roles swapped for redemption (kTokens in, USDC out).
+pub struct KaminoRedeemAccounts<'a, 'info> {
+    pub kamino_program: &'a AccountInfo<'info>,
+    pub owner: &'a AccountInfo<'info>,
+    pub lending_market: &'a AccountInfo<'info>,
+    pub lending_market_authority: &'a AccountInfo<'info>,
+    pub reserve: &'a AccountInfo<'info>,
+    pub reserve_liquidity_supply: &'a AccountInfo<'info>,
+    pub reserve_collateral_mint: &'a AccountInfo<'info>,
+    pub user_source_collateral: &'a AccountInfo<'info>,
+    pub user_destination_liquidity: &'a AccountInfo<'info>,
+    pub token_program: &'a AccountInfo<'info>,
+}
 
 /// Anchor runs `init_if_needed` before address checks. Initialize the checked PDA
 /// in the handler instead, after the Kamino accounts have been validated.
@@ -44,6 +89,8 @@ pub(super) fn ensure_collateral_escrow<'info>(
     rent: &Rent,
     bump: u8,
 ) -> Result<()> {
+    use crate::constants::SEED_KAMINO_COLLATERAL;
+
     if escrow.owner == &token_program.key() {
         let token = TokenAccount::try_deserialize(&mut &escrow.try_borrow_data()?[..])?;
         require_keys_eq!(token.mint, mint.key(), ErrorCode::ConstraintTokenMint);
@@ -124,53 +171,6 @@ pub(super) fn ensure_collateral_escrow<'info>(
             authority: agreement.clone(),
         },
     ))
-}
-
-/// Anchor's discriminator scheme: first 8 bytes of SHA256("global:<name>").
-/// Computing it ourselves (rather than depending on Kamino's crate for a
-/// generated constant) keeps this program free of a BUSL-1.1-licensed git
-/// dependency — the licensing question flagged for Walter in the design
-/// doc stays unresolved-but-avoided, not silently decided here. We reach
-/// for the `sha2` crate directly (not `anchor_lang::solana_program::hash`)
-/// because anchor-lang 0.32's split-crate `solana_program` shim doesn't
-/// re-export a hash module.
-fn sighash(name: &str) -> [u8; 8] {
-    let preimage = format!("global:{name}");
-    let digest = Sha256::digest(preimage.as_bytes());
-    let mut out = [0u8; 8];
-    out.copy_from_slice(&digest[..8]);
-    out
-}
-
-/// Account set for `deposit_reserve_liquidity`, matching the order
-/// `mock_kamino_lend::DepositReserveLiquidity` expects (and the order real
-/// Kamino's account list follows per KAMINO_CPI_INTEGRATION.md, modulo the
-/// oracle/token-2022-interface accounts this mock doesn't model).
-pub struct KaminoDepositAccounts<'a, 'info> {
-    pub kamino_program: &'a AccountInfo<'info>,
-    pub owner: &'a AccountInfo<'info>,
-    pub lending_market: &'a AccountInfo<'info>,
-    pub lending_market_authority: &'a AccountInfo<'info>,
-    pub reserve: &'a AccountInfo<'info>,
-    pub reserve_liquidity_supply: &'a AccountInfo<'info>,
-    pub reserve_collateral_mint: &'a AccountInfo<'info>,
-    pub user_source_liquidity: &'a AccountInfo<'info>,
-    pub user_destination_collateral: &'a AccountInfo<'info>,
-    pub token_program: &'a AccountInfo<'info>,
-}
-
-/// Same account set, roles swapped for redemption (kTokens in, USDC out).
-pub struct KaminoRedeemAccounts<'a, 'info> {
-    pub kamino_program: &'a AccountInfo<'info>,
-    pub owner: &'a AccountInfo<'info>,
-    pub lending_market: &'a AccountInfo<'info>,
-    pub lending_market_authority: &'a AccountInfo<'info>,
-    pub reserve: &'a AccountInfo<'info>,
-    pub reserve_liquidity_supply: &'a AccountInfo<'info>,
-    pub reserve_collateral_mint: &'a AccountInfo<'info>,
-    pub user_source_collateral: &'a AccountInfo<'info>,
-    pub user_destination_liquidity: &'a AccountInfo<'info>,
-    pub token_program: &'a AccountInfo<'info>,
 }
 
 /// Builds and invokes the deposit CPI, signed by `signer_seeds` (the
