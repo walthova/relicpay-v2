@@ -2008,10 +2008,16 @@ describe("relicpay v2 features", () => {
       await setEnabled(false);
       let created: { agreement: PublicKey; escrow: PublicKey };
       try {
+        const mismatchedMarket = { kaminoLendingMarket: dummyPubkey() };
+        await rejects(() => createKamino(productId, mismatchedMarket), /KaminoAccountMismatch/);
         created = await createKamino(productId, {}, new BN(60_000_000), 3);
         assert.equal((await getAccount(provider.connection, created.escrow)).amount, 20_000_000n);
 
         await delay(5000);
+        await rejects(
+          () => payKamino(created.agreement, created.escrow, mismatchedMarket),
+          /KaminoAccountMismatch/
+        );
         await payKamino(created.agreement, created.escrow);
 
         const agreement = await program.account.bnplAgreement.fetch(created.agreement);
