@@ -26,7 +26,105 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::solana_program::program::invoke_signed;
 use anchor_lang::solana_program::program_error::ProgramError;
+use anchor_lang::system_program;
+use anchor_spl::token::{self, InitializeAccount3, Mint, Token, TokenAccount};
 use sha2::{Digest, Sha256};
+
+use crate::constants::SEED_KAMINO_COLLATERAL;
+
+/// Anchor runs `init_if_needed` before address checks. Initialize the checked PDA
+/// in the handler instead, after the Kamino accounts have been validated.
+pub(super) fn ensure_collateral_escrow<'info>(
+    escrow: &UncheckedAccount<'info>,
+    mint: &Account<'info, Mint>,
+    agreement: &AccountInfo<'info>,
+    payer: &Signer<'info>,
+    token_program: &Program<'info, Token>,
+    system_program: &Program<'info, System>,
+    rent: &Rent,
+    bump: u8,
+) -> Result<()> {
+    if escrow.owner == &token_program.key() {
+        let token = TokenAccount::try_deserialize(&mut &escrow.try_borrow_data()?[..])?;
+        require_keys_eq!(token.mint, mint.key(), ErrorCode::ConstraintTokenMint);
+        require_keys_eq!(token.owner, *agreement.key, ErrorCode::ConstraintTokenOwner);
+        require!(
+            rent.is_exempt(escrow.lamports(), TokenAccount::LEN),
+            ErrorCode::ConstraintRentExempt
+        );
+        return Ok(());
+    }
+
+    require_keys_eq!(
+        *escrow.owner,
+        system_program.key(),
+        ErrorCode::ConstraintTokenTokenProgram
+    );
+    let seeds: &[&[u8]] = &[SEED_KAMINO_COLLATERAL, agreement.key.as_ref(), &[bump]];
+    let signer = &[seeds];
+    let space = TokenAccount::LEN as u64;
+    let lamports = rent.minimum_balance(TokenAccount::LEN);
+    let program = system_program.to_account_info();
+
+    if escrow.lamports() == 0 {
+        system_program::create_account(
+            CpiContext::new_with_signer(
+                program,
+                system_program::CreateAccount {
+                    from: payer.to_account_info(),
+                    to: escrow.to_account_info(),
+                },
+                signer,
+            ),
+            lamports,
+            space,
+            &token_program.key(),
+        )?;
+    } else {
+        let top_up = lamports.saturating_sub(escrow.lamports());
+        if top_up != 0 {
+            system_program::transfer(
+                CpiContext::new(
+                    program.clone(),
+                    system_program::Transfer {
+                        from: payer.to_account_info(),
+                        to: escrow.to_account_info(),
+                    },
+                ),
+                top_up,
+            )?;
+        }
+        system_program::allocate(
+            CpiContext::new_with_signer(
+                program.clone(),
+                system_program::Allocate {
+                    account_to_allocate: escrow.to_account_info(),
+                },
+                signer,
+            ),
+            space,
+        )?;
+        system_program::assign(
+            CpiContext::new_with_signer(
+                program,
+                system_program::Assign {
+                    account_to_assign: escrow.to_account_info(),
+                },
+                signer,
+            ),
+            &token_program.key(),
+        )?;
+    }
+
+    token::initialize_account3(CpiContext::new(
+        token_program.to_account_info(),
+        InitializeAccount3 {
+            account: escrow.to_account_info(),
+            mint: mint.to_account_info(),
+            authority: agreement.clone(),
+        },
+    ))
+}
 
 /// Anchor's discriminator scheme: first 8 bytes of SHA256("global:<name>").
 /// Computing it ourselves (rather than depending on Kamino's crate for a

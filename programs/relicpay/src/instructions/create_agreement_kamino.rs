@@ -28,7 +28,7 @@ use crate::instructions::create_agreement::{
     finish_agreement, init_agreement, AgreementParams, ProductIdSeed,
 };
 use crate::instructions::kamino_cpi::{
-    mock_reserve_looks_paused, try_kamino_deposit, KaminoDepositAccounts,
+    ensure_collateral_escrow, mock_reserve_looks_paused, try_kamino_deposit, KaminoDepositAccounts,
 };
 use crate::state::{BnplAgreement, KaminoConfig};
 
@@ -77,7 +77,17 @@ pub fn handler(
         first_installment,
     );
 
-    // Deposit step.
+    ensure_collateral_escrow(
+        &ctx.accounts.escrow_kamino_collateral,
+        &ctx.accounts.kamino_reserve_collateral_mint,
+        &ctx.accounts.agreement.to_account_info(),
+        &ctx.accounts.buyer,
+        &ctx.accounts.token_program,
+        &ctx.accounts.system_program,
+        &ctx.accounts.rent,
+        ctx.bumps.escrow_kamino_collateral,
+    )?;
+
     let reserve_info = ctx.accounts.kamino_reserve.to_account_info();
     if !ctx.accounts.config.enabled || mock_reserve_looks_paused(&reserve_info) {
         emit!(KaminoDepositProbeFallback {
@@ -207,15 +217,13 @@ pub struct CreateAgreementKamino<'info> {
     #[account(mut, address = config.reserve_collateral_mint @ RelicPayError::KaminoAccountMismatch)]
     pub kamino_reserve_collateral_mint: Box<Account<'info, anchor_spl::token::Mint>>,
 
+    /// CHECK: PDA checked here; token state validated or initialized in the handler.
     #[account(
-        init_if_needed,
-        payer = buyer,
-        token::mint = kamino_reserve_collateral_mint,
-        token::authority = agreement,
+        mut,
         seeds = [SEED_KAMINO_COLLATERAL, agreement.key().as_ref()],
         bump
     )]
-    pub escrow_kamino_collateral: Box<Account<'info, TokenAccount>>,
+    pub escrow_kamino_collateral: UncheckedAccount<'info>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,

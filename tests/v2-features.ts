@@ -11,6 +11,7 @@ import {
   Keypair,
   Connection,
   SystemProgram,
+  Transaction,
   SYSVAR_CLOCK_PUBKEY,
   SYSVAR_RENT_PUBKEY,
   LAMPORTS_PER_SOL,
@@ -1842,6 +1843,7 @@ describe("relicpay v2 features", () => {
         assert.fail("Expected KaminoAccountMismatch");
       } catch (err: any) {
         assert.include(err.message, "KaminoAccountMismatch");
+        assert.notInclude(err.logs, "Program log: Instruction: InitializeAccount3", "must reject before initializing collateral");
       }
       const acct = await program.account.bnplAgreement.fetch(agreement);
       assert.equal(acct.paidInstallments, 1, "failed tx must not advance the schedule");
@@ -1976,6 +1978,10 @@ describe("relicpay v2 features", () => {
         assert.fail("Expected KaminoAccountMismatch");
       } catch (err: any) {
         assert.include(err.message, "KaminoAccountMismatch");
+        const tokenInitializations = (err.logs as string[]).filter(
+          (log) => log === "Program log: Instruction: InitializeAccount3"
+        );
+        assert.lengthOf(tokenInitializations, 1, "only the raw-USDC escrow may be initialized");
       }
       const agreement = agreementPDA("v2-create-kamino-mismatch");
       const info = await provider.connection.getAccountInfo(agreement);
@@ -1993,10 +1999,16 @@ describe("relicpay v2 features", () => {
         .signers([kaminoConfigAuthority])
         .rpc();
 
+      const productId = "v2-approved-kamino-disabled";
+      await provider.sendAndConfirm(new Transaction().add(SystemProgram.transfer({
+        fromPubkey: buyer.publicKey,
+        toPubkey: escrowCollateralPDA(agreementPDA(productId)),
+        lamports: 1,
+      })), [buyer]);
       await setEnabled(false);
       let created: { agreement: PublicKey; escrow: PublicKey };
       try {
-        created = await createKamino("v2-approved-kamino-disabled", {}, new BN(60_000_000), 3);
+        created = await createKamino(productId, {}, new BN(60_000_000), 3);
         assert.equal((await getAccount(provider.connection, created.escrow)).amount, 20_000_000n);
 
         await delay(5000);
