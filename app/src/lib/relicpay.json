@@ -4198,6 +4198,21 @@
       "code": 6031,
       "name": "MandateTokenAccountMismatch",
       "msg": "Token account does not match the mandate's bound owner USDC account"
+    },
+    {
+      "code": 6032,
+      "name": "LtvTooHigh",
+      "msg": "LTV exceeds the protocol maximum of 8,000 bps"
+    },
+    {
+      "code": 6033,
+      "name": "ExceedsCreditLimit",
+      "msg": "Draw exceeds available credit"
+    },
+    {
+      "code": 6034,
+      "name": "RepaymentExceedsDebt",
+      "msg": "Repayment exceeds outstanding debt"
     }
   ],
   "types": [
