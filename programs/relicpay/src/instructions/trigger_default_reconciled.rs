@@ -45,6 +45,7 @@ use crate::instructions::kamino_cpi::{
     mock_reserve_looks_paused, try_kamino_redeem, KaminoRedeemAccounts,
 };
 use crate::instructions::protocol_config::apply_tvl_decrease;
+use crate::math::installment_due_time;
 use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
 
 /// Mirrors `kamino_probe::require_matches_kamino_config` — every Kamino
@@ -102,14 +103,11 @@ pub fn handler(ctx: Context<TriggerDefaultReconciled>) -> Result<()> {
     let clock = Clock::get()?;
     let agreement_snapshot = &ctx.accounts.agreement;
     let next_installment = agreement_snapshot.paid_installments + 1;
-    let due_time = agreement_snapshot
-        .start_time
-        .checked_add(
-            (next_installment as i64)
-                .checked_mul(agreement_snapshot.interval_seconds)
-                .ok_or(RelicPayError::MathOverflow)?,
-        )
-        .ok_or(RelicPayError::MathOverflow)?;
+    let due_time = installment_due_time(
+        agreement_snapshot.start_time,
+        agreement_snapshot.interval_seconds,
+        next_installment,
+    )?;
     let grace_expiry = due_time
         .checked_add(GRACE_PERIOD_SECONDS)
         .ok_or(RelicPayError::MathOverflow)?;

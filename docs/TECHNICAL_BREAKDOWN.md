@@ -135,8 +135,8 @@ Each installment is due at a fixed time after the start:
 
 ```
 Installment 1: paid at create_agreement (t=0)
-Installment 2: due at start_time + (2 × interval_seconds) = t=30d
-Installment 3: due at start_time + (3 × interval_seconds) = t=60d
+Installment 2: due at start_time + (1 × interval_seconds) = t=30d
+Installment 3: due at start_time + (2 × interval_seconds) = t=60d
 ```
 
 The contract checks `clock.unix_timestamp >= due_time` and rejects early payments with `PaymentNotDue`.
@@ -210,7 +210,7 @@ The `new_with_signer` call is how a PDA signs a transaction. The seeds reconstru
 If the buyer misses payment for 7+ days past the due date, anyone can call `trigger_default`.
 
 ```
-Due date: start_time + (next_installment × interval_seconds)
+Due date: start_time + ((next_installment − 1) × interval_seconds)
 Grace expiry: due_date + 604_800 seconds (7 days)
 
 If clock.unix_timestamp > grace_expiry → default is legal

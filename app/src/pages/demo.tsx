@@ -1,9 +1,9 @@
 import Head from "next/head";
 import { useReducer, useRef, useState } from "react";
-import type { Dispatch, ReactNode } from "react";
+import type { Dispatch, ReactNode, Ref } from "react";
 import {
   AGENTS, CAP_OPTIONS, COLLATERAL, CREDIT_LIMIT, MERCHANT, PAYMENT_AMOUNT, PURCHASE_PRICE,
-  REPAYMENTS, getBalances, getCap, initialDemo, reduceDemo,
+  REPAYMENTS, getBalances, getCap, getPurchaseBlock, initialDemo, reduceDemo,
 } from "../lib/creditDemo";
 import type { Action, AgentId, Demo } from "../lib/creditDemo";
 import styles from "./demo.module.css";
@@ -95,7 +95,9 @@ function Metric({ label, value, detail, icon }: {
   );
 }
 
-function AgentCard({ id, demo, dispatch }: { id: AgentId; demo: Demo; dispatch: Dispatch<Action> }) {
+function AgentCard({ id, demo, dispatch, capSelectRef }: {
+  id: AgentId; demo: Demo; dispatch: Dispatch<Action>; capSelectRef?: Ref<HTMLSelectElement>;
+}) {
   const agent = AGENTS[id];
   const revoked = demo.revoked[id];
   const expired = demo.day > agent.expiry;
@@ -111,7 +113,7 @@ function AgentCard({ id, demo, dispatch }: { id: AgentId; demo: Demo; dispatch: 
         <div>
           <dt>{!demo.opened && id === "atlas" ? <label htmlFor="atlas-cap">Spend cap</label> : "Spend cap"}</dt>
           <dd>{!demo.opened && id === "atlas" ? (
-            <select id="atlas-cap" value={demo.atlasCap} onChange={(event) => {
+            <select ref={capSelectRef} id="atlas-cap" value={demo.atlasCap} onChange={(event) => {
               const cap = CAP_OPTIONS.find((option) => String(option) === event.target.value);
               if (cap !== undefined) dispatch({ type: "set-cap", cap });
             }}>
@@ -131,13 +133,16 @@ function AgentCard({ id, demo, dispatch }: { id: AgentId; demo: Demo; dispatch: 
   );
 }
 
-function PurchaseCard({ demo, dispatch, onReview }: { demo: Demo; dispatch: Dispatch<Action>; onReview: () => void }) {
+function PurchaseCard({ demo, dispatch, onReview, onReset }: {
+  demo: Demo; dispatch: Dispatch<Action>; onReview: () => void; onReset: () => void;
+}) {
   const { paid, outstanding } = getBalances(demo);
   const latest = demo.events.at(-1);
-  const blocked = latest?.tone === "blocked" ? latest : null;
+  const blockedFeedback = latest?.tone === "blocked" ? latest : null;
   const count = demo.draw?.installmentsPaid ?? 0;
   const nextDay = (demo.draw?.openedDay ?? 0) + REPAYMENTS[count];
   const complete = demo.draw && outstanding === 0;
+  const block = demo.opened && !demo.draw ? getPurchaseBlock(demo, "atlas") : null;
   const label = !demo.opened ? "Open demo credit line" : !demo.draw ? "Simulate Atlas purchase" :
     complete ? "Review activity" : `Repay ${PAYMENT_AMOUNT} USDC · day ${nextDay}`;
   const description = !demo.opened
@@ -157,8 +162,8 @@ function PurchaseCard({ demo, dispatch, onReview }: { demo: Demo; dispatch: Disp
   return (
     <section className={styles.panel} aria-labelledby="purchase-title">
       <div className={styles.panelHeading}>
-        <h2 id="purchase-title">Demo purchase</h2>
-        <Badge tone={demo.draw ? "paid" : "neutral"}>{complete ? "Repaid" : demo.draw ? "Merchant paid" : "Not purchased"}</Badge>
+        <h2 id="purchase-title">Atlas purchase</h2>
+        <Badge tone={block ? "blocked" : demo.draw ? "paid" : "neutral"}>{block ? "Blocked" : complete ? "Repaid" : demo.draw ? "Merchant paid" : "Not purchased"}</Badge>
       </div>
       <div className={styles.product}>
         <span className={styles.productArt}><Icon name="logo" size={26} /></span>
@@ -178,16 +183,29 @@ function PurchaseCard({ demo, dispatch, onReview }: { demo: Demo; dispatch: Disp
       </ol>
       {demo.draw && <progress className={styles.progress} aria-label="Repayment progress" value={paid} max={PURCHASE_PRICE} />}
       <div className={styles.nextAction}>
+        {block && <div className={styles.purchaseBlock}>
+          <div className={styles.purchaseBlockHeading}><Icon name="shield" size={17} /><h3>{block.title}</h3></div>
+          <p>{block.detail}</p>
+          <p>{demo.atlasCap < PURCHASE_PRICE
+            ? `Reset to choose a cap of at least ${PURCHASE_PRICE} USDC and reopen the credit line.`
+            : "Reset to return to day 0 and authorize Atlas again."} This clears the demo session.</p>
+          <button type="button" className={styles.primary} onClick={onReset}>Reset &amp; review permissions <Icon name="reset" size={16} /></button>
+        </div>}
         <div role="status" aria-atomic="true">
-          {blocked && <div id="purchase-feedback" className={`${styles.notice} ${styles.purchaseFeedback}`} data-tone="blocked">
+          {blockedFeedback && <div id="purchase-feedback" className={`${styles.notice} ${styles.purchaseFeedback}`} data-tone="blocked">
             <Icon name="shield" />
-            <p><strong>{blocked.title}.</strong> {blocked.detail}</p>
+            <div>
+              <span className={styles.noticeLabel}>Latest action · Day {blockedFeedback.day}</span>
+              <p><strong>{blockedFeedback.title}.</strong> {blockedFeedback.detail}</p>
+            </div>
           </div>}
         </div>
-        {!blocked && <p>{description}</p>}
-        <button type="button" className={styles.primary} onClick={takeNextStep} aria-describedby={blocked ? "purchase-feedback" : undefined}>{label} <Icon name="arrow" size={16} /></button>
+        {!block && <>
+          {!blockedFeedback && <p>{description}</p>}
+          <button type="button" className={styles.primary} onClick={takeNextStep} aria-describedby={blockedFeedback ? "purchase-feedback" : undefined}>{label} <Icon name="arrow" size={16} /></button>
+        </>}
         {demo.opened && !demo.draw && <div className={styles.secondaryActions}>
-          <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })} aria-describedby={blocked ? "purchase-feedback" : undefined}>Try as Nova</button>
+          <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "attempt", agent: "nova" })} aria-describedby={blockedFeedback ? "purchase-feedback" : undefined}>Try as Nova</button>
           {demo.day <= AGENTS.atlas.expiry && <button type="button" className={styles.textButton} onClick={() => dispatch({ type: "advance" })}>Skip past expiry</button>}
         </div>}
       </div>
@@ -238,6 +256,7 @@ export default function CreditDemoPage() {
   const [demo, dispatch] = useReducer(reduceDemo, undefined, initialDemo);
   const [view, setView] = useState<(typeof views)[number]>(views[0]);
   const activityButton = useRef<HTMLButtonElement>(null);
+  const atlasCapSelect = useRef<HTMLSelectElement>(null);
   const { available, collateral, outstanding, day } = getBalances(demo);
   const step = !demo.opened ? 0 : !demo.draw ? 1 : outstanding > 0 ? 2 : 3;
   const latest = demo.events.at(-1);
@@ -292,7 +311,10 @@ export default function CreditDemoPage() {
           <div className={styles.noticeSlot} role="status" aria-atomic="true">
             {latest && !(view === "Owner workspace" && latest.tone === "blocked") && <div className={styles.notice} data-tone={latest.tone}>
               <Icon name={latest.tone === "blocked" ? "shield" : latest.tone === "paid" ? "check" : "info"} />
-              <p><strong>{latest.title}.</strong> {latest.detail}</p>
+              <div>
+                <span className={styles.noticeLabel}>Latest action · Day {latest.day}</span>
+                <p><strong>{latest.title}.</strong> {latest.detail}</p>
+              </div>
             </div>}
           </div>
           {view === "Owner workspace" ? (
@@ -300,9 +322,12 @@ export default function CreditDemoPage() {
               <section className={styles.panel} aria-labelledby="agent-title">
                 <div className={styles.panelHeading}><h2 id="agent-title">Agent permissions</h2><Badge>One shared line</Badge></div>
                 <p className={styles.panelDescription}>The owner remains responsible for every draw. Each agent gets its own cap, merchant, and spending window.</p>
-                <div className={styles.agents}>{agentIds.map((id) => <AgentCard key={id} id={id} demo={demo} dispatch={dispatch} />)}</div>
+                <div className={styles.agents}>{agentIds.map((id) => <AgentCard key={id} id={id} demo={demo} dispatch={dispatch} capSelectRef={id === "atlas" ? atlasCapSelect : undefined} />)}</div>
               </section>
-              <PurchaseCard demo={demo} dispatch={dispatch} onReview={() => {
+              <PurchaseCard demo={demo} dispatch={dispatch} onReset={() => {
+                dispatch({ type: "reset" });
+                requestAnimationFrame(() => atlasCapSelect.current?.focus());
+              }} onReview={() => {
                 setView("Activity");
                 activityButton.current?.focus();
               }} />

@@ -382,6 +382,47 @@ describe("relicpay v2 features", () => {
     }
   });
 
+  // ── Installment schedule ──────────────────────────────────────────────────
+
+  it("makes installment 2 due one interval after the upfront payment", async () => {
+    const interval = 8;
+    const { agreement, escrow } = await createAgreement(
+      "v2-due-one-interval",
+      new BN(90_000_000),
+      3,
+      new BN(interval)
+    );
+    const start = (await program.account.bnplAgreement.fetch(agreement)).startTime.toNumber();
+
+    await rejects(() => payInstallment(agreement, escrow), /PaymentNotDue/);
+
+    // Wait on the validator's clock, not the wall clock, until one interval has passed.
+    for (let i = 0; i < 60; i++) {
+      const t = await provider.connection.getBlockTime(await provider.connection.getSlot());
+      if (t !== null && t >= start + interval) break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    const sig = await program.methods
+      .payInstallment()
+      .accounts({
+        agreement,
+        buyer: buyer.publicKey,
+        buyerUsdc,
+        escrowUsdc: escrow,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([buyer])
+      .rpc({ commitment: "confirmed" });
+
+    const tx = await provider.connection.getTransaction(sig, {
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+    assert.isBelow(tx!.blockTime!, start + 2 * interval, "paid before a second interval elapsed");
+    const acct = await program.account.bnplAgreement.fetch(agreement);
+    assert.equal(acct.paidInstallments, 2);
+  });
+
   // ── v2.1: ProtocolConfig risk controls (DEVELOPMENT_PLAN.md v2.1 item 5) ──
   // Standalone in this increment — not yet wired into create_agreement /
   // stake_usdc (see state.rs for why). These tests cover the governance
@@ -633,7 +674,7 @@ describe("relicpay v2 features", () => {
         3,
         new BN(1)
       );
-      // Installment 2 is due at start_time + 2*interval_seconds (2s here).
+      // Installment 2 is due at start_time + interval_seconds (1s here).
       // Matches the 5s margin used elsewhere in this suite for interval=1s
       // agreements — the local validator's clock advances slower than
       // wall-clock time, so a tight sleep flakes (see characterization.ts).
