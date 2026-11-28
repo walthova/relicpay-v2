@@ -1,10 +1,26 @@
 # Relic Pay — Merchant Pilot Pipeline
 
 *Owner: Walter. Research only — no outreach sent without explicit approval (see MARKETING.md standing rules).*
-*Last updated: 2026-09-28 by relicpay-growth (live web search confirmed checkout stack for
-Hashimoto Contemporary and a dedicated shop channel for Thinkspace Projects — the one piece of
-"contact-ready" that prior passes had flagged as still unconfirmed for these two galleries; both
-blockers below remain open and Walter-only).*
+*Last updated: 2026-11-27 (corrected outreach readiness from repo evidence; no outreach sent).*
+
+## Current status (corrected 2026-11-27) — 4 of 6 outreach-ready
+
+The four outreach-ready candidates have a verified checkout stack and a confirmed contact channel.
+Outreach still requires Walter's approval and confirmation of any existing IBG Collection relationships.
+
+| Candidate | Checkout | Contact | Status | Evidence |
+|---|---|---|---|---|
+| WITTMORE | Shopify confirmed | `info@wittmore.com` | Outreach-ready | 2026-09-07 checkout check; 2026-09-09 contact pass |
+| Brain Dead | Shopify confirmed | `fabrications@wearebraindead.com` | Outreach-ready | 2026-07-13 checkout pass; 2026-09-09 contact pass |
+| Hashimoto Contemporary | Shopify confirmed | `info@hashimotocontemporary.com` | Outreach-ready | 2026-09-28 checkout and contact pass |
+| The Hundreds | Shopify confirmed | `service@thehundreds.com` | Outreach-ready | 2026-08-05 checkout check; 2026-09-11 contact pass |
+| Thinkspace Projects | Live store; checkout platform unverified | `contact@thinkspaceprojects.com` | Not outreach-ready | 2026-08-05 reported a Shopify cart signal but noted higher-ticket sales go through email; 2026-09-28 could not confirm the platform, as recorded in the [2026-09-29 report](../docs/reports/2026-09-29.md) |
+| Online Ceramics | Shopify backup only; primary site is off Shopify and its checkout is unverified | No verified channel documented | Not outreach-ready (fallback only) | 2026-07-13 checkout pass; 2026-09-09 and 2026-09-28 did not re-check it |
+
+- **Thinkspace Projects:** Verify the live checkout platform and whether higher-ticket pieces can be purchased through it or are handled only by email.
+- **Online Ceramics:** Verify the live primary checkout and source a real contact channel; the Shopify backup does not qualify.
+
+This table supersedes the earlier “6 of 6” readiness claims in the 2026-09-07, 2026-09-11, and 2026-09-17 entries.
 
 ## 2026-09-28 — checkout-stack verification for the two gallery candidates (highest-fit slots)
 
@@ -49,7 +65,8 @@ public search cannot resolve). See `docs/progress/2026-09-18.md` NEEDS-WALTER.
 ## 2026-09-17 re-check — no change
 
 Re-read the full pipeline this pass rather than re-running verification: still 6 of 6 candidates
-contact-ready (WITTMORE, Brain Dead, Hashimoto Contemporary, Thinkspace Projects, The Hundreds,
+contact-ready *(Corrected 2026-11-27: 4 of 6 outreach-ready — see Current status.)*
+(WITTMORE, Brain Dead, Hashimoto Contemporary, Thinkspace Projects, The Hundreds,
 Online Ceramics as fallback), unchanged since 2026-09-11. Did not re-verify checkout stacks or
 contact channels again — nothing has changed and doing so would be motion without progress. The
 two real blockers are still Walter-only: outreach approval, and whether IBG's network already has
@@ -67,7 +84,8 @@ timed pop-ups — that shift is arguably a better opening for a BNPL/checkout pi
 existed before, but it's also a signal the brand may be in a leaner operating phase, worth
 factoring into outreach tone if approved.
 
-**Net movement: all 6 of 6 candidates now have a verified, real contact channel** (WITTMORE,
+**Net movement: all 6 of 6 candidates now have a verified, real contact channel**
+*(Corrected 2026-11-27: 4 of 6 outreach-ready — see Current status.)* (WITTMORE,
 Brain Dead, Hashimoto Contemporary, Thinkspace Projects, The Hundreds; Online Ceramics remains
 fallback-only since its primary site is off-Shopify and wasn't re-checked this pass). Genuinely
 outreach-ready pending Walter's approval on all fronts below. No outreach drafted or sent this
@@ -118,7 +136,8 @@ Art Gallery (`la-street-art-gallery.myshopify.com`) returns HTTP 402 on `/cart.j
 live storefront to pitch); Arts District Coop's guessed Shopify subdomain 404s (no confirmed
 storefront under that guess, would need a real site to re-check).
 
-**Net movement: pipeline is back to 6 verified candidates, 6 of 6 contact-ready** (Brain Dead,
+**Net movement: pipeline is back to 6 verified candidates, 6 of 6 contact-ready**
+*(Corrected 2026-11-27: 4 of 6 outreach-ready — see Current status.)* (Brain Dead,
 Hashimoto Contemporary, The Hundreds, Thinkspace Projects, WITTMORE; Online Ceramics remains a
 fallback-only surface since its primary site is off-Shopify). Still missing before any real
 outreach, unchanged from every prior pass: (1) a real contact name/inbox at any candidate, (2)
