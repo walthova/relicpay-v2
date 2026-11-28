@@ -1,9 +1,7 @@
-//! Pure math for the proposed agent credit line backed by staked USDC.
+//! Pure math for the agent credit line backed by staked USDC.
 //!
-//! No Anchor accounts or instructions are wired to these helpers yet; see
-//! `docs/CREDIT_PRIMITIVE.md` for the design. All intermediate arithmetic uses
-//! checked `u128` operations, rounds credit limits down, and rounds required
-//! collateral up so rounding always favors protocol solvency.
+//! Checked `u128` arithmetic rounds credit limits down and required collateral
+//! up. See `docs/CREDIT_PRIMITIVE.md` for the on-chain mechanism.
 
 use anchor_lang::prelude::*;
 

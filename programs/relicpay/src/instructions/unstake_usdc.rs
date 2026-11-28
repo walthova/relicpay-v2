@@ -6,10 +6,11 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::constants::*;
+use crate::credit::max_unstake;
 use crate::errors::RelicPayError;
 use crate::events::Unstaked;
 use crate::math::{calculate_yield, compute_tier, payable_yield};
-use crate::state::{StakePool, UserStake};
+use crate::state::{CreditConfig, CreditLine, StakePool, UserStake};
 
 pub fn handler(ctx: Context<UnstakeUsdc>, amount: u64) -> Result<()> {
     let user_stake = &mut ctx.accounts.user_stake;
@@ -26,6 +27,27 @@ pub fn handler(ctx: Context<UnstakeUsdc>, amount: u64) -> Result<()> {
         RelicPayError::NothingToWithdraw
     );
 
+    let withdraw_principal = if amount == 0 {
+        staked_amount
+    } else {
+        amount.min(staked_amount)
+    };
+    if ctx.accounts.credit_line.owner == ctx.program_id {
+        let data = ctx.accounts.credit_line.try_borrow_data()?;
+        let line = CreditLine::try_deserialize(&mut &data[..])?;
+        require!(!line.frozen, RelicPayError::CreditLineFrozen);
+        if line.outstanding_debt > 0 {
+            let data = ctx.accounts.credit_config.try_borrow_data()?;
+            let config = CreditConfig::try_deserialize(&mut &data[..])?;
+            require!(
+                withdraw_principal > 0
+                    && withdraw_principal
+                        <= max_unstake(staked_amount, config.ltv_bps, line.outstanding_debt)?,
+                RelicPayError::CreditCollateralLocked
+            );
+        }
+    }
+
     if staked_amount > 0 {
         let elapsed = clock
             .unix_timestamp
@@ -38,12 +60,6 @@ pub fn handler(ctx: Context<UnstakeUsdc>, amount: u64) -> Result<()> {
             .checked_add(new_yield)
             .ok_or(RelicPayError::MathOverflow)?;
     }
-
-    let withdraw_principal = if amount == 0 {
-        staked_amount
-    } else {
-        amount.min(staked_amount)
-    };
 
     let (yield_paid, yield_deferred) = if withdraw_principal == staked_amount {
         payable_yield(
@@ -123,4 +139,11 @@ pub struct UnstakeUsdc<'info> {
     pub pool_vault: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
+
+    /// CHECK: Canonical PDA, deserialized when initialized.
+    #[account(seeds = [SEED_CREDIT_LINE, user.key().as_ref()], bump)]
+    pub credit_line: UncheckedAccount<'info>,
+    /// CHECK: Canonical PDA, required only when the line has debt.
+    #[account(seeds = [SEED_CREDIT_CONFIG], bump)]
+    pub credit_config: UncheckedAccount<'info>,
 }

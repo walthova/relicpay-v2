@@ -211,6 +211,291 @@
       ]
     },
     {
+      "name": "agent_draw_credit",
+      "discriminator": [
+        98,
+        68,
+        193,
+        160,
+        6,
+        50,
+        58,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "mandate",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116,
+                  95,
+                  109,
+                  97,
+                  110,
+                  100,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "mandate"
+          ]
+        },
+        {
+          "name": "owner",
+          "relations": [
+            "mandate",
+            "user_stake"
+          ]
+        },
+        {
+          "name": "merchant"
+        },
+        {
+          "name": "credit_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_stake",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "credit_line",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  108,
+                  105,
+                  110,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "credit_draw",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  100,
+                  114,
+                  97,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "product_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lending_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "principal",
+          "type": "u64"
+        },
+        {
+          "name": "installment_count",
+          "type": "u8"
+        },
+        {
+          "name": "interval_seconds",
+          "type": "i64"
+        },
+        {
+          "name": "product_id",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "cancel_agreement",
       "discriminator": [
         75,
@@ -1234,6 +1519,312 @@
       ]
     },
     {
+      "name": "freeze_credit_default",
+      "discriminator": [
+        74,
+        101,
+        149,
+        203,
+        97,
+        49,
+        132,
+        145
+      ],
+      "accounts": [
+        {
+          "name": "credit_draw",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  100,
+                  114,
+                  97,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.owner",
+                "account": "CreditDraw"
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.product_id",
+                "account": "CreditDraw"
+              }
+            ]
+          }
+        },
+        {
+          "name": "credit_line",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  108,
+                  105,
+                  110,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.owner",
+                "account": "CreditDraw"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "fund_lending_pool",
+      "discriminator": [
+        237,
+        43,
+        179,
+        201,
+        151,
+        98,
+        248,
+        127
+      ],
+      "accounts": [
+        {
+          "name": "lending_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lending_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "provider",
+          "signer": true
+        },
+        {
+          "name": "provider_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "init_credit_config",
+      "discriminator": [
+        200,
+        185,
+        183,
+        162,
+        167,
+        214,
+        169,
+        193
+      ],
+      "accounts": [
+        {
+          "name": "credit_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "upgrade_authority",
+          "signer": true
+        },
+        {
+          "name": "program_data",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  63,
+                  95,
+                  228,
+                  81,
+                  243,
+                  237,
+                  250,
+                  80,
+                  134,
+                  3,
+                  39,
+                  205,
+                  32,
+                  138,
+                  64,
+                  61,
+                  60,
+                  58,
+                  252,
+                  96,
+                  210,
+                  139,
+                  34,
+                  49,
+                  74,
+                  43,
+                  112,
+                  180,
+                  153,
+                  151,
+                  65,
+                  211
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                2,
+                168,
+                246,
+                145,
+                78,
+                136,
+                161,
+                176,
+                226,
+                16,
+                21,
+                62,
+                247,
+                99,
+                174,
+                43,
+                0,
+                194,
+                185,
+                61,
+                22,
+                193,
+                36,
+                210,
+                192,
+                83,
+                122,
+                16,
+                4,
+                128,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "init_kamino_config",
       "docs": [
         "Creates the singleton KaminoConfig PDA. Caller becomes governance authority."
@@ -1370,6 +1961,206 @@
               ]
             }
           }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_lending_pool",
+      "discriminator": [
+        118,
+        212,
+        188,
+        24,
+        23,
+        233,
+        205,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "lending_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lending_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "upgrade_authority",
+          "signer": true
+        },
+        {
+          "name": "program_data",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  63,
+                  95,
+                  228,
+                  81,
+                  243,
+                  237,
+                  250,
+                  80,
+                  134,
+                  3,
+                  39,
+                  205,
+                  32,
+                  138,
+                  64,
+                  61,
+                  60,
+                  58,
+                  252,
+                  96,
+                  210,
+                  139,
+                  34,
+                  49,
+                  74,
+                  43,
+                  112,
+                  180,
+                  153,
+                  151,
+                  65,
+                  211
+                ]
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                2,
+                168,
+                246,
+                145,
+                78,
+                136,
+                161,
+                176,
+                226,
+                16,
+                21,
+                62,
+                247,
+                99,
+                174,
+                43,
+                0,
+                194,
+                185,
+                61,
+                22,
+                193,
+                36,
+                210,
+                192,
+                83,
+                122,
+                16,
+                4,
+                128,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        {
+          "name": "credit_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint",
+          "relations": [
+            "credit_config"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
           "name": "system_program",
@@ -2660,6 +3451,159 @@
       "args": []
     },
     {
+      "name": "repay_credit_draw",
+      "discriminator": [
+        8,
+        246,
+        243,
+        120,
+        190,
+        250,
+        120,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "credit_line",
+            "credit_draw"
+          ]
+        },
+        {
+          "name": "credit_line",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  108,
+                  105,
+                  110,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "credit_draw",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  100,
+                  114,
+                  97,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.product_id",
+                "account": "CreditDraw"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lending_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_usdc",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "payment",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "revoke_agent_mandate",
       "docs": [
         "One-tap revoke: kills the mandate and pulls back the allowance."
@@ -2863,6 +3807,222 @@
           "type": "bool"
         }
       ]
+    },
+    {
+      "name": "settle_credit_default",
+      "discriminator": [
+        143,
+        202,
+        150,
+        194,
+        242,
+        229,
+        208,
+        157
+      ],
+      "accounts": [
+        {
+          "name": "credit_draw",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  100,
+                  114,
+                  97,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.owner",
+                "account": "CreditDraw"
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.product_id",
+                "account": "CreditDraw"
+              }
+            ]
+          }
+        },
+        {
+          "name": "credit_line",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  108,
+                  105,
+                  110,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.owner",
+                "account": "CreditDraw"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.owner",
+                "account": "CreditDraw"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stake_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "lending_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lending_pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
     },
     {
       "name": "stake_usdc",
@@ -3444,6 +4604,58 @@
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "credit_line",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  108,
+                  105,
+                  110,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "credit_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
         }
       ],
       "args": [
@@ -3528,6 +4740,64 @@
               "name": "MandateLimits"
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "update_credit_config",
+      "discriminator": [
+        110,
+        206,
+        149,
+        160,
+        145,
+        103,
+        195,
+        198
+      ],
+      "accounts": [
+        {
+          "name": "credit_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "credit_config"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "ltv_bps",
+          "type": "u16"
+        },
+        {
+          "name": "paused",
+          "type": "bool"
         }
       ]
     },
@@ -3672,6 +4942,45 @@
       ]
     },
     {
+      "name": "CreditConfig",
+      "discriminator": [
+        114,
+        112,
+        9,
+        165,
+        97,
+        111,
+        111,
+        107
+      ]
+    },
+    {
+      "name": "CreditDraw",
+      "discriminator": [
+        229,
+        38,
+        10,
+        98,
+        45,
+        140,
+        36,
+        175
+      ]
+    },
+    {
+      "name": "CreditLine",
+      "discriminator": [
+        220,
+        226,
+        205,
+        24,
+        220,
+        151,
+        129,
+        104
+      ]
+    },
+    {
       "name": "KaminoConfig",
       "discriminator": [
         112,
@@ -3682,6 +4991,19 @@
         34,
         187,
         114
+      ]
+    },
+    {
+      "name": "LendingPool",
+      "discriminator": [
+        208,
+        40,
+        242,
+        82,
+        186,
+        18,
+        75,
+        36
       ]
     },
     {
@@ -4213,6 +5535,51 @@
       "code": 6034,
       "name": "RepaymentExceedsDebt",
       "msg": "Repayment exceeds outstanding debt"
+    },
+    {
+      "code": 6035,
+      "name": "KaminoCollateralPresent",
+      "msg": "Agreement has unredeemed Kamino collateral — redeem or use the reconciled instruction"
+    },
+    {
+      "code": 6036,
+      "name": "KaminoReservePaused",
+      "msg": "Kamino reserve is paused — cannot redeem collateral to settle agreement"
+    },
+    {
+      "code": 6037,
+      "name": "CreditPaused",
+      "msg": "New credit draws are paused"
+    },
+    {
+      "code": 6038,
+      "name": "CreditLineFrozen",
+      "msg": "This credit line is frozen"
+    },
+    {
+      "code": 6039,
+      "name": "CreditCollateralLocked",
+      "msg": "Withdrawal would leave too little collateral"
+    },
+    {
+      "code": 6040,
+      "name": "InsufficientLendingLiquidity",
+      "msg": "The lending pool has insufficient available liquidity"
+    },
+    {
+      "code": 6041,
+      "name": "InvalidCreditDrawState",
+      "msg": "The credit draw is not in the required state"
+    },
+    {
+      "code": 6042,
+      "name": "InvalidCreditDestination",
+      "msg": "The merchant destination cannot be the lending vault"
+    },
+    {
+      "code": 6043,
+      "name": "CreditMintMismatch",
+      "msg": "Credit and collateral must use the configured mint"
     }
   ],
   "types": [
@@ -4663,6 +6030,154 @@
       }
     },
     {
+      "name": "CreditConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "ltv_bps",
+            "type": "u16"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CreditDraw",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "mandate",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "principal",
+            "type": "u64"
+          },
+          {
+            "name": "amount_repaid",
+            "type": "u64"
+          },
+          {
+            "name": "installment_count",
+            "type": "u8"
+          },
+          {
+            "name": "interval_seconds",
+            "type": "i64"
+          },
+          {
+            "name": "start_time",
+            "type": "i64"
+          },
+          {
+            "name": "state",
+            "type": {
+              "defined": {
+                "name": "CreditDrawState"
+              }
+            }
+          },
+          {
+            "name": "product_id",
+            "type": "string"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CreditDrawState",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Repaid"
+          },
+          {
+            "name": "DefaultPending"
+          },
+          {
+            "name": "Defaulted"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CreditLine",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "outstanding_debt",
+            "type": "u64"
+          },
+          {
+            "name": "seizure_pending",
+            "type": "u64"
+          },
+          {
+            "name": "total_borrowed",
+            "type": "u64"
+          },
+          {
+            "name": "total_repaid",
+            "type": "u64"
+          },
+          {
+            "name": "draws_repaid",
+            "type": "u32"
+          },
+          {
+            "name": "frozen",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "InstallmentPaid",
       "type": {
         "kind": "struct",
@@ -4851,6 +6366,42 @@
           {
             "name": "amount",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LendingPool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_liquidity",
+            "type": "u64"
+          },
+          {
+            "name": "total_lent",
+            "type": "u64"
+          },
+          {
+            "name": "total_repaid",
+            "type": "u64"
+          },
+          {
+            "name": "bad_debt",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

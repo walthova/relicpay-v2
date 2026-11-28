@@ -293,4 +293,52 @@ pub mod relicpay {
             merchant_name,
         )
     }
+
+    pub fn init_credit_config(ctx: Context<InitCreditConfig>) -> Result<()> {
+        instructions::credit_config::init_credit_config_handler(ctx)
+    }
+
+    pub fn update_credit_config(
+        ctx: Context<UpdateCreditConfig>,
+        ltv_bps: u16,
+        paused: bool,
+    ) -> Result<()> {
+        instructions::credit_config::update_credit_config_handler(ctx, ltv_bps, paused)
+    }
+
+    pub fn init_lending_pool(ctx: Context<InitLendingPool>) -> Result<()> {
+        instructions::lending_pool::init_lending_pool_handler(ctx)
+    }
+
+    pub fn fund_lending_pool(ctx: Context<FundLendingPool>, amount: u64) -> Result<()> {
+        instructions::lending_pool::fund_lending_pool_handler(ctx, amount)
+    }
+
+    pub fn agent_draw_credit(
+        ctx: Context<AgentDrawCredit>,
+        principal: u64,
+        installment_count: u8,
+        interval_seconds: i64,
+        product_id: String,
+    ) -> Result<()> {
+        instructions::agent_draw_credit::handler(
+            ctx,
+            principal,
+            installment_count,
+            interval_seconds,
+            product_id,
+        )
+    }
+
+    pub fn repay_credit_draw(ctx: Context<RepayCreditDraw>, payment: u64) -> Result<()> {
+        instructions::repay_credit_draw::handler(ctx, payment)
+    }
+
+    pub fn freeze_credit_default(ctx: Context<FreezeCreditDefault>) -> Result<()> {
+        instructions::credit_default::freeze_handler(ctx)
+    }
+
+    pub fn settle_credit_default(ctx: Context<SettleCreditDefault>) -> Result<()> {
+        instructions::credit_default::settle_handler(ctx)
+    }
 }

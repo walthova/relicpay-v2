@@ -28,11 +28,11 @@ These are tracked deliberately and must be resolved before mainnet:
 | Governance keys | Authorities are single keys. | Move upgrade and governance authority to a multisig (for example Squads) before mainnet. |
 | Demo app | `/api/claude` uses an in-memory, per-instance rate limiter. | Use a shared store (for example Upstash) if the demo gets real traffic. |
 
-## Credit line (design only)
+## Credit line (localnet)
 
-The agent credit line is **design and pure math only** (`docs/CREDIT_PRIMITIVE.md`, `programs/relicpay/src/credit.rs`). No credit-line instructions or accounts are wired on-chain yet, the credit line and yield agent are not live, and nothing has been audited. Open risks tracked before any on-chain wiring:
+The agent credit line is implemented for localnet and is unaudited. The lending vault pays the merchant at draw time; stake principal backs debt and stays in the separate stake vault unless seized. See `docs/CREDIT_PRIMITIVE.md` for limitations and state transitions.
 
-- **USDC depeg (no oracle):** Collateral and debt share the same USDC mint with no price oracle; peg risk and liquidity runs remain outside price-feed protection and require mint pinning plus emergency pause controls.
+- **USDC depeg (no oracle):** Collateral and debt share the governance-configured mint. Governance can pause new credit draws, but this does not eliminate peg or liquidity risk.
 - **Collateral locked in Kamino during default:** Once staked collateral can be deployed to Kamino, a paused or illiquid reserve would abort an inline redeem CPI; default must freeze draws and unstaking first and settle seizure asynchronously.
 - **Agent key compromise within caps:** A compromised agent key can draw up to the minimum of its mandate caps and available credit at approved merchants until revoked; owner custody, tight caps, approval thresholds, and one-tap revoke bound exposure.
 - **Unstake vs. pending draw race:** An owner unstaking ahead of an agent draw must be serialized atomically by on-chain checks so neither transaction order can leave an under-collateralized debt.

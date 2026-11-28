@@ -35,8 +35,8 @@ Be exact about this in every pitch. The investor brief lists some items as "alre
 | Brief claim | Reality in this repo |
 |---|---|
 | Self-custody credit wallet on Solana, USDC first | Partial. Buyer funds sit in a PDA-owned escrow; there is no wallet product. |
-| Collateralized credit line, 80% LTV against staked USDC | **Not built here.** Staking exists (`stake_usdc`) but does not back credit. Built in `relicpay-agents` (hackathon repo). |
-| Sellers paid up front in USDC | **Not built here.** v2 pays the merchant after the buyer completes all installments. Built in `relicpay-agents`. |
+| Collateralized credit line, up to 80% LTV against staked USDC | Implemented for localnet. Staked USDC backs one credit line per owner; governance sets the active LTV. |
+| Sellers paid up front in USDC | Implemented for localnet credit draws. Walter chose Option A: the separate lending vault pays the merchant at draw time. The no-credit escrow path still pays at agreement completion. |
 | Collateral earns yield during repayment | Escrow yield exists (simulated, plus a Kamino adapter). |
 | Bounded agent permissions, one-tap revoke | **Added 2026-11-08** as `AgentMandate` (`instructions/agent_mandate.rs`): per-purchase cap, period cap, purchases per period, approved merchants, expiry, owner co-sign above a threshold, one-tap revoke. On GitHub (e33f3a1). |
 | On devnet | **No** for this program. `relicpay-agents` is live on devnet: program `HwMQv76mcuPCMmoW3APdn3ceqikHWoWRq1YVy5n3PurH`. |

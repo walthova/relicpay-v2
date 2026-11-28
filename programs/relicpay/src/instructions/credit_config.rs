@@ -1,0 +1,55 @@
+use anchor_lang::prelude::*;
+use anchor_spl::token::Mint;
+
+use crate::constants::*;
+use crate::errors::RelicPayError;
+use crate::state::CreditConfig;
+
+pub fn init_credit_config_handler(ctx: Context<InitCreditConfig>) -> Result<()> {
+    ctx.accounts.credit_config.set_inner(CreditConfig {
+        authority: ctx.accounts.authority.key(),
+        usdc_mint: ctx.accounts.usdc_mint.key(),
+        ltv_bps: 0,
+        paused: false,
+        bump: ctx.bumps.credit_config,
+    });
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct InitCreditConfig<'info> {
+    #[account(init, payer = authority, space = 8 + CreditConfig::INIT_SPACE, seeds = [SEED_CREDIT_CONFIG], bump)]
+    pub credit_config: Account<'info, CreditConfig>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub upgrade_authority: Signer<'info>,
+    #[account(
+        seeds = [crate::ID.as_ref()],
+        bump,
+        seeds::program = anchor_lang::solana_program::bpf_loader_upgradeable::ID,
+        constraint = program_data.upgrade_authority_address == Some(upgrade_authority.key())
+            @ RelicPayError::Unauthorized
+    )]
+    pub program_data: Account<'info, ProgramData>,
+    #[account(mint::decimals = 6)]
+    pub usdc_mint: Account<'info, Mint>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn update_credit_config_handler(
+    ctx: Context<UpdateCreditConfig>,
+    ltv_bps: u16,
+    paused: bool,
+) -> Result<()> {
+    require!(ltv_bps <= MAX_LTV_BPS, RelicPayError::LtvTooHigh);
+    ctx.accounts.credit_config.ltv_bps = ltv_bps;
+    ctx.accounts.credit_config.paused = paused;
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct UpdateCreditConfig<'info> {
+    #[account(mut, seeds = [SEED_CREDIT_CONFIG], bump = credit_config.bump, has_one = authority)]
+    pub credit_config: Account<'info, CreditConfig>,
+    pub authority: Signer<'info>,
+}

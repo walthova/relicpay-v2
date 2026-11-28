@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use crate::constants::MAX_PRODUCT_ID_LEN;
+
 /// Lifecycle of a BNPL agreement.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
 pub enum AgreementState {
@@ -78,6 +80,67 @@ pub struct UserStake {
 
 impl UserStake {
     pub const SIZE: usize = 8 + 32 + 8 + 8 + 8 + 1 + 1 + 16; // +16 reserved
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct CreditConfig {
+    pub authority: Pubkey,
+    pub usdc_mint: Pubkey,
+    pub ltv_bps: u16,
+    pub paused: bool,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct CreditLine {
+    pub owner: Pubkey,
+    pub outstanding_debt: u64,
+    pub seizure_pending: u64,
+    pub total_borrowed: u64,
+    pub total_repaid: u64,
+    pub draws_repaid: u32,
+    pub frozen: bool,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct LendingPool {
+    pub authority: Pubkey,
+    pub usdc_mint: Pubkey,
+    pub total_liquidity: u64,
+    pub total_lent: u64,
+    pub total_repaid: u64,
+    pub bad_debt: u64,
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum CreditDrawState {
+    Active,
+    Repaid,
+    DefaultPending,
+    Defaulted,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct CreditDraw {
+    pub owner: Pubkey,
+    pub agent: Pubkey,
+    pub mandate: Pubkey,
+    pub merchant: Pubkey,
+    pub principal: u64,
+    pub amount_repaid: u64,
+    pub installment_count: u8,
+    pub interval_seconds: i64,
+    pub start_time: i64,
+    pub state: CreditDrawState,
+    #[max_len(MAX_PRODUCT_ID_LEN)]
+    pub product_id: String,
+    pub bump: u8,
 }
 
 /// v2.1: protocol-wide risk controls, laid down ahead of real Kamino CPI

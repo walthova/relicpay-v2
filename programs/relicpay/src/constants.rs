@@ -11,6 +11,11 @@ pub const SEED_PROTOCOL_CONFIG: &[u8] = b"protocol_config";
 pub const SEED_KAMINO_CONFIG: &[u8] = b"kamino_config";
 pub const SEED_KAMINO_COLLATERAL: &[u8] = b"kamino_collateral";
 pub const SEED_AGENT_MANDATE: &[u8] = b"agent_mandate";
+pub const SEED_CREDIT_CONFIG: &[u8] = b"credit_config";
+pub const SEED_CREDIT_LINE: &[u8] = b"credit_line";
+pub const SEED_CREDIT_DRAW: &[u8] = b"credit_draw";
+pub const SEED_LENDING_POOL: &[u8] = b"lending_pool";
+pub const SEED_LENDING_VAULT: &[u8] = b"lending_vault";
 
 /// Installment bounds
 pub const MIN_INSTALLMENTS: u8 = 2;
