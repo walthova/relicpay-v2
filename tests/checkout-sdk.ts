@@ -238,7 +238,7 @@ describe("@relicpay/checkout SDK", () => {
     assert.equal(created!.data.yieldSource, 0);
     assert.isEmpty(decodeEvents(appProgram, ["Program 11111111111111111111111111111111 invoke [1]", "Program 11111111111111111111111111111111 success"]));
 
-    const dash = await getMerchantDashboard(appProgram, merchant.publicKey, Number(acct.startTime));
+    const dash = await getMerchantDashboard(appProgram, merchant.publicKey, mint, Number(acct.startTime));
     assert.equal(dash.rows.length, 1);
     assert.isTrue(dash.rows[0].address.equals(built.agreement));
     assert.isTrue(dash.rows[0].buyer.equals(buyer.publicKey));
@@ -247,7 +247,7 @@ describe("@relicpay/checkout SDK", () => {
     assert.equal(dash.summary.counts.active, 1);
     assert.equal(dash.summary.outstandingReceivable, req.totalPrice - built.quote.upfront);
     assert.equal(dash.summary.nextDueAt, st0!.nextDueAt);
-    assert.equal((await getMerchantDashboard(appProgram, Keypair.generate().publicKey)).rows.length, 0);
+    assert.equal((await getMerchantDashboard(appProgram, Keypair.generate().publicKey, mint)).rows.length, 0);
 
     assert.equal(acct.installmentAmount.toString(), built.quote.upfront.toString());
     assert.equal(acct.totalPrice.toString(), req.totalPrice.toString());
@@ -329,8 +329,9 @@ describe("@relicpay/checkout SDK", () => {
   describe("merchant dashboard", () => {
     const pk = () => Keypair.generate().publicKey;
     const G = GRACE_PERIOD_SECONDS;
+    const usdcMint = pk();
     const acct = (o: any = {}) => ({
-      buyer: pk(), productId: "p", state: { active: {} }, paidInstallments: 1, installmentCount: 3, intervalSeconds: 100, startTime: 1000,
+      buyer: pk(), usdcMint, productId: "p", state: { active: {} }, paidInstallments: 1, installmentCount: 3, intervalSeconds: 100, startTime: 1000,
       totalPrice: 90n, installmentAmount: 30n, escrowDeposited: 30n, merchantWithdrawn: false, yieldSource: 0, yieldAccrued: 0n, ...o,
     });
 
@@ -355,7 +356,7 @@ describe("@relicpay/checkout SDK", () => {
       const rows = toMerchantRows(accounts, now);
       assert.equal(rows[0].status.nextDueAt, 1100); // earliest due first; finished agreements last
       assert.isNull(rows[rows.length - 1].status.nextDueAt);
-      const s = summarizeMerchant(rows);
+      const s = summarizeMerchant(rows, usdcMint);
       assert.deepEqual(s.counts, { active: 2, completed: 2, defaulted: 1, cancelled: 1 });
       assert.equal(s.outstandingReceivable, 90n);
       assert.equal(s.overdueCount, 1);
@@ -364,6 +365,37 @@ describe("@relicpay/checkout SDK", () => {
       assert.equal(s.recoverableOnDefault, 30n);
       assert.equal(s.pendingPayouts, 90n);
       assert.equal(s.nextDueAt, 1100);
+    });
+
+    it("excludes other mints from dashboard rows and USDC totals", async () => {
+      const merchant = pk();
+      const otherMint = pk();
+      const now = 1100 + G + 1;
+      const completed = { state: { completed: {} }, paidInstallments: 3 };
+      const accounts = [
+        { publicKey: pk(), account: acct({ merchant, usdcMint: new PublicKey(usdcMint.toBytes()) }) },
+        { publicKey: pk(), account: acct({ merchant, usdcMint, ...completed }) },
+        { publicKey: pk(), account: acct({ merchant, usdcMint: otherMint, startTime: 900 }) },
+        { publicKey: pk(), account: acct({ merchant, usdcMint: otherMint, ...completed }) },
+      ];
+      const expected = {
+        counts: { active: 1, completed: 1, defaulted: 0, cancelled: 0 },
+        overdueCount: 1,
+        defaultableCount: 1,
+        outstandingReceivable: 60n,
+        overdueExposure: 60n,
+        recoverableOnDefault: 30n,
+        pendingPayouts: 90n,
+        nextDueAt: 1100,
+      };
+      const prog = { account: { bnplAgreement: { all: async () => accounts } } };
+      const dash = await getMerchantDashboard(prog, merchant, usdcMint, now);
+      assert.equal(dash.summary.outstandingReceivable, 60n);
+      assert.equal(dash.summary.pendingPayouts, 90n);
+      assert.deepEqual(dash.summary, expected);
+      assert.deepEqual(dash.rows.map(({ address }) => address), accounts.slice(0, 2).map(({ publicKey }) => publicKey));
+      assert.isTrue(dash.rows.every((row) => row.usdcMint.equals(usdcMint)));
+      assert.deepEqual(summarizeMerchant(toMerchantRows(accounts, now), usdcMint), expected);
     });
 
     it("formats USDC base units and builds a display view with per-row actions", () => {
@@ -380,7 +412,7 @@ describe("@relicpay/checkout SDK", () => {
         { publicKey: pk(), account: acct({ state: { completed: {} }, paidInstallments: 3, merchantWithdrawn: true }) },
         { publicKey: pk(), account: acct({ state: { defaulted: {} } }) },
       ], now);
-      const v = toDashboardView(rows, summarizeMerchant(rows));
+      const v = toDashboardView(rows, summarizeMerchant(rows, usdcMint));
       const by = (l: string) => v.rows.filter((r) => r.label === l);
       assert.equal(by("Past grace, can default")[0].action, "default");
       assert.equal(by("Overdue, in grace")[0].tone, "overdue");
@@ -393,12 +425,12 @@ describe("@relicpay/checkout SDK", () => {
     });
 
     it("returns an empty summary for a merchant with no agreements and queries by merchant filter", async () => {
-      assert.deepEqual(summarizeMerchant([]).counts, { active: 0, completed: 0, defaulted: 0, cancelled: 0 });
-      assert.isNull(summarizeMerchant([]).nextDueAt);
+      assert.deepEqual(summarizeMerchant([], usdcMint).counts, { active: 0, completed: 0, defaulted: 0, cancelled: 0 });
+      assert.isNull(summarizeMerchant([], usdcMint).nextDueAt);
       let filters: any;
       const m = pk();
       const prog = { account: { bnplAgreement: { all: async (f: any) => { filters = f; return []; } } } };
-      const d = await getMerchantDashboard(prog, m, 5);
+      const d = await getMerchantDashboard(prog, m, usdcMint, 5);
       assert.equal(d.rows.length, 0);
       assert.equal(filters[0].memcmp.offset, 40);
       assert.equal(filters[0].memcmp.bytes, m.toBase58());

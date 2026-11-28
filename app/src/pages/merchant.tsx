@@ -11,6 +11,7 @@ import {
   toDashboardView,
   MerchantDashboardView,
 } from "../../../packages/checkout/src";
+import { USDC_MINT } from "../lib/constants";
 import idl from "../lib/relicpay.json";
 import styles from "./merchant.module.css";
 
@@ -126,6 +127,7 @@ function MerchantWorkspace() {
         const { rows, summary } = await getMerchantDashboard(
           program,
           wallet.publicKey,
+          USDC_MINT,
         );
         if (active) setView(toDashboardView(rows, summary));
       } catch {
