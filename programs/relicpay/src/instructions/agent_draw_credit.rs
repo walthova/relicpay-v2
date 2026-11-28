@@ -4,7 +4,7 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use super::agent_mandate::record_purchase;
 use super::authorize_agent_credit::credit_authorized;
 use super::create_agreement::ProductIdSeed;
-use super::credit_default::grace_expiry;
+use super::freeze_credit_default::grace_expiry;
 use crate::constants::*;
 use crate::credit::check_draw;
 use crate::errors::RelicPayError;

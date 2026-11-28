@@ -343,10 +343,10 @@ pub mod relicpay {
     }
 
     pub fn freeze_credit_default(ctx: Context<FreezeCreditDefault>) -> Result<()> {
-        instructions::credit_default::freeze_handler(ctx)
+        instructions::freeze_credit_default::freeze_handler(ctx)
     }
 
     pub fn settle_credit_default(ctx: Context<SettleCreditDefault>) -> Result<()> {
-        instructions::credit_default::settle_handler(ctx)
+        instructions::settle_credit_default::settle_handler(ctx)
     }
 }
