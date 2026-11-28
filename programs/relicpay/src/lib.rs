@@ -338,6 +338,10 @@ pub mod relicpay {
         instructions::repay_credit_draw::handler(ctx, payment)
     }
 
+    pub fn close_credit_draw(ctx: Context<CloseCreditDraw>) -> Result<()> {
+        instructions::close_credit_draw::close_credit_draw_handler(ctx)
+    }
+
     pub fn freeze_credit_default(ctx: Context<FreezeCreditDefault>) -> Result<()> {
         instructions::credit_default::freeze_handler(ctx)
     }

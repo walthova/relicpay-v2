@@ -204,6 +204,11 @@ describe("agent credit: upfront lending pool", () => {
       creditLine: borrower.creditLine, creditDraw: borrower.drawAddress(product),
     }).signers([signer]).rpc();
 
+  const closeDraw = (product: string, signer = borrower.owner) =>
+    local.program.methods.closeCreditDraw().accountsPartial({
+      owner: signer.publicKey, creditDraw: borrower.drawAddress(product),
+    }).signers([signer]).rpc();
+
   const unstake = (amount: anchor.BN) =>
     local.program.methods.unstakeUsdc(amount).accounts({
       stakePool, poolVault, user: borrower.owner.publicKey,
@@ -323,6 +328,22 @@ describe("agent credit: upfront lending pool", () => {
       }).signers([owner]).rpc();
       await createMandate(owner, ownerUsdc, mandate);
       await expectError(() => draw("recreated", usdc(1)), "CreditNotAuthorized");
+    });
+
+    it("lets only the owner close a settled draw, recover rent, and reuse its product ID", async () => {
+      await draw("reusable", usdc(20));
+      await expectError(() => closeDraw("reusable"), "InvalidCreditDrawState");
+      await repay("reusable", usdc(20));
+      await expectError(() => closeDraw("reusable", agent), "ConstraintHasOne");
+      const owner = borrower.owner.publicKey;
+      const creditDraw = borrower.drawAddress("reusable");
+      const rent = (await local.connection.getAccountInfo(creditDraw))!.lamports;
+      const before = await local.connection.getBalance(owner);
+      await closeDraw("reusable");
+      assert.equal(await local.connection.getBalance(owner), before + rent);
+      assert.isNull(await local.connection.getAccountInfo(creditDraw));
+      await draw("reusable", usdc(20));
+      assert.property((await fetchDraw("reusable")).state, "active");
     });
 
     it("pays the merchant from the lending vault and enforces the exact available credit boundary", async () => {
@@ -504,6 +525,7 @@ describe("agent credit: upfront lending pool", () => {
       await expectError(() => draw("frozen", usdc(1)), "CreditLineFrozen");
       await expectError(() => unstake(usdc(1)), "CreditLineFrozen");
       await expectError(() => repay("late", usdc(1)), "InvalidCreditDrawState");
+      await expectError(() => closeDraw("late"), "InvalidCreditDrawState");
 
       await settle("late");
       const line = await fetchLine();
@@ -521,6 +543,8 @@ describe("agent credit: upfront lending pool", () => {
       assert.equal(await balance(merchantUsdc), merchantBefore);
       assert.equal((await fetchPool()).badDebt.toString(), "0");
       await expectError(() => settle("late"), "InvalidCreditDrawState");
+      await closeDraw("late");
+      assert.isNull(await local.connection.getAccountInfo(late));
     });
   });
   });

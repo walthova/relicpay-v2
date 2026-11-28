@@ -1105,6 +1105,64 @@
       "args": []
     },
     {
+      "name": "close_credit_draw",
+      "discriminator": [
+        143,
+        34,
+        112,
+        104,
+        119,
+        152,
+        65,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "credit_draw"
+          ]
+        },
+        {
+          "name": "credit_draw",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  100,
+                  114,
+                  97,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.owner",
+                "account": "CreditDraw"
+              },
+              {
+                "kind": "account",
+                "path": "credit_draw.product_id",
+                "account": "CreditDraw"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "create_agent_mandate",
       "docs": [
         "Owner lets one agent buy on their behalf inside `limits`, and",
