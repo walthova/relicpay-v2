@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useRelicPay } from "../hooks/useRelicPay";
 import { IBG_MERCHANT, INSTALLMENT_OPTIONS, getMerchantWallet } from "../lib/constants";
+import { checkoutAmount, checkoutSchedule } from "../lib/checkoutSchedule";
+import styles from "./BuyNowPayLater.module.css";
 
 interface Product {
   id: string;
@@ -15,15 +17,17 @@ interface Product {
 }
 
 export function BuyNowPayLater({ product }: { product: Product }) {
-  const { connected, publicKey } = useWallet();
+  const { connected } = useWallet();
+  const planId = useId();
   const { createAgreement } = useRelicPay();
   const [selectedOption, setSelectedOption] = useState(INSTALLMENT_OPTIONS[0]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ tx: string; agreementPda: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const priceUsd = product.price_usdc / 1_000_000;
-  const installmentUsd = priceUsd / selectedOption.count;
+  const schedule = checkoutSchedule(product, selectedOption);
+  const payToday = checkoutAmount(schedule[0].amountUnits);
+  const roundedAmounts = schedule.some(payment => payment.amountUnits % 10_000 !== 0);
 
   const handleBuy = async () => {
     if (!connected) return;
@@ -49,18 +53,30 @@ export function BuyNowPayLater({ product }: { product: Product }) {
 
   if (result) {
     return (
-      <div className="relic-pay-success">
-        <div className="success-icon">✓</div>
+      <div className={styles.success}>
+        <div className={styles.successIcon} aria-hidden="true">✓</div>
         <h3>You're a steward now.</h3>
-        <p>First payment of <strong>${installmentUsd.toFixed(2)} USDC</strong> sent.</p>
-        <p className="muted">
-          {selectedOption.count - 1} more payment{selectedOption.count - 1 > 1 ? "s" : ""} of ${installmentUsd.toFixed(2)} every {selectedOption.interval_days} days.
-        </p>
+        <p>First payment of <strong>{payToday} USDC</strong> sent.</p>
+        <div className={`${styles.summary} ${styles.receipt}`}>
+          <div className={styles.summaryHeading}>
+            <h4>Remaining payments</h4>
+            <span>USDC</span>
+          </div>
+          <dl className={styles.breakdown}>
+            {schedule.slice(1).map(payment => (
+              <div key={payment.dueDay} className={styles.paymentRow}>
+                <dt>Day {payment.dueDay}</dt>
+                <dd>{checkoutAmount(payment.amountUnits)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className={styles.scheduleNote}>Days shown are after purchase.{roundedAmounts && " ≈ Rounded to cents; final payment includes any remainder."}</p>
+        </div>
         <a
           href={`https://solscan.io/tx/${result.tx}?cluster=devnet`}
           target="_blank"
           rel="noopener noreferrer"
-          className="tx-link"
+          className={styles.txLink}
         >
           View on Solscan →
         </a>
@@ -69,65 +85,84 @@ export function BuyNowPayLater({ product }: { product: Product }) {
   }
 
   return (
-    <div className="relic-pay-widget">
-      <div className="product-header">
-        <h2>{product.name}</h2>
-        <p className="product-description">{product.description}</p>
-        <p className="total-price">${priceUsd.toFixed(2)} USDC</p>
+    <div className={styles.widget}>
+      <div className={styles.productHeader}>
+        <p className={styles.eyebrow}>IBG Collection <span> / Checkout</span></p>
+        <h3>{product.name}</h3>
+        <p className={styles.description}>{product.description}</p>
       </div>
 
-      <div className="installment-selector">
-        <p className="selector-label">Choose your plan:</p>
-        <div className="options">
-          {INSTALLMENT_OPTIONS.map((option) => (
-            <button
-              key={option.count}
-              className={`option-btn ${selectedOption.count === option.count ? "selected" : ""}`}
-              onClick={() => setSelectedOption(option)}
-            >
-              <span className="option-label">{option.label}</span>
-              <span className="option-amount">
-                ${(priceUsd / option.count).toFixed(2)}/mo
-              </span>
-            </button>
+      <fieldset className={styles.selector} disabled={loading}>
+        <legend>Choose your plan<span className={styles.srOnly}> for {product.name}</span></legend>
+        <div className={styles.options}>
+          {INSTALLMENT_OPTIONS.map((option) => {
+            const optionSchedule = checkoutSchedule(product, option);
+            const amount = optionSchedule[0].amountUnits;
+            const nextDueDay = optionSchedule[1].dueDay;
+            return (
+              <label key={option.count} className={`${styles.option} ${selectedOption.count === option.count ? styles.selected : ""}`}>
+                <span className={styles.optionHeading}>
+                  <span>{option.label}</span>
+                  <input
+                    type="radio"
+                    name={planId}
+                    value={option.count}
+                    checked={selectedOption.count === option.count}
+                    onChange={() => setSelectedOption(option)}
+                    aria-label={`${option.label}, ${checkoutAmount(amount)} USDC per payment, next on day ${nextDueDay}, then every ${option.interval_days} days`}
+                  />
+                </span>
+                <span className={styles.optionAmount}>{checkoutAmount(amount)}</span>
+                <span className={styles.optionCurrency}>USDC per payment</span>
+                <span className={styles.optionInterval}>
+                  Next on day {nextDueDay}
+                  <span>Then every {option.interval_days} days</span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <div className={styles.summary} aria-live="polite" aria-atomic="true">
+        <div className={styles.summaryHeading}>
+          <h4>Payment schedule</h4>
+          <span>USDC</span>
+        </div>
+        <dl className={styles.breakdown}>
+          {schedule.map((payment, index) => (
+            <div key={payment.dueDay} className={index === 0 ? styles.today : styles.paymentRow}>
+              <dt>{index === 0 ? "Pay today" : `Day ${payment.dueDay}`}</dt>
+              <dd>{checkoutAmount(payment.amountUnits)}</dd>
+            </div>
           ))}
-        </div>
+          <div className={styles.total}>
+            <dt>Total price</dt>
+            <dd>{checkoutAmount(product.price_usdc)}</dd>
+          </div>
+        </dl>
+        <p className={styles.scheduleNote}>Days shown are after purchase.{roundedAmounts && " ≈ Rounded to cents; final payment includes any remainder."}</p>
       </div>
 
-      <div className="payment-breakdown">
-        <div className="breakdown-row">
-          <span>Pay today</span>
-          <strong>${installmentUsd.toFixed(2)} USDC</strong>
-        </div>
-        <div className="breakdown-row muted">
-          <span>Then {selectedOption.count - 1}x ${installmentUsd.toFixed(2)}</span>
-          <span>every {selectedOption.interval_days} days</span>
-        </div>
-        <div className="breakdown-row total">
-          <span>Total</span>
-          <strong>${priceUsd.toFixed(2)} USDC</strong>
-        </div>
-      </div>
-
-      {error && <p className="error-msg" role="alert">{error}</p>}
+      {error && <p className={styles.error} role="alert">{error}</p>}
 
       {connected ? (
         <button
-          className="buy-btn"
+          className={styles.buyButton}
           onClick={handleBuy}
           disabled={loading}
         >
-          {loading ? "Processing..." : `Pay $${installmentUsd.toFixed(2)} USDC now →`}
+          {loading ? "Processing..." : `Pay ${payToday} USDC now →`}
         </button>
       ) : (
-        <div className="wallet-connect">
-          <p className="connect-prompt">Connect your wallet to get started</p>
+        <div className={styles.walletConnect}>
+          <p>Connect your wallet to start your plan.</p>
           <WalletMultiButton />
         </div>
       )}
 
-      <p className="powered-by">
-        Powered by <strong>Relic Pay</strong> — decentralized BNPL on Solana
+      <p className={styles.poweredBy}>
+        Powered by <strong>Relic Pay</strong><span aria-hidden="true"> · </span>Payments on Solana
       </p>
     </div>
   );
