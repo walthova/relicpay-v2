@@ -216,7 +216,7 @@ describe("agent credit: upfront lending pool", () => {
       stakePool, poolVault, userStake: borrower.userStake,
     }).rpc();
 
-  before(async () => {
+  async function startFixtures() {
     root = await mkdtemp(join(tmpdir(), "relicpay-credit-"));
     local = await startValidator(root, payer);
     await local.provider.sendAndConfirm(new Transaction().add(SystemProgram.transfer({
@@ -231,245 +231,264 @@ describe("agent credit: upfront lending pool", () => {
     await local.program.methods.initStakePool().accounts({
       stakePool, poolVault, usdcMint, authority: payer.publicKey,
     }).rpc();
-  });
+  }
 
-  after(async () => {
+  async function stopFixtures() {
     try {
       if (local) await local.stop();
     } finally {
       if (root) await rm(root, { recursive: true, force: true });
     }
-  });
+  }
 
-  beforeEach(async () => {
+  async function prepareBorrower() {
     borrower = await createBorrower();
-  });
+  }
 
-  it("gates governance and mint, disables draws at zero LTV, and requires funded liquidity", async () => {
-    const initConfig = (upgradeAuthority: Keypair) =>
-      local.program.methods.initCreditConfig().accounts({
-        creditConfig, authority: payer.publicKey, upgradeAuthority: upgradeAuthority.publicKey, programData, usdcMint,
-      }).signers(upgradeAuthority === payer ? [] : [upgradeAuthority]).rpc();
-    const initPool = (mint: PublicKey, upgradeAuthority: Keypair) =>
-      local.program.methods.initLendingPool().accountsPartial({
-        ...pool, creditConfig, authority: payer.publicKey, upgradeAuthority: upgradeAuthority.publicKey, programData,
-        usdcMint: mint,
-      }).signers(upgradeAuthority === payer ? [] : [upgradeAuthority]).rpc();
-    await expectError(() => initConfig(agent), "Unauthorized");
-    await initConfig(payer);
-    await expectError(() => initPool(usdcMint, agent), "Unauthorized");
-    const otherMint = await createMint(local.connection, payer, payer.publicKey, null, 6);
-    await expectError(() => initPool(otherMint, payer), "ConstraintHasOne");
-    await initPool(usdcMint, payer);
-    await expectError(() => configure(8000, false, agent), "ConstraintHasOne");
-    await expectError(() => configure(8001), "LtvTooHigh");
-    await expectError(() => draw("off", usdc(1)), "ExceedsCreditLimit");
-    await configure(8000);
-    await expectError(() => draw("empty-pool", usdc(1)), "InsufficientLendingLiquidity");
-    assert.isNull(await local.connection.getAccountInfo(borrower.creditLine));
-    assert.equal((await fetchMandate()).periodPurchases, 0);
-    const fund = (amount: anchor.BN) => local.program.methods.fundLendingPool(amount).accounts({
-      ...pool, provider: payer.publicKey, providerUsdc,
-    }).rpc();
-    await expectError(() => fund(usdc(0)), "InvalidAmount");
-    await fund(usdc(3000));
-    assert.equal(await balance(lendingVault), 3_000_000_000n);
-    assert.equal((await fetchPool()).totalLiquidity.toString(), "3000000000");
-  });
+  const initConfig = (upgradeAuthority: Keypair, mint = usdcMint) =>
+    local.program.methods.initCreditConfig().accounts({
+      creditConfig, authority: payer.publicKey, upgradeAuthority: upgradeAuthority.publicKey, programData, usdcMint: mint,
+    }).signers(upgradeAuthority === payer ? [] : [upgradeAuthority]).rpc();
+  const initPool = (mint: PublicKey, upgradeAuthority: Keypair) =>
+    local.program.methods.initLendingPool().accountsPartial({
+      ...pool, creditConfig, authority: payer.publicKey, upgradeAuthority: upgradeAuthority.publicKey, programData,
+      usdcMint: mint,
+    }).signers(upgradeAuthority === payer ? [] : [upgradeAuthority]).rpc();
+  const fund = (amount: anchor.BN) => local.program.methods.fundLendingPool(amount).accounts({
+    ...pool, provider: payer.publicKey, providerUsdc,
+  }).rpc();
 
-  it("pays the merchant from the lending vault and enforces the exact available credit boundary", async () => {
-    const before = await Promise.all([balance(merchantUsdc), balance(lendingVault),
-      balance(borrower.ownerUsdc), balance(agentUsdc), balance(poolVault)]);
-    await draw("purchase", usdc(180));
-    assert.deepEqual(await Promise.all([balance(merchantUsdc), balance(lendingVault),
-      balance(borrower.ownerUsdc), balance(agentUsdc), balance(poolVault)]),
-    [before[0] + 180_000_000n, before[1] - 180_000_000n, before[2], before[3], before[4]]);
-    assert.equal((await getAccount(local.connection, borrower.ownerUsdc)).delegatedAmount, 50_000_000n);
-    assert.equal((await fetchDraw("purchase")).principal.toString(), "180000000");
-    assert.equal((await fetchLine()).outstandingDebt.toString(), "180000000");
-    await expectError(() => draw("over", usdc(220).addn(1)), "ExceedsCreditLimit");
-    await draw("exact", usdc(220));
-    await expectError(() => draw("past", new anchor.BN(1)), "ExceedsCreditLimit");
-    assert.equal((await fetchLine()).outstandingDebt.toString(), "400000000");
-    assert.equal((await fetchMandate()).periodSpent.toString(), "400000000");
-  });
+  describe("governance and funding", () => {
+    before(startFixtures);
+    after(stopFixtures);
+    beforeEach(prepareBorrower);
 
-  it("enforces merchant, owner approval, spending, count, expiry, revocation, and signer checks", async () => {
-    await updateLimits({ perPurchaseCap: usdc(100), periodCap: usdc(150),
-      maxPurchasesPerPeriod: 2, approvalThreshold: usdc(60) });
-    await expectError(() => draw("wrong-agent", usdc(1), { signer: payer }), "ConstraintSeeds");
-    await expectError(() => draw("wrong-destination", usdc(1), { destination: agentUsdc }), "ConstraintTokenOwner");
-    await expectError(() => draw("wrong-merchant", usdc(1), {
-      merchant: agent.publicKey, destination: agentUsdc,
-    }), "MerchantNotApproved");
-    await expectError(() => draw("over-purchase", usdc(101)), "AgentPurchaseCapExceeded");
-    await expectError(() => draw("above-approval", usdc(90)), "OwnerApprovalRequired");
-    await draw("approved", usdc(90), { cosign: true });
-    await expectError(() => draw("over-period", usdc(61), { cosign: true }), "AgentPeriodCapExceeded");
-    await draw("second", usdc(10));
-    await expectError(() => draw("over-count", usdc(1)), "AgentPurchaseLimitReached");
-    const expires = (await unixTime()) + 3;
-    await updateLimits({ expiresAt: new anchor.BN(expires) });
-    for (let attempts = 0; attempts < 30; attempts++) {
-      if ((await unixTime()) >= expires) break;
-      await delay(250);
-    }
-    await expectError(() => draw("expired", usdc(1)), "MandateExpired");
-    await local.program.methods.revokeAgentMandate().accounts({
-      mandate: borrower.mandate, owner: borrower.owner.publicKey, ownerUsdc: borrower.ownerUsdc,
-    }).signers([borrower.owner]).rpc();
-    await expectError(() => draw("revoked", usdc(1)), "MandateRevoked");
-    assert.equal((await fetchMandate()).totalPurchases.toString(), "2");
-    await repay("second", usdc(10));
-    assert.property((await fetchDraw("second")).state, "repaid");
-  });
-
-  it("repays only the selected draw, restores pool liquidity, and reopens credit while paused draws stay blocked", async () => {
-    const startingLiquidity = await balance(lendingVault);
-    await draw("repaid", usdc(180));
-    await draw("other", usdc(220));
-    await configure(8000, true);
-    try {
-      await expectError(() => draw("paused", usdc(1)), "CreditPaused");
-      await expectError(() => repay("repaid", usdc(1), agent), "ConstraintSeeds");
-      await expectError(() => repay("repaid", usdc(0)), "InvalidAmount");
-      await expectError(() => repay("repaid", usdc(180).addn(1)), "RepaymentExceedsDebt");
-      await repay("repaid", usdc(60));
-      assert.equal((await fetchLine()).outstandingDebt.toString(), "340000000");
-      assert.equal((await fetchDraw("repaid")).amountRepaid.toString(), "60000000");
-      assert.equal(await balance(lendingVault), startingLiquidity - 340_000_000n);
-    } finally {
+    it("gates governance and mint, disables draws at zero LTV, and requires funded liquidity", async () => {
+      await expectError(() => initConfig(agent), "Unauthorized");
+      await initConfig(payer);
+      await expectError(() => initPool(usdcMint, agent), "Unauthorized");
+      const otherMint = await createMint(local.connection, payer, payer.publicKey, null, 6);
+      await expectError(() => initPool(otherMint, payer), "ConstraintHasOne");
+      await initPool(usdcMint, payer);
+      await expectError(() => configure(8000, false, agent), "ConstraintHasOne");
+      await expectError(() => configure(8001), "LtvTooHigh");
+      await expectError(() => draw("off", usdc(1)), "ExceedsCreditLimit");
       await configure(8000);
-    }
-    await expectError(() => draw("one-more", usdc(60).addn(1)), "ExceedsCreditLimit");
-    await draw("restored", usdc(60));
-    await repay("repaid", usdc(120));
-    assert.property((await fetchDraw("repaid")).state, "repaid");
-    assert.equal((await fetchLine()).drawsRepaid, 1);
-    assert.equal((await fetchLine()).totalRepaid.toString(), "180000000");
-    assert.equal((await fetchPool()).totalLiquidity.toString(), (await balance(lendingVault)).toString());
+      await expectError(() => draw("empty-pool", usdc(1)), "InsufficientLendingLiquidity");
+      assert.isNull(await local.connection.getAccountInfo(borrower.creditLine));
+      assert.equal((await fetchMandate()).periodPurchases, 0);
+      await expectError(() => fund(usdc(0)), "InvalidAmount");
+      await fund(usdc(3000));
+      assert.equal(await balance(lendingVault), 3_000_000_000n);
+      assert.equal((await fetchPool()).totalLiquidity.toString(), "3000000000");
+    });
   });
 
-  it("blocks full and excessive unstake with debt but permits the exact boundary and full release after repayment", async () => {
-    await draw("secured", usdc(180));
-    await expectError(() => unstake(usdc(0)), "CreditCollateralLocked");
-    await expectError(() => unstake(usdc(275).addn(1)), "CreditCollateralLocked");
-    await unstake(usdc(275));
-    const stake = () => local.program.account.userStake.fetch(borrower.userStake) as Promise<any>;
-    assert.equal((await stake()).stakedAmount.toString(), "225000000");
-    await expectError(() => draw("post-unstake", new anchor.BN(1)), "ExceedsCreditLimit");
-    await configure(7000);
-    try {
-      await expectError(() => unstake(new anchor.BN(1)), "CreditCollateralLocked");
-    } finally {
+  describe("draw lifecycle", () => {
+    before(async () => {
+      await startFixtures();
+      await initConfig(payer);
+      await initPool(usdcMint, payer);
       await configure(8000);
-    }
-    await repay("secured", usdc(180));
-    await unstake(usdc(0));
-    assert.equal((await stake()).stakedAmount.toString(), "0");
-  });
+      await fund(usdc(3000));
+    });
+    after(stopFixtures);
+    beforeEach(prepareBorrower);
 
-  it("rejects an overflowing repayment schedule without creating debt or charging the mandate", async () => {
-    await expectError(() => draw("overflow", usdc(100), {
-      interval: new anchor.BN("9223372036854775807"),
-    }), "MathOverflow");
-    assert.isNull(await local.connection.getAccountInfo(borrower.creditLine));
-    assert.isNull(await local.connection.getAccountInfo(borrower.drawAddress("overflow")));
-    assert.equal((await fetchMandate()).periodPurchases, 0);
-  });
+    it("pays the merchant from the lending vault and enforces the exact available credit boundary", async () => {
+      const before = await Promise.all([balance(merchantUsdc), balance(lendingVault),
+        balance(borrower.ownerUsdc), balance(agentUsdc), balance(poolVault)]);
+      await draw("purchase", usdc(180));
+      assert.deepEqual(await Promise.all([balance(merchantUsdc), balance(lendingVault),
+        balance(borrower.ownerUsdc), balance(agentUsdc), balance(poolVault)]),
+      [before[0] + 180_000_000n, before[1] - 180_000_000n, before[2], before[3], before[4]]);
+      assert.equal((await getAccount(local.connection, borrower.ownerUsdc)).delegatedAmount, 50_000_000n);
+      assert.equal((await fetchDraw("purchase")).principal.toString(), "180000000");
+      assert.equal((await fetchLine()).outstandingDebt.toString(), "180000000");
+      await expectError(() => draw("over", usdc(220).addn(1)), "ExceedsCreditLimit");
+      await draw("exact", usdc(220));
+      await expectError(() => draw("past", new anchor.BN(1)), "ExceedsCreditLimit");
+      assert.equal((await fetchLine()).outstandingDebt.toString(), "400000000");
+      assert.equal((await fetchMandate()).periodSpent.toString(), "400000000");
+    });
 
-  it("keeps the no-credit SPL delegate fallback and shares its mandate spending counters", async () => {
-    const product = "delegate";
-    const owner = borrower.owner.publicKey;
-    const agreement = pda("agreement", owner.toBuffer(), Buffer.from(product));
-    const escrowUsdc = pda("escrow", agreement.toBuffer());
-    const poolBefore = await balance(lendingVault);
-    const merchantBefore = await balance(merchantUsdc);
-    await updateLimits({ periodCap: usdc(40), perPurchaseCap: usdc(40) });
-    await local.program.methods.agentCreateAgreement(usdc(30), 2, new anchor.BN(interval), product, "Merchant")
-      .accounts({
-        agreement, escrowUsdc, mandate: borrower.mandate, agent: agent.publicKey,
-        merchant: merchant.publicKey, owner, ownerUsdc: borrower.ownerUsdc, usdcMint,
-      }).signers([agent]).rpc();
-    assert.equal(await balance(escrowUsdc), 15_000_000n);
-    assert.equal((await getAccount(local.connection, borrower.ownerUsdc)).delegatedAmount, 35_000_000n);
-    assert.equal(await balance(lendingVault), poolBefore);
-    assert.equal(await balance(merchantUsdc), merchantBefore);
-    assert.isNull(await local.connection.getAccountInfo(borrower.creditLine));
-    await expectError(() => draw("combined-spending", usdc(11)), "AgentPeriodCapExceeded");
-    await draw("combined-exact", usdc(10));
-    assert.equal((await fetchMandate()).periodSpent.toString(), "40000000");
-  });
-
-  it("freezes overdue debt without CPI and permissionlessly seizes only that draw's unpaid collateral", async () => {
-    await draw("late", usdc(100));
-    await draw("current", usdc(80));
-    await repay("late", usdc(10));
-    await repay("current", usdc(40));
-    await expectError(() => freeze("late"), "GracePeriodNotExpired");
-    await expectError(() => settle("late"), "InvalidCreditDrawState");
-
-    const late = borrower.drawAddress("late");
-    const current = borrower.drawAddress("current");
-    const keys = [usdcMint, agent.publicKey, borrower.owner.publicKey, borrower.ownerUsdc, merchantUsdc,
-      stakePool, poolVault, creditConfig, lendingPool, lendingVault, borrower.userStake,
-      borrower.creditLine, borrower.mandate, late, current];
-    const accounts = await local.connection.getMultipleAccountsInfo(keys);
-    const fixtureDir = await mkdtemp(join(root, "aged-accounts-"));
-    // Replay the real account data on a fresh validator, changing only draw start times.
-    const agedStart = (await unixTime()) - grace - interval - 60;
-    for (const [i, address] of keys.entries()) {
-      const account = accounts[i]!;
-      let data = account.data;
-      if (address.equals(late) || address.equals(current)) {
-        const decoded = await fetchDraw(address.equals(late) ? "late" : "current");
-        data = await local.program.coder.accounts.encode("creditDraw", {
-          ...decoded, startTime: new anchor.BN(agedStart),
-        });
-        const padded = Buffer.alloc(account.data.length);
-        data.copy(padded);
-        data = padded;
+    it("enforces merchant, owner approval, spending, count, expiry, revocation, and signer checks", async () => {
+      await updateLimits({ perPurchaseCap: usdc(100), periodCap: usdc(150),
+        maxPurchasesPerPeriod: 2, approvalThreshold: usdc(60) });
+      await expectError(() => draw("wrong-agent", usdc(1), { signer: payer }), "ConstraintSeeds");
+      await expectError(() => draw("wrong-destination", usdc(1), { destination: agentUsdc }), "ConstraintTokenOwner");
+      await expectError(() => draw("wrong-merchant", usdc(1), {
+        merchant: agent.publicKey, destination: agentUsdc,
+      }), "MerchantNotApproved");
+      await expectError(() => draw("over-purchase", usdc(101)), "AgentPurchaseCapExceeded");
+      await expectError(() => draw("above-approval", usdc(90)), "OwnerApprovalRequired");
+      await draw("approved", usdc(90), { cosign: true });
+      await expectError(() => draw("over-period", usdc(61), { cosign: true }), "AgentPeriodCapExceeded");
+      await draw("second", usdc(10));
+      await expectError(() => draw("over-count", usdc(1)), "AgentPurchaseLimitReached");
+      const expires = (await unixTime()) + 3;
+      await updateLimits({ expiresAt: new anchor.BN(expires) });
+      for (let attempts = 0; attempts < 30; attempts++) {
+        if ((await unixTime()) >= expires) break;
+        await delay(250);
       }
-      await writeFile(join(fixtureDir, `${address}.json`), JSON.stringify({
-        pubkey: address.toBase58(),
-        account: { ...account, data: [data.toString("base64"), "base64"],
-          owner: account.owner.toBase58(), rentEpoch: 0 },
-      }));
-    }
-    await local.stop();
-    local = await startValidator(root, payer, fixtureDir);
+      await expectError(() => draw("expired", usdc(1)), "MandateExpired");
+      await local.program.methods.revokeAgentMandate().accounts({
+        mandate: borrower.mandate, owner: borrower.owner.publicKey, ownerUsdc: borrower.ownerUsdc,
+      }).signers([borrower.owner]).rpc();
+      await expectError(() => draw("revoked", usdc(1)), "MandateRevoked");
+      assert.equal((await fetchMandate()).totalPurchases.toString(), "2");
+      await repay("second", usdc(10));
+      assert.property((await fetchDraw("second")).state, "repaid");
+    });
 
-    assert.equal((await fetchDraw("current")).startTime.toNumber(), agedStart);
-    const stakeBefore = await balance(poolVault);
-    const lendingBefore = await balance(lendingVault);
-    const merchantBefore = await balance(merchantUsdc);
-    await expectError(() => freeze("current"), "GracePeriodNotExpired");
-    await freeze("late");
-    assert.property((await fetchDraw("late")).state, "defaultPending");
-    assert.isTrue((await fetchLine()).frozen);
-    assert.equal((await fetchLine()).seizurePending.toString(), "90000000");
-    assert.equal(await balance(poolVault), stakeBefore);
-    assert.equal(await balance(lendingVault), lendingBefore);
-    await expectError(() => freeze("late"), "InvalidCreditDrawState");
-    await expectError(() => draw("frozen", usdc(1)), "CreditLineFrozen");
-    await expectError(() => unstake(usdc(1)), "CreditLineFrozen");
-    await expectError(() => repay("late", usdc(1)), "InvalidCreditDrawState");
+    it("repays only the selected draw, restores pool liquidity, and reopens credit while paused draws stay blocked", async () => {
+      const startingLiquidity = await balance(lendingVault);
+      await draw("repaid", usdc(180));
+      await draw("other", usdc(220));
+      await configure(8000, true);
+      try {
+        await expectError(() => draw("paused", usdc(1)), "CreditPaused");
+        await expectError(() => repay("repaid", usdc(1), agent), "ConstraintSeeds");
+        await expectError(() => repay("repaid", usdc(0)), "InvalidAmount");
+        await expectError(() => repay("repaid", usdc(180).addn(1)), "RepaymentExceedsDebt");
+        await repay("repaid", usdc(60));
+        assert.equal((await fetchLine()).outstandingDebt.toString(), "340000000");
+        assert.equal((await fetchDraw("repaid")).amountRepaid.toString(), "60000000");
+        assert.equal(await balance(lendingVault), startingLiquidity - 340_000_000n);
+      } finally {
+        await configure(8000);
+      }
+      await expectError(() => draw("one-more", usdc(60).addn(1)), "ExceedsCreditLimit");
+      await draw("restored", usdc(60));
+      await repay("repaid", usdc(120));
+      assert.property((await fetchDraw("repaid")).state, "repaid");
+      assert.equal((await fetchLine()).drawsRepaid, 1);
+      assert.equal((await fetchLine()).totalRepaid.toString(), "180000000");
+      assert.equal((await fetchPool()).totalLiquidity.toString(), (await balance(lendingVault)).toString());
+    });
 
-    await settle("late");
-    const line = await fetchLine();
-    const drawState = await fetchDraw("late");
-    assert.property(drawState.state, "defaulted");
-    assert.equal(drawState.amountRepaid.toString(), "10000000");
-    assert.isFalse(line.frozen);
-    assert.equal(line.seizurePending.toString(), "0");
-    assert.equal(line.outstandingDebt.toString(), "40000000");
-    assert.property((await fetchDraw("current")).state, "active");
-    const stake = await local.program.account.userStake.fetch(borrower.userStake) as any;
-    assert.equal(stake.stakedAmount.toString(), "410000000");
-    assert.equal(await balance(poolVault), stakeBefore - 90_000_000n);
-    assert.equal(await balance(lendingVault), lendingBefore + 90_000_000n);
-    assert.equal(await balance(merchantUsdc), merchantBefore);
-    assert.equal((await fetchPool()).badDebt.toString(), "0");
-    await expectError(() => settle("late"), "InvalidCreditDrawState");
+    it("blocks full and excessive unstake with debt but permits the exact boundary and full release after repayment", async () => {
+      await draw("secured", usdc(180));
+      await expectError(() => unstake(usdc(0)), "CreditCollateralLocked");
+      await expectError(() => unstake(usdc(275).addn(1)), "CreditCollateralLocked");
+      await unstake(usdc(275));
+      const stake = () => local.program.account.userStake.fetch(borrower.userStake) as Promise<any>;
+      assert.equal((await stake()).stakedAmount.toString(), "225000000");
+      await expectError(() => draw("post-unstake", new anchor.BN(1)), "ExceedsCreditLimit");
+      await configure(7000);
+      try {
+        await expectError(() => unstake(new anchor.BN(1)), "CreditCollateralLocked");
+      } finally {
+        await configure(8000);
+      }
+      await repay("secured", usdc(180));
+      await unstake(usdc(0));
+      assert.equal((await stake()).stakedAmount.toString(), "0");
+    });
+
+    it("rejects an overflowing repayment schedule without creating debt or charging the mandate", async () => {
+      await expectError(() => draw("overflow", usdc(100), {
+        interval: new anchor.BN("9223372036854775807"),
+      }), "MathOverflow");
+      assert.isNull(await local.connection.getAccountInfo(borrower.creditLine));
+      assert.isNull(await local.connection.getAccountInfo(borrower.drawAddress("overflow")));
+      assert.equal((await fetchMandate()).periodPurchases, 0);
+    });
+
+    it("keeps the no-credit SPL delegate fallback and shares its mandate spending counters", async () => {
+      const product = "delegate";
+      const owner = borrower.owner.publicKey;
+      const agreement = pda("agreement", owner.toBuffer(), Buffer.from(product));
+      const escrowUsdc = pda("escrow", agreement.toBuffer());
+      const poolBefore = await balance(lendingVault);
+      const merchantBefore = await balance(merchantUsdc);
+      await updateLimits({ periodCap: usdc(40), perPurchaseCap: usdc(40) });
+      await local.program.methods.agentCreateAgreement(usdc(30), 2, new anchor.BN(interval), product, "Merchant")
+        .accounts({
+          agreement, escrowUsdc, mandate: borrower.mandate, agent: agent.publicKey,
+          merchant: merchant.publicKey, owner, ownerUsdc: borrower.ownerUsdc, usdcMint,
+        }).signers([agent]).rpc();
+      assert.equal(await balance(escrowUsdc), 15_000_000n);
+      assert.equal((await getAccount(local.connection, borrower.ownerUsdc)).delegatedAmount, 35_000_000n);
+      assert.equal(await balance(lendingVault), poolBefore);
+      assert.equal(await balance(merchantUsdc), merchantBefore);
+      assert.isNull(await local.connection.getAccountInfo(borrower.creditLine));
+      await expectError(() => draw("combined-spending", usdc(11)), "AgentPeriodCapExceeded");
+      await draw("combined-exact", usdc(10));
+      assert.equal((await fetchMandate()).periodSpent.toString(), "40000000");
+    });
+
+    it("freezes overdue debt without CPI and permissionlessly seizes only that draw's unpaid collateral", async () => {
+      await draw("late", usdc(100));
+      await draw("current", usdc(80));
+      await repay("late", usdc(10));
+      await repay("current", usdc(40));
+      await expectError(() => freeze("late"), "GracePeriodNotExpired");
+      await expectError(() => settle("late"), "InvalidCreditDrawState");
+
+      const late = borrower.drawAddress("late");
+      const current = borrower.drawAddress("current");
+      const keys = [usdcMint, agent.publicKey, borrower.owner.publicKey, borrower.ownerUsdc, merchantUsdc,
+        stakePool, poolVault, creditConfig, lendingPool, lendingVault, borrower.userStake,
+        borrower.creditLine, borrower.mandate, late, current];
+      const accounts = await local.connection.getMultipleAccountsInfo(keys);
+      const fixtureDir = await mkdtemp(join(root, "aged-accounts-"));
+      // Replay the real account data on a fresh validator, changing only draw start times.
+      const agedStart = (await unixTime()) - grace - interval - 60;
+      for (const [i, address] of keys.entries()) {
+        const account = accounts[i]!;
+        let data = account.data;
+        if (address.equals(late) || address.equals(current)) {
+          const decoded = await fetchDraw(address.equals(late) ? "late" : "current");
+          data = await local.program.coder.accounts.encode("creditDraw", {
+            ...decoded, startTime: new anchor.BN(agedStart),
+          });
+          const padded = Buffer.alloc(account.data.length);
+          data.copy(padded);
+          data = padded;
+        }
+        await writeFile(join(fixtureDir, `${address}.json`), JSON.stringify({
+          pubkey: address.toBase58(),
+          account: { ...account, data: [data.toString("base64"), "base64"],
+            owner: account.owner.toBase58(), rentEpoch: 0 },
+        }));
+      }
+      await local.stop();
+      local = await startValidator(root, payer, fixtureDir);
+
+      assert.equal((await fetchDraw("current")).startTime.toNumber(), agedStart);
+      const stakeBefore = await balance(poolVault);
+      const lendingBefore = await balance(lendingVault);
+      const merchantBefore = await balance(merchantUsdc);
+      await expectError(() => freeze("current"), "GracePeriodNotExpired");
+      await freeze("late");
+      assert.property((await fetchDraw("late")).state, "defaultPending");
+      assert.isTrue((await fetchLine()).frozen);
+      assert.equal((await fetchLine()).seizurePending.toString(), "90000000");
+      assert.equal(await balance(poolVault), stakeBefore);
+      assert.equal(await balance(lendingVault), lendingBefore);
+      await expectError(() => freeze("late"), "InvalidCreditDrawState");
+      await expectError(() => draw("frozen", usdc(1)), "CreditLineFrozen");
+      await expectError(() => unstake(usdc(1)), "CreditLineFrozen");
+      await expectError(() => repay("late", usdc(1)), "InvalidCreditDrawState");
+
+      await settle("late");
+      const line = await fetchLine();
+      const drawState = await fetchDraw("late");
+      assert.property(drawState.state, "defaulted");
+      assert.equal(drawState.amountRepaid.toString(), "10000000");
+      assert.isFalse(line.frozen);
+      assert.equal(line.seizurePending.toString(), "0");
+      assert.equal(line.outstandingDebt.toString(), "40000000");
+      assert.property((await fetchDraw("current")).state, "active");
+      const stake = await local.program.account.userStake.fetch(borrower.userStake) as any;
+      assert.equal(stake.stakedAmount.toString(), "410000000");
+      assert.equal(await balance(poolVault), stakeBefore - 90_000_000n);
+      assert.equal(await balance(lendingVault), lendingBefore + 90_000_000n);
+      assert.equal(await balance(merchantUsdc), merchantBefore);
+      assert.equal((await fetchPool()).badDebt.toString(), "0");
+      await expectError(() => settle("late"), "InvalidCreditDrawState");
+    });
   });
-});
+  });
