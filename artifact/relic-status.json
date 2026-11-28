@@ -11,7 +11,7 @@
   "build": {
     "headline": "Merchant dashboard shows receivables and overdue exposure; payout and default actions are still marked \"soon\"",
     "anchor_tests": "136/136",
-    "cargo_tests": "10/10",
+    "cargo_tests": "28/28",
     "body": "A purchase can now be created and paid with every installment deposited into Kamino in the same transaction, with a raw-USDC fallback so a DeFi outage never blocks checkout. All exits (withdraw, cancel, default) redeem inline. Modular Anchor v2 program with emergency pause and deposit caps.",
     "state": "localnet only",
     "state_level": "warn",
