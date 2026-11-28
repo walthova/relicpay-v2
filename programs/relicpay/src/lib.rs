@@ -307,11 +307,11 @@ pub mod relicpay {
     }
 
     pub fn init_lending_pool(ctx: Context<InitLendingPool>) -> Result<()> {
-        instructions::lending_pool::init_lending_pool_handler(ctx)
+        instructions::init_lending_pool::init_lending_pool_handler(ctx)
     }
 
     pub fn fund_lending_pool(ctx: Context<FundLendingPool>, amount: u64) -> Result<()> {
-        instructions::lending_pool::fund_lending_pool_handler(ctx, amount)
+        instructions::fund_lending_pool::fund_lending_pool_handler(ctx, amount)
     }
 
     pub fn authorize_agent_credit(ctx: Context<AuthorizeAgentCredit>) -> Result<()> {
