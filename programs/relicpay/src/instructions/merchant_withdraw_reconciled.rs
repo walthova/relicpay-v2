@@ -47,7 +47,7 @@ use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
 /// Mirrors `kamino_probe::require_matches_kamino_config` — every Kamino
 /// target account must match the governance-approved `KaminoConfig` before
 /// anything is read or invoked.
-pub(crate) fn require_matches_kamino_config(
+fn require_matches_kamino_config(
     config: &KaminoConfig,
     kamino_program: &Pubkey,
     lending_market: &Pubkey,
