@@ -40,9 +40,9 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::constants::*;
 use crate::errors::RelicPayError;
-use crate::events::{AgreementCancelled, KaminoRedeemProbeFallback, KaminoRedeemProbeSucceeded};
+use crate::events::{AgreementCancelled, KaminoRedeemProbeSucceeded};
 use crate::instructions::kamino_cpi::{
-    mock_reserve_looks_paused, try_kamino_redeem, KaminoRedeemAccounts,
+    ensure_full_redeem_allowed, mock_reserve_looks_paused, try_kamino_redeem, KaminoRedeemAccounts,
 };
 use crate::instructions::protocol_config::apply_tvl_decrease;
 use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
@@ -155,32 +155,34 @@ pub fn handler(ctx: Context<CancelAgreementReconciled>) -> Result<()> {
         ];
         let signer_seeds: &[&[&[u8]]] = &[seeds];
 
-        if mock_reserve_looks_paused(&reserve_info) {
-            emit!(KaminoRedeemProbeFallback {
-                agreement: agreement_key,
-                amount: collateral_balance,
-            });
-        } else {
-            let accs = KaminoRedeemAccounts {
-                kamino_program: &kamino_program_info,
-                owner: &owner_info,
-                lending_market: &lending_market_info,
-                lending_market_authority: &lending_market_authority_info,
-                reserve: &reserve_info,
-                reserve_liquidity_supply: &reserve_liquidity_supply_info,
-                reserve_collateral_mint: &reserve_collateral_mint_info,
-                user_source_collateral: &user_source_collateral_info,
-                user_destination_liquidity: &user_destination_liquidity_info,
-                token_program: &token_program_info,
-            };
-            try_kamino_redeem(&accs, collateral_balance, signer_seeds)?;
-            ctx.accounts.agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
-            emit!(KaminoRedeemProbeSucceeded {
-                agreement: agreement_key,
-                amount: collateral_balance,
-            });
-            ctx.accounts.escrow_usdc.reload()?;
-        }
+        ensure_full_redeem_allowed(collateral_balance, mock_reserve_looks_paused(&reserve_info))?;
+
+        let accs = KaminoRedeemAccounts {
+            kamino_program: &kamino_program_info,
+            owner: &owner_info,
+            lending_market: &lending_market_info,
+            lending_market_authority: &lending_market_authority_info,
+            reserve: &reserve_info,
+            reserve_liquidity_supply: &reserve_liquidity_supply_info,
+            reserve_collateral_mint: &reserve_collateral_mint_info,
+            user_source_collateral: &user_source_collateral_info,
+            user_destination_liquidity: &user_destination_liquidity_info,
+            token_program: &token_program_info,
+        };
+        try_kamino_redeem(&accs, collateral_balance, signer_seeds)?;
+        ctx.accounts.escrow_kamino_collateral.reload()?;
+        require!(
+            ctx.accounts.escrow_kamino_collateral.amount == 0,
+            RelicPayError::KaminoCollateralPresent
+        );
+        ctx.accounts.agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
+        emit!(KaminoRedeemProbeSucceeded {
+            agreement: agreement_key,
+            amount: collateral_balance,
+        });
+        ctx.accounts.escrow_usdc.reload()?;
+    } else {
+        ctx.accounts.agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
     }
 
     // From here down: identical to cancel_agreement's handler, just against

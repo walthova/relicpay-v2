@@ -28,6 +28,9 @@ use anchor_lang::solana_program::program::invoke_signed;
 use anchor_lang::solana_program::program_error::ProgramError;
 use sha2::{Digest, Sha256};
 
+use crate::errors::RelicPayError;
+use crate::state::BnplAgreement;
+
 /// Anchor's discriminator scheme: first 8 bytes of SHA256("global:<name>").
 /// Computing it ourselves (rather than depending on Kamino's crate for a
 /// generated constant) keeps this program free of a BUSL-1.1-licensed git
@@ -211,6 +214,28 @@ pub fn mock_reserve_looks_paused(reserve_info: &AccountInfo) -> bool {
     }
 }
 
+/// Full-exit reconciled instructions (`cancel_agreement_reconciled`,
+/// `trigger_default_reconciled`) cannot fall through when collateral is held
+/// in a paused reserve: transitioning to Cancelled/Defaulted without redeeming
+/// would lock the kTokens permanently.
+pub fn ensure_full_redeem_allowed(collateral_balance: u64, reserve_paused: bool) -> Result<()> {
+    if collateral_balance > 0 && reserve_paused {
+        return Err(RelicPayError::KaminoReservePaused.into());
+    }
+    Ok(())
+}
+
+/// Only flip `yield_source` back to `Simulated` once all Kamino collateral has
+/// been redeemed. Partial redeems keep `KaminoLend` so non-reconciled exits
+/// remain blocked while kTokens are still held.
+pub fn yield_source_after_redeem(remaining_collateral: u64) -> u8 {
+    if remaining_collateral == 0 {
+        BnplAgreement::YIELD_SOURCE_SIMULATED
+    } else {
+        BnplAgreement::YIELD_SOURCE_KAMINO_LEND
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,6 +271,31 @@ mod tests {
         assert_ne!(
             sighash("deposit_reserve_liquidity"),
             sighash("redeem_reserve_collateral")
+        );
+    }
+
+    #[test]
+    fn full_redeem_rejects_paused_reserve_when_collateral_present() {
+        let err = ensure_full_redeem_allowed(1, true).unwrap_err();
+        assert_eq!(err, RelicPayError::KaminoReservePaused.into());
+        assert!(ensure_full_redeem_allowed(1, false).is_ok());
+        assert!(ensure_full_redeem_allowed(0, true).is_ok());
+        assert!(ensure_full_redeem_allowed(0, false).is_ok());
+    }
+
+    #[test]
+    fn yield_source_flips_to_simulated_only_when_collateral_is_zero() {
+        assert_eq!(
+            yield_source_after_redeem(1),
+            BnplAgreement::YIELD_SOURCE_KAMINO_LEND
+        );
+        assert_eq!(
+            yield_source_after_redeem(u64::MAX),
+            BnplAgreement::YIELD_SOURCE_KAMINO_LEND
+        );
+        assert_eq!(
+            yield_source_after_redeem(0),
+            BnplAgreement::YIELD_SOURCE_SIMULATED
         );
     }
 }

@@ -39,7 +39,7 @@ use crate::constants::*;
 use crate::errors::RelicPayError;
 use crate::events::{KaminoRedeemProbeFallback, KaminoRedeemProbeSucceeded, MerchantPaid};
 use crate::instructions::kamino_cpi::{
-    mock_reserve_looks_paused, try_kamino_redeem, KaminoRedeemAccounts,
+    mock_reserve_looks_paused, try_kamino_redeem, yield_source_after_redeem, KaminoRedeemAccounts,
 };
 use crate::instructions::protocol_config::apply_tvl_decrease;
 use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
@@ -172,7 +172,9 @@ pub fn handler(ctx: Context<MerchantWithdrawReconciled>) -> Result<()> {
                 token_program: &token_program_info,
             };
             try_kamino_redeem(&accs, redeem_amount, signer_seeds)?;
-            ctx.accounts.agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
+            ctx.accounts.escrow_kamino_collateral.reload()?;
+            ctx.accounts.agreement.yield_source =
+                yield_source_after_redeem(ctx.accounts.escrow_kamino_collateral.amount);
             emit!(KaminoRedeemProbeSucceeded {
                 agreement: agreement_key,
                 amount: redeem_amount,
