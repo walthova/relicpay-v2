@@ -314,6 +314,10 @@ pub mod relicpay {
         instructions::lending_pool::fund_lending_pool_handler(ctx, amount)
     }
 
+    pub fn authorize_agent_credit(ctx: Context<AuthorizeAgentCredit>) -> Result<()> {
+        instructions::authorize_agent_credit::authorize_agent_credit_handler(ctx)
+    }
+
     pub fn agent_draw_credit(
         ctx: Context<AgentDrawCredit>,
         principal: u64,

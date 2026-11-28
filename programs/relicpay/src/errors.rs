@@ -97,4 +97,6 @@ pub enum RelicPayError {
     InvalidCreditDestination,
     #[msg("Credit and collateral must use the configured mint")]
     CreditMintMismatch,
+    #[msg("The mandate owner has not authorized credit draws")]
+    CreditNotAuthorized,
 }

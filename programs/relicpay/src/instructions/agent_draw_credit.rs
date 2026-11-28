@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use super::agent_mandate::record_purchase;
+use super::authorize_agent_credit::credit_authorized;
 use super::create_agreement::ProductIdSeed;
 use super::credit_default::grace_expiry;
 use crate::constants::*;
@@ -33,6 +34,10 @@ pub fn handler(
     require!(interval_seconds > 0, RelicPayError::InvalidInterval);
     grace_expiry(now, interval_seconds, installment_count)?;
 
+    require!(
+        credit_authorized(&ctx.accounts.mandate.to_account_info())?,
+        RelicPayError::CreditNotAuthorized
+    );
     record_purchase(
         &mut ctx.accounts.mandate,
         principal,

@@ -141,7 +141,17 @@ describe("agent credit: upfront lending pool", () => {
     };
   }
 
-  async function createBorrower() {
+  const createMandate = (owner: Keypair, ownerUsdc: PublicKey, mandate: PublicKey) =>
+    local.program.methods.createAgentMandate(limits()).accounts({
+      mandate, owner: owner.publicKey, agent: agent.publicKey, ownerUsdc,
+    }).signers([owner]).rpc();
+
+  const authorizeCredit = (owner: Keypair, mandate: PublicKey) =>
+    local.program.methods.authorizeAgentCredit().accountsPartial({
+      owner: owner.publicKey, mandate,
+    }).signers([owner]).rpc();
+
+  async function createBorrower(authorize = true) {
     const owner = Keypair.generate();
     const ownerUsdc = await createAccount(local.connection, payer, usdcMint, owner.publicKey);
     await mintTo(local.connection, payer, usdcMint, ownerUsdc, payer, 1_000_000_000);
@@ -154,9 +164,8 @@ describe("agent credit: upfront lending pool", () => {
     await local.program.methods.stakeUsdc(usdc(500)).accounts({
       stakePool, poolVault, userStake, user: owner.publicKey, userUsdc: ownerUsdc,
     }).signers([owner]).rpc();
-    await local.program.methods.createAgentMandate(limits()).accounts({
-      mandate, owner: owner.publicKey, agent: agent.publicKey, ownerUsdc,
-    }).signers([owner]).rpc();
+    await createMandate(owner, ownerUsdc, mandate);
+    if (authorize) await authorizeCredit(owner, mandate);
     return {
       owner, ownerUsdc, userStake, creditLine, mandate,
       drawAddress: (product: string) => pda("credit_draw", owner.publicKey.toBuffer(), Buffer.from(product)),
@@ -297,6 +306,25 @@ describe("agent credit: upfront lending pool", () => {
     after(stopFixtures);
     beforeEach(prepareBorrower);
 
+    it("requires a separate owner grant before the escrow mandate can incur debt", async () => {
+      borrower = await createBorrower(false);
+      const { owner, ownerUsdc, mandate, creditLine } = borrower;
+      await expectError(() => authorizeCredit(agent, mandate), "ConstraintHasOne");
+      await expectError(() => draw("not-authorized", usdc(1)), "CreditNotAuthorized");
+      assert.isNull(await local.connection.getAccountInfo(creditLine));
+      assert.equal((await fetchMandate()).periodPurchases, 0);
+      await authorizeCredit(owner, mandate);
+      await draw("authorized", usdc(1));
+      await local.program.methods.revokeAgentMandate().accounts({
+        mandate, owner: owner.publicKey, ownerUsdc,
+      }).signers([owner]).rpc();
+      await local.program.methods.closeAgentMandate().accounts({
+        mandate, owner: owner.publicKey,
+      }).signers([owner]).rpc();
+      await createMandate(owner, ownerUsdc, mandate);
+      await expectError(() => draw("recreated", usdc(1)), "CreditNotAuthorized");
+    });
+
     it("pays the merchant from the lending vault and enforces the exact available credit boundary", async () => {
       const before = await Promise.all([balance(merchantUsdc), balance(lendingVault),
         balance(borrower.ownerUsdc), balance(agentUsdc), balance(poolVault)]);
@@ -399,6 +427,7 @@ describe("agent credit: upfront lending pool", () => {
     });
 
     it("keeps the no-credit SPL delegate fallback and shares its mandate spending counters", async () => {
+      borrower = await createBorrower(false);
       const product = "delegate";
       const owner = borrower.owner.publicKey;
       const agreement = pda("agreement", owner.toBuffer(), Buffer.from(product));
@@ -416,6 +445,7 @@ describe("agent credit: upfront lending pool", () => {
       assert.equal(await balance(lendingVault), poolBefore);
       assert.equal(await balance(merchantUsdc), merchantBefore);
       assert.isNull(await local.connection.getAccountInfo(borrower.creditLine));
+      await authorizeCredit(borrower.owner, borrower.mandate);
       await expectError(() => draw("combined-spending", usdc(11)), "AgentPeriodCapExceeded");
       await draw("combined-exact", usdc(10));
       assert.equal((await fetchMandate()).periodSpent.toString(), "40000000");

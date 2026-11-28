@@ -34,7 +34,7 @@ The agent credit line is implemented for localnet and is unaudited. The lending 
 
 - **USDC depeg (no oracle):** Collateral and debt share the governance-configured mint. Governance can pause new credit draws, but this does not eliminate peg or liquidity risk.
 - **Collateral locked in Kamino during default:** Once staked collateral can be deployed to Kamino, a paused or illiquid reserve would abort an inline redeem CPI; default must freeze draws and unstaking first and settle seizure asynchronously.
-- **Agent key compromise within caps:** A compromised agent key can draw up to the minimum of its mandate caps and available credit at approved merchants until revoked; owner custody, tight caps, approval thresholds, and one-tap revoke bound exposure.
+- **Agent key compromise within caps:** Only a mandate the owner has separately authorized with `authorize_agent_credit` can draw up to the minimum of its caps and available credit at approved merchants. Owner custody, tight caps, approval thresholds, and one-tap revoke bound exposure.
 - **Unstake vs. pending draw race:** An owner unstaking ahead of an agent draw must be serialized atomically by on-chain checks so neither transaction order can leave an under-collateralized debt.
 - **Rounding dust over many small draws:** Credit limits must round down and required collateral must round up in exact base units so repeated small draws cannot bypass LTV limits.
 - **Mandate revoked mid-installment plan:** Revoking an agent must block only new draws while keeping existing debt, repayment schedules, unstake guards, and default recovery intact.

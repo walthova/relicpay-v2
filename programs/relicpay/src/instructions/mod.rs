@@ -1,5 +1,6 @@
 pub mod agent_draw_credit;
 pub mod agent_mandate;
+pub mod authorize_agent_credit;
 pub mod cancel_agreement;
 pub mod cancel_agreement_reconciled;
 pub mod claim_yield;
@@ -27,6 +28,7 @@ pub mod update_pool_rate;
 
 pub use agent_draw_credit::*;
 pub use agent_mandate::*;
+pub use authorize_agent_credit::*;
 pub use cancel_agreement::*;
 pub use cancel_agreement_reconciled::*;
 pub use claim_yield::*;
