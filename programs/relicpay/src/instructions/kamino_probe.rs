@@ -120,8 +120,8 @@ use crate::events::{
     KaminoRedeemProbeSucceeded,
 };
 use crate::instructions::kamino_cpi::{
-    mock_reserve_looks_paused, try_kamino_deposit, try_kamino_redeem, KaminoDepositAccounts,
-    KaminoRedeemAccounts,
+    mock_reserve_looks_paused, try_kamino_deposit, try_kamino_redeem, yield_source_after_redeem,
+    KaminoDepositAccounts, KaminoRedeemAccounts,
 };
 use crate::state::{AgreementState, BnplAgreement, KaminoConfig};
 
@@ -354,7 +354,9 @@ pub fn probe_redeem_handler(ctx: Context<KaminoProbeRedeem>, amount: u64) -> Res
     }
 
     try_kamino_redeem(&accs, amount, signer_seeds)?;
-    ctx.accounts.agreement.yield_source = BnplAgreement::YIELD_SOURCE_SIMULATED;
+    ctx.accounts.escrow_kamino_collateral.reload()?;
+    ctx.accounts.agreement.yield_source =
+        yield_source_after_redeem(ctx.accounts.escrow_kamino_collateral.amount);
     emit!(KaminoRedeemProbeSucceeded {
         agreement: agreement_key,
         amount,

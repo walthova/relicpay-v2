@@ -77,4 +77,9 @@ pub enum RelicPayError {
     ExceedsCreditLimit,
     #[msg("Repayment exceeds outstanding debt")]
     RepaymentExceedsDebt,
+    // ── v2.1: Kamino collateral settlement guards ──
+    #[msg("Agreement has unredeemed Kamino collateral — redeem or use the reconciled instruction")]
+    KaminoCollateralPresent,
+    #[msg("Kamino reserve is paused — cannot redeem collateral to settle agreement")]
+    KaminoReservePaused,
 }
