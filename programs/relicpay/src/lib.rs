@@ -295,7 +295,7 @@ pub mod relicpay {
     }
 
     pub fn init_credit_config(ctx: Context<InitCreditConfig>) -> Result<()> {
-        instructions::credit_config::init_credit_config_handler(ctx)
+        instructions::init_credit_config::init_credit_config_handler(ctx)
     }
 
     pub fn update_credit_config(
@@ -303,7 +303,7 @@ pub mod relicpay {
         ltv_bps: u16,
         paused: bool,
     ) -> Result<()> {
-        instructions::credit_config::update_credit_config_handler(ctx, ltv_bps, paused)
+        instructions::update_credit_config::update_credit_config_handler(ctx, ltv_bps, paused)
     }
 
     pub fn init_lending_pool(ctx: Context<InitLendingPool>) -> Result<()> {
