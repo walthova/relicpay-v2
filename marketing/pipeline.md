@@ -85,7 +85,7 @@ existed before, but it's also a signal the brand may be in a leaner operating ph
 factoring into outreach tone if approved.
 
 **Net movement: all 6 of 6 candidates now have a verified, real contact channel**
-*(Corrected 2026-11-27: 4 of 6 outreach-ready — see Current status.)* (WITTMORE,
+*(Corrected 2026-11-27: 5 of 6 have a verified contact channel — Online Ceramics has none documented — and 4 of 6 are outreach-ready; see Current status.)* (WITTMORE,
 Brain Dead, Hashimoto Contemporary, Thinkspace Projects, The Hundreds; Online Ceramics remains
 fallback-only since its primary site is off-Shopify and wasn't re-checked this pass). Genuinely
 outreach-ready pending Walter's approval on all fronts below. No outreach drafted or sent this
