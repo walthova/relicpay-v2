@@ -39,7 +39,7 @@ const wsReady = () => new Promise<boolean>((done) => {
 async function startValidator(root: string, payer: Keypair, fixtureDir?: string) {
   const connection = new Connection("http://127.0.0.1:29999", "confirmed");
   const validator = spawn("solana-test-validator", [
-    "--ledger", join(root, fixtureDir ? "aged-ledger" : "ledger"),
+    "--ledger", fixtureDir ? `${fixtureDir}-ledger` : join(root, "ledger"),
     "--rpc-port", "29999", "--faucet-port", "29901", "--gossip-port", "29902",
     "--dynamic-port-range", "30100-30150",
     "--mint", payer.publicKey.toBase58(),
@@ -229,6 +229,39 @@ describe("agent credit: upfront lending pool", () => {
       ...pool, creditDraw: borrower.drawAddress(product), creditLine: borrower.creditLine,
       stakePool, poolVault, userStake: borrower.userStake,
     }).rpc();
+
+  async function ageDraws(products: string[]) {
+    const drawProducts = new Map(products.map((product) => [borrower.drawAddress(product).toBase58(), product]));
+    const keys = [usdcMint, agent.publicKey, borrower.owner.publicKey, borrower.ownerUsdc, merchantUsdc,
+      stakePool, poolVault, creditConfig, lendingPool, lendingVault, borrower.userStake,
+      borrower.creditLine, borrower.mandate, agentUsdc, providerUsdc, ...products.map(borrower.drawAddress)];
+    const accounts = await local.connection.getMultipleAccountsInfo(keys);
+    const fixtureDir = await mkdtemp(join(root, "aged-accounts-"));
+    // Replay the real account data on a fresh validator, changing only draw start times.
+    const agedStart = (await unixTime()) - grace - interval - 60;
+    for (const [i, address] of keys.entries()) {
+      const account = accounts[i]!;
+      let data = account.data;
+      const product = drawProducts.get(address.toBase58());
+      if (product !== undefined) {
+        const decoded = await fetchDraw(product);
+        data = await local.program.coder.accounts.encode("creditDraw", {
+          ...decoded, startTime: new anchor.BN(agedStart),
+        });
+        const padded = Buffer.alloc(account.data.length);
+        data.copy(padded);
+        data = padded;
+      }
+      await writeFile(join(fixtureDir, `${address}.json`), JSON.stringify({
+        pubkey: address.toBase58(),
+        account: { ...account, data: [data.toString("base64"), "base64"],
+          owner: account.owner.toBase58(), rentEpoch: 0 },
+      }));
+    }
+    await local.stop();
+    local = await startValidator(root, payer, fixtureDir);
+    return agedStart;
+  }
 
   async function startFixtures() {
     root = await mkdtemp(join(tmpdir(), "relicpay-credit-"));
@@ -481,34 +514,7 @@ describe("agent credit: upfront lending pool", () => {
       await expectError(() => settle("late"), "InvalidCreditDrawState");
 
       const late = borrower.drawAddress("late");
-      const current = borrower.drawAddress("current");
-      const keys = [usdcMint, agent.publicKey, borrower.owner.publicKey, borrower.ownerUsdc, merchantUsdc,
-        stakePool, poolVault, creditConfig, lendingPool, lendingVault, borrower.userStake,
-        borrower.creditLine, borrower.mandate, late, current];
-      const accounts = await local.connection.getMultipleAccountsInfo(keys);
-      const fixtureDir = await mkdtemp(join(root, "aged-accounts-"));
-      // Replay the real account data on a fresh validator, changing only draw start times.
-      const agedStart = (await unixTime()) - grace - interval - 60;
-      for (const [i, address] of keys.entries()) {
-        const account = accounts[i]!;
-        let data = account.data;
-        if (address.equals(late) || address.equals(current)) {
-          const decoded = await fetchDraw(address.equals(late) ? "late" : "current");
-          data = await local.program.coder.accounts.encode("creditDraw", {
-            ...decoded, startTime: new anchor.BN(agedStart),
-          });
-          const padded = Buffer.alloc(account.data.length);
-          data.copy(padded);
-          data = padded;
-        }
-        await writeFile(join(fixtureDir, `${address}.json`), JSON.stringify({
-          pubkey: address.toBase58(),
-          account: { ...account, data: [data.toString("base64"), "base64"],
-            owner: account.owner.toBase58(), rentEpoch: 0 },
-        }));
-      }
-      await local.stop();
-      local = await startValidator(root, payer, fixtureDir);
+      const agedStart = await ageDraws(["late", "current"]);
 
       assert.equal((await fetchDraw("current")).startTime.toNumber(), agedStart);
       const stakeBefore = await balance(poolVault);
@@ -546,5 +552,30 @@ describe("agent credit: upfront lending pool", () => {
       await closeDraw("late");
       assert.isNull(await local.connection.getAccountInfo(late));
     });
+
+    it("keeps the credit line frozen until both overdue draws are settled", async () => {
+      await draw("first-late", usdc(70));
+      await draw("second-late", usdc(30));
+      await ageDraws(["first-late", "second-late"]);
+      await freeze("first-late");
+      await freeze("second-late");
+      assert.equal((await fetchLine()).seizurePending.toString(), "100000000");
+
+      await settle("first-late");
+      const pending = await fetchLine();
+      assert.isTrue(pending.frozen);
+      assert.equal(pending.seizurePending.toString(), "30000000");
+      assert.equal(pending.outstandingDebt.toString(), "30000000");
+      assert.property((await fetchDraw("second-late")).state, "defaultPending");
+      await expectError(() => draw("still-frozen", usdc(1)), "CreditLineFrozen");
+      await expectError(() => unstake(usdc(1)), "CreditLineFrozen");
+
+      await settle("second-late");
+      const settled = await fetchLine();
+      assert.isFalse(settled.frozen);
+      assert.equal(settled.seizurePending.toString(), "0");
+      assert.equal(settled.outstandingDebt.toString(), "0");
+      await draw("unfrozen", usdc(1));
+    });
   });
-  });
+});
