@@ -247,7 +247,8 @@ describe("agent credit: upfront lending pool", () => {
 
   const initConfig = (upgradeAuthority: Keypair, mint = usdcMint) =>
     local.program.methods.initCreditConfig().accounts({
-      creditConfig, authority: payer.publicKey, upgradeAuthority: upgradeAuthority.publicKey, programData, usdcMint: mint,
+      creditConfig, authority: payer.publicKey, upgradeAuthority: upgradeAuthority.publicKey, programData,
+      stakePool, usdcMint: mint,
     }).signers(upgradeAuthority === payer ? [] : [upgradeAuthority]).rpc();
   const initPool = (mint: PublicKey, upgradeAuthority: Keypair) =>
     local.program.methods.initLendingPool().accountsPartial({
@@ -265,9 +266,10 @@ describe("agent credit: upfront lending pool", () => {
 
     it("gates governance and mint, disables draws at zero LTV, and requires funded liquidity", async () => {
       await expectError(() => initConfig(agent), "Unauthorized");
+      const otherMint = await createMint(local.connection, payer, payer.publicKey, null, 6);
+      await expectError(() => initConfig(payer, otherMint), "CreditMintMismatch");
       await initConfig(payer);
       await expectError(() => initPool(usdcMint, agent), "Unauthorized");
-      const otherMint = await createMint(local.connection, payer, payer.publicKey, null, 6);
       await expectError(() => initPool(otherMint, payer), "ConstraintHasOne");
       await initPool(usdcMint, payer);
       await expectError(() => configure(8000, false, agent), "ConstraintHasOne");

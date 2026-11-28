@@ -3,7 +3,7 @@ use anchor_spl::token::Mint;
 
 use crate::constants::*;
 use crate::errors::RelicPayError;
-use crate::state::CreditConfig;
+use crate::state::{CreditConfig, StakePool};
 
 pub fn init_credit_config_handler(ctx: Context<InitCreditConfig>) -> Result<()> {
     ctx.accounts.credit_config.set_inner(CreditConfig {
@@ -33,6 +33,12 @@ pub struct InitCreditConfig<'info> {
     pub program_data: Account<'info, ProgramData>,
     #[account(mint::decimals = 6)]
     pub usdc_mint: Account<'info, Mint>,
+    #[account(
+        seeds = [SEED_STAKE_POOL],
+        bump = stake_pool.bump,
+        constraint = stake_pool.usdc_mint == usdc_mint.key() @ RelicPayError::CreditMintMismatch
+    )]
+    pub stake_pool: Account<'info, StakePool>,
     pub system_program: Program<'info, System>,
 }
 

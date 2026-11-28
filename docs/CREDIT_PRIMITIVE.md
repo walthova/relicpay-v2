@@ -145,7 +145,7 @@ Staked collateral may later be put to work in DeFi by a yield agent that is in d
 
 | Instruction | Signer(s) | Summary | Existing instructions touched |
 |---|---|---|---|
-| `init_credit_config` / `update_credit_config` | Upgrade authority (init) / governance authority (update) | Creates `CreditConfig` and sets `ltv_bps <= 8_000` and pause flag. | None (new singleton; mirrors `protocol_config.rs`). |
+| `init_credit_config` / `update_credit_config` | Upgrade authority (init) / governance authority (update) | Creates `CreditConfig` with the existing stake pool's mint and sets `ltv_bps <= 8_000` and pause flag. | Initialize the stake pool first. |
 | `init_lending_pool` / `fund_lending_pool` *(Option A)* | Upgrade authority (init) / liquidity provider (fund) | Creates `LendingPool` + `lending_vault` and deposits USDC liquidity. | None. |
 | `agent_draw_credit` | `agent` (+ `owner` if above `approval_threshold`) | Runs all `AgentMandate` checks + `credit::check_draw` against `UserStake.staked_amount` and `CreditLine.outstanding_debt`; updates `CreditLine` and creates `CreditDraw`; under Option A pays `merchant_usdc` up front from `lending_vault`. | Reuses shared limit-check helper factored from `agent_mandate.rs` without changing `agent_create_agreement`. |
 | `repay_credit_draw` | `owner` | Calls `credit::apply_repayment(draw_remaining, payment)` on the draw's unpaid balance (`principal - amount_repaid`) to reject per-draw overpayment and detect draw completion, calls `credit::apply_repayment(credit_line.outstanding_debt, payment)` to update the line total, transfers USDC from `owner_usdc` to `lending_vault` (Option A), and marks `CreditDraw` repaid when `draw_remaining` reaches `0`. | None. |
