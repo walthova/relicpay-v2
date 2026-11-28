@@ -56,9 +56,15 @@ export function validateCheckout(req: CheckoutRequest, maxAgreementDeposit: bigi
   const errs: string[] = [];
   if (req.totalPrice <= 0n) errs.push("totalPrice must be greater than zero");
   if (req.totalPrice > MAX_U64) errs.push("totalPrice exceeds the u64 maximum");
-  if (!Number.isInteger(req.installmentCount) || req.installmentCount < MIN_INSTALLMENTS || req.installmentCount > MAX_INSTALLMENTS)
+  const validCount = Number.isSafeInteger(req.installmentCount) && req.installmentCount >= MIN_INSTALLMENTS && req.installmentCount <= MAX_INSTALLMENTS;
+  if (!validCount)
     errs.push(`installmentCount must be an integer between ${MIN_INSTALLMENTS} and ${MAX_INSTALLMENTS}`);
-  if (!Number.isInteger(req.intervalSeconds) || req.intervalSeconds <= 0) errs.push("intervalSeconds must be a positive integer");
+  else if (req.totalPrice > 0n && req.totalPrice < BigInt(req.installmentCount))
+    errs.push("totalPrice must be at least installmentCount");
+  if (!Number.isSafeInteger(req.intervalSeconds) || req.intervalSeconds <= 0)
+    errs.push("intervalSeconds must be a positive safe integer");
+  else if (validCount && !Number.isSafeInteger((req.installmentCount - 1) * req.intervalSeconds))
+    errs.push("intervalSeconds is too large for the installment schedule");
   if (Buffer.byteLength(req.productId) > MAX_PRODUCT_ID_LEN) errs.push(PRODUCT_ID_TOO_LONG);
   if (Buffer.byteLength(req.merchantName) > MAX_MERCHANT_NAME_LEN) errs.push(`merchantName exceeds ${MAX_MERCHANT_NAME_LEN} bytes`);
   if (maxAgreementDeposit > 0n && req.totalPrice > maxAgreementDeposit) errs.push("totalPrice exceeds the protocol per-agreement cap");

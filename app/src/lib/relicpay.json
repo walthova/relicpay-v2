@@ -4213,6 +4213,21 @@
       "code": 6034,
       "name": "RepaymentExceedsDebt",
       "msg": "Repayment exceeds outstanding debt"
+    },
+    {
+      "code": 6035,
+      "name": "KaminoCollateralPresent",
+      "msg": "Agreement has unredeemed Kamino collateral — redeem or use the reconciled instruction"
+    },
+    {
+      "code": 6036,
+      "name": "KaminoReservePaused",
+      "msg": "Kamino reserve is paused — cannot redeem collateral to settle agreement"
+    },
+    {
+      "code": 6037,
+      "name": "ZeroInstallmentAmount",
+      "msg": "Total price in base units must be at least the installment count"
     }
   ],
   "types": [

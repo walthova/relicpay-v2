@@ -82,4 +82,6 @@ pub enum RelicPayError {
     KaminoCollateralPresent,
     #[msg("Kamino reserve is paused — cannot redeem collateral to settle agreement")]
     KaminoReservePaused,
+    #[msg("Total price in base units must be at least the installment count")]
+    ZeroInstallmentAmount,
 }

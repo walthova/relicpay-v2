@@ -384,6 +384,20 @@ describe("relicpay v2 features", () => {
     }
   });
 
+  it("rejects agreement creation when the upfront installment would be zero", async () => {
+    const productId = "v2-zero-installment";
+    await rejects(
+      () => createAgreement(productId, new BN(2), 3, new BN(1)),
+      (err: any) => err.error?.errorCode?.code === "ZeroInstallmentAmount",
+    );
+    assert.isNull(await program.account.bnplAgreement.fetchNullable(agreementPDA(productId)));
+
+    const { agreement, escrow } = await createAgreement(productId, new BN(3), 3, new BN(1));
+    const acct = await program.account.bnplAgreement.fetch(agreement);
+    assert.equal(acct.installmentAmount.toString(), "1");
+    assert.equal((await getAccount(provider.connection, escrow)).amount, 1n);
+  });
+
   // ── Installment schedule ──────────────────────────────────────────────────
 
   it("makes installment 2 due one interval after the upfront payment", async () => {
