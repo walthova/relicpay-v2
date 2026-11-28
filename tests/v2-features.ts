@@ -25,6 +25,8 @@ import {
 } from "@solana/spl-token";
 import { assert } from "chai";
 import { rejects } from "node:assert/strict";
+import appIdl from "../app/src/lib/relicpay.json";
+import { getAgreementStatus } from "../packages/checkout/src";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -1284,6 +1286,10 @@ describe("relicpay v2 features", () => {
         1,
         "yield_source must flip to KaminoLend on a successful deposit"
       );
+
+      const appProgram = new Program(appIdl as anchor.Idl, provider);
+      const status = await getAgreementStatus(appProgram, agreement);
+      assert.equal(status?.yieldSource, "kamino");
     });
 
     it("redeems escrow kTokens back into USDC and flips yield_source back to Simulated", async () => {
@@ -1568,7 +1574,7 @@ describe("relicpay v2 features", () => {
         .rpc();
 
       await program.methods
-        .cancelAgreement()
+        .cancelAgreementReconciled()
         .accounts({
           agreement,
           buyer: buyer.publicKey,
@@ -1576,6 +1582,10 @@ describe("relicpay v2 features", () => {
           escrowUsdc: escrow,
           merchantUsdc,
           tokenProgram: TOKEN_PROGRAM_ID,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
         })
         .signers([buyer])
         .rpc();
@@ -1583,8 +1593,8 @@ describe("relicpay v2 features", () => {
       const cancelled = await program.account.bnplAgreement.fetch(agreement);
       assert.deepEqual(cancelled.state, { cancelled: {} });
 
-      try {
-        await program.methods
+      await rejects(
+        program.methods
           .kaminoProbeRedeem(new BN(Number(escrowBefore.amount)))
           .accounts({
             agreement,
@@ -1594,11 +1604,9 @@ describe("relicpay v2 features", () => {
             escrowKaminoCollateral: escrowCollateral,
           })
           .signers([buyer])
-          .rpc();
-        assert.fail("Expected AgreementNotRedeemable");
-      } catch (err: any) {
-        assert.include(err.message, "AgreementNotRedeemable");
-      }
+          .rpc(),
+        /AgreementNotRedeemable/
+      );
     });
 
     it("merchant_withdraw_reconciled redeems Kamino collateral and pays the merchant in a single transaction", async () => {
@@ -2396,6 +2404,335 @@ describe("relicpay v2 features", () => {
         { active: {} },
         "agreement must remain Active when the grace check rejects"
       );
+    });
+
+    it("rejects cancel_agreement_reconciled when the Kamino reserve is paused instead of stranding collateral", async () => {
+      const { agreement, escrow } = await createKamino("v2-car-paused-no-strand");
+      const escrowCollateral = escrowCollateralPDA(agreement);
+      const tvlBefore = (await program.account.protocolConfig.fetch(riskConfigPDA())).currentTvl;
+
+      await mockKamino.methods
+        .setPaused(true)
+        .accounts({ reserve: reservePDA, authority: reserveAuthority.publicKey })
+        .signers([reserveAuthority])
+        .rpc();
+
+      try {
+        await rejects(
+          program.methods
+            .cancelAgreementReconciled()
+            .accounts({
+              agreement,
+              buyer: buyer.publicKey,
+              buyerUsdc,
+              escrowUsdc: escrow,
+              merchantUsdc,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              ...approvedAccounts(),
+              escrowKaminoCollateral: escrowCollateral,
+              systemProgram: SystemProgram.programId,
+              rent: SYSVAR_RENT_PUBKEY,
+            })
+            .signers([buyer])
+            .rpc(),
+          /KaminoReservePaused/
+        );
+
+        const stillActive = await program.account.bnplAgreement.fetch(agreement);
+        assert.deepEqual(
+          stillActive.state,
+          { active: {} },
+          "paused reserve must not transition agreement to Cancelled"
+        );
+        assert.equal(stillActive.yieldSource, 1, "yield_source must stay KaminoLend");
+        const collateralStillHeld = await getAccount(provider.connection, escrowCollateral);
+        assert.equal(
+          collateralStillHeld.amount.toString(),
+          "20000000",
+          "kTokens must remain intact in escrow_kamino_collateral"
+        );
+        const tvlWhilePaused = (await program.account.protocolConfig.fetch(riskConfigPDA())).currentTvl;
+        assert.equal(tvlWhilePaused.toString(), tvlBefore.toString(), "TVL must be unchanged");
+      } finally {
+        await mockKamino.methods
+          .setPaused(false)
+          .accounts({ reserve: reservePDA, authority: reserveAuthority.publicKey })
+          .signers([reserveAuthority])
+          .rpc();
+      }
+
+      // Once unpaused, cancel_agreement_reconciled redeems and settles cleanly.
+      const buyerBefore = await getAccount(provider.connection, buyerUsdc);
+      const merchantBefore = await getAccount(provider.connection, merchantUsdc);
+      await program.methods
+        .cancelAgreementReconciled()
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const buyerAfter = await getAccount(provider.connection, buyerUsdc);
+      const merchantAfter = await getAccount(provider.connection, merchantUsdc);
+      assert.equal((merchantAfter.amount - merchantBefore.amount).toString(), "2000000");
+      assert.equal((buyerAfter.amount - buyerBefore.amount).toString(), "18000000");
+      const cancelled = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(cancelled.state, { cancelled: {} });
+      assert.equal(cancelled.yieldSource, 0);
+      const collateralAfter = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(collateralAfter.amount.toString(), "0");
+    });
+
+    it("rejects plain cancel_agreement and trigger_default while Kamino collateral is unredeemed", async () => {
+      const { agreement, escrow } = await createKamino("v2-plain-exit-kamino-blocked");
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      await rejects(
+        program.methods
+          .cancelAgreement()
+          .accounts({
+            agreement,
+            buyer: buyer.publicKey,
+            buyerUsdc,
+            escrowUsdc: escrow,
+            merchantUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .signers([buyer])
+          .rpc(),
+        /KaminoCollateralPresent/
+      );
+
+      await rejects(
+        program.methods
+          .triggerDefault()
+          .accounts({
+            agreement,
+            caller: buyer.publicKey,
+            escrowUsdc: escrow,
+            merchantUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .rpc(),
+        /KaminoCollateralPresent/
+      );
+
+      const stillActive = await program.account.bnplAgreement.fetch(agreement);
+      assert.deepEqual(stillActive.state, { active: {} });
+      assert.equal(stillActive.yieldSource, 1);
+
+      // After full kamino_probe_redeem, yield_source resets to Simulated and
+      // plain cancel_agreement succeeds against the full balance.
+      await program.methods
+        .kaminoProbeRedeem(new BN(20_000_000))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const redeemed = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(redeemed.yieldSource, 0);
+
+      const buyerBefore = await getAccount(provider.connection, buyerUsdc);
+      const merchantBefore = await getAccount(provider.connection, merchantUsdc);
+      await program.methods
+        .cancelAgreement()
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const buyerAfter = await getAccount(provider.connection, buyerUsdc);
+      const merchantAfter = await getAccount(provider.connection, merchantUsdc);
+      assert.equal((merchantAfter.amount - merchantBefore.amount).toString(), "2000000");
+      assert.equal((buyerAfter.amount - buyerBefore.amount).toString(), "18000000");
+    });
+
+    it("keeps yield_source as KaminoLend after partial kamino_probe_redeem and still blocks plain cancel_agreement", async () => {
+      const { agreement, escrow } = await createKamino("v2-partial-redeem-yield-src");
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      await program.methods
+        .kaminoProbeRedeem(new BN(5_000_000))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const afterPartial = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(
+        afterPartial.yieldSource,
+        1,
+        "partial redeem must keep yield_source as KaminoLend while kTokens remain"
+      );
+      const remaining = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(remaining.amount.toString(), "15000000");
+
+      await rejects(
+        program.methods
+          .cancelAgreement()
+          .accounts({
+            agreement,
+            buyer: buyer.publicKey,
+            buyerUsdc,
+            escrowUsdc: escrow,
+            merchantUsdc,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .signers([buyer])
+          .rpc(),
+        /KaminoCollateralPresent/
+      );
+
+      // Redeem the remaining collateral; yield_source flips back to Simulated.
+      await program.methods
+        .kaminoProbeRedeem(new BN(15_000_000))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const afterFull = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(afterFull.yieldSource, 0, "full redeem must flip yield_source to Simulated");
+
+      await program.methods
+        .cancelAgreement()
+        .accounts({
+          agreement,
+          buyer: buyer.publicKey,
+          buyerUsdc,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([buyer])
+        .rpc();
+    });
+
+    it("keeps yield_source as KaminoLend after partial merchant_withdraw_reconciled and blocks close_agreement until redeemed", async () => {
+      const { agreement, escrow } = await createAgreement(
+        "v2-partial-mwr-yield-src",
+        new BN(40_000_000),
+        2,
+        new BN(1)
+      );
+      const escrowCollateral = escrowCollateralPDA(agreement);
+
+      await program.methods
+        .kaminoProbeDeposit(new BN(20_000_000))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      await new Promise((r) => setTimeout(r, 5000));
+      await payInstallment(agreement, escrow);
+
+      // Top up escrow_usdc with 1_000_000 surplus so shortfall (19M) < collateral (20M),
+      // forcing a partial redeem of 19M kTokens and leaving 1M kTokens in Kamino.
+      await transfer(
+        provider.connection,
+        buyer,
+        buyerUsdc,
+        escrow,
+        buyer,
+        1_000_000
+      );
+
+      await program.methods
+        .merchantWithdrawReconciled()
+        .accounts({
+          agreement,
+          escrowUsdc: escrow,
+          merchantUsdc,
+          payer: buyer.publicKey,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+          systemProgram: SystemProgram.programId,
+          rent: SYSVAR_RENT_PUBKEY,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const afterPartialMwr = await program.account.bnplAgreement.fetch(agreement);
+      assert.isTrue(afterPartialMwr.merchantWithdrawn);
+      assert.equal(
+        afterPartialMwr.yieldSource,
+        1,
+        "partial merchant_withdraw_reconciled must keep yield_source as KaminoLend"
+      );
+      const collateralRemaining = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(collateralRemaining.amount.toString(), "1000000");
+
+      // Closing the agreement PDA while kTokens remain must be rejected.
+      await rejects(
+        program.methods
+          .closeAgreement()
+          .accounts({
+            agreement,
+            buyer: buyer.publicKey,
+            escrowUsdc: escrow,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .signers([buyer])
+          .rpc(),
+        /KaminoCollateralPresent/
+      );
+
+      // Redeem the remaining 1M kTokens -> yield_source resets to Simulated.
+      await program.methods
+        .kaminoProbeRedeem(new BN(1_000_000))
+        .accounts({
+          agreement,
+          payer: buyer.publicKey,
+          escrowUsdc: escrow,
+          ...approvedAccounts(),
+          escrowKaminoCollateral: escrowCollateral,
+        })
+        .signers([buyer])
+        .rpc();
+
+      const afterFinalRedeem = await program.account.bnplAgreement.fetch(agreement);
+      assert.equal(afterFinalRedeem.yieldSource, 0);
+      const collateralZero = await getAccount(provider.connection, escrowCollateral);
+      assert.equal(collateralZero.amount.toString(), "0");
     });
   });
 });

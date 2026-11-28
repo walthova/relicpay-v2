@@ -23,6 +23,10 @@ pub fn handler(ctx: Context<TriggerDefault>) -> Result<()> {
         agreement.state == AgreementState::Active,
         RelicPayError::AgreementNotActive
     );
+    require!(
+        agreement.yield_source != BnplAgreement::YIELD_SOURCE_KAMINO_LEND,
+        RelicPayError::KaminoCollateralPresent
+    );
 
     let next_installment = agreement.paid_installments + 1;
     let due_time = installment_due_time(

@@ -26,6 +26,10 @@ pub fn handler(ctx: Context<CloseAgreement>) -> Result<()> {
         ctx.accounts.escrow_usdc.amount == 0,
         RelicPayError::AgreementNotSettled
     );
+    require!(
+        agreement.yield_source != BnplAgreement::YIELD_SOURCE_KAMINO_LEND,
+        RelicPayError::KaminoCollateralPresent
+    );
     if agreement.state == AgreementState::Completed {
         require!(
             agreement.merchant_withdrawn,
