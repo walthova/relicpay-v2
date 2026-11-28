@@ -152,7 +152,7 @@ const html = `<title>Relic Pay Relic</title>
       <div>
         <div class="folio-label">The pipeline</div>
         <h2 class="folio-headline">${esc(p.ready)} merchants, outreach-ready</h2>
-        <p class="folio-stat"><b>${esc(p.ready)} / ${esc(p.total)}</b> candidates have verified contact channels</p>
+        <p class="folio-stat"><b>${esc(p.ready)} / ${esc(p.total)}</b> candidates have verified checkout and contact channels</p>
         <p class="folio-body">${p.names.map(esc).join(", ")}. ${esc(p.body)}</p>
       </div>
     </section>
