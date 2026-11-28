@@ -277,6 +277,7 @@ export default function Home() {
             }
             .primary-link,
             .secondary-link {
+              box-sizing: border-box;
               display: inline-flex;
               align-items: center;
               justify-content: center;
